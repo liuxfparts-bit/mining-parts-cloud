@@ -183,6 +183,11 @@ model Supplier {
   verifiedStatus String    @default("PENDING") // PENDING / VERIFIED / REJECTED
   memberLevel    String    @default("FREE") // FREE / BRONZE / SILVER / GOLD
   businessLicense String?
+  rejectionReason String?
+  approvedAt      DateTime?
+  approvedBy      Int?
+  rejectedAt      DateTime?
+  rejectedBy      Int?
   // 运营数据（缓存）
   productCount     Int     @default(0)
   equipmentCount   Int     @default(0)

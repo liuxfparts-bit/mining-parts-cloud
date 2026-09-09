@@ -41,7 +41,7 @@ export default async function AdminVerificationPage() {
                     <div className="flex gap-2">
                       <a href={`/admin/suppliers/${s.id}`} className="text-blue-600 hover:underline text-xs">查看</a>
                       <a href={`/admin/suppliers/${s.id}/edit`} className="text-blue-600 hover:underline text-xs">编辑</a>
-                      <a href={`/admin/suppliers/${s.id}`} className="text-green-600 hover:underline text-xs">审核</a>
+                      <a href={`/admin/suppliers/${s.id}/review`} className="text-green-600 hover:underline text-xs">审核</a>
                     </div>
                   </td>
                 </tr>

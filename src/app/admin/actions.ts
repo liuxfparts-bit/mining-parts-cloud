@@ -9,14 +9,19 @@ async function requireAdmin() {
   if (!session?.user || (session.user as any).role !== "ADMIN") {
     throw new Error("Forbidden");
   }
+  return session;
 }
 
 // 审核企业
 export async function reviewSupplier(id: number, action: "VERIFIED" | "REJECTED", reason?: string) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const adminId = (session.user as any).id as number;
   await prisma.supplier.update({
     where: { id },
-    data: { verifiedStatus: action },
+    data:
+      action === "VERIFIED"
+        ? { verifiedStatus: "VERIFIED", approvedAt: new Date(), approvedBy: adminId }
+        : { verifiedStatus: "REJECTED", rejectionReason: reason || null, rejectedAt: new Date(), rejectedBy: adminId },
   });
   revalidatePath("/admin/suppliers");
   revalidatePath("/admin/verification");
