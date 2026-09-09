@@ -1,6 +1,7 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { setProductStatus } from "../actions";
 
 export default async function AdminProductsPage() {
   const items = await prisma.product.findMany({
@@ -8,6 +9,7 @@ export default async function AdminProductsPage() {
     orderBy: { createdAt: "desc" },
     take: 200,
   });
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
@@ -18,7 +20,7 @@ export default async function AdminProductsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="text-left p-3">产品名称</th>
+              <th className="text-left p-3">产品</th>
               <th className="text-left p-3">件号</th>
               <th className="text-left p-3">供应商</th>
               <th className="text-left p-3">类型</th>
@@ -34,7 +36,16 @@ export default async function AdminProductsPage() {
                 <td className="p-3">{p.supplier.name}</td>
                 <td className="p-3">{p.productType}</td>
                 <td className="p-3">{p.price ? `${p.currency} ${p.price}` : "-"}</td>
-                <td className="p-3"><span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">{p.status}</span></td>
+                <td className="p-3">
+                  <form action={async () => {
+                    "use server";
+                    await setProductStatus(p.id, p.status === "ACTIVE" ? "INACTIVE" : "ACTIVE");
+                  }}>
+                    <button className={`text-xs px-2 py-1 rounded ${p.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-gray-100"}`}>
+                      {p.status === "ACTIVE" ? "上架中" : "已下架"}
+                    </button>
+                  </form>
+                </td>
               </tr>
             ))}
           </tbody>
