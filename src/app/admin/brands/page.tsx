@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -12,20 +12,20 @@ export default async function AdminBrandsPage() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">鍝佺墝绠＄悊</h1>
-        <span className="text-sm text-gray-500">鍏?{brands.length} 涓搧鐗?/span>
+        <h1 className="text-xl font-bold">品牌管理</h1>
+        <span className="text-sm text-gray-500">共 {brands.length} 个品牌</span>
       </div>
       <div className="bg-white rounded-lg border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="text-left p-3 font-medium">ID</th>
-              <th className="text-left p-3 font-medium">鍝佺墝鍚?/th>
-              <th className="text-left p-3 font-medium">鑻辨枃鍚?/th>
-              <th className="text-left p-3 font-medium">鍥藉</th>
-              <th className="text-left p-3 font-medium">璁惧鏁?/th>
-              <th className="text-left p-3 font-medium">浠跺彿鏁?/th>
-              <th className="text-left p-3 font-medium">鐘舵€?/th>
+              <th className="text-left p-3 font-medium">品牌名</th>
+              <th className="text-left p-3 font-medium">英文名</th>
+              <th className="text-left p-3 font-medium">国家</th>
+              <th className="text-left p-3 font-medium">设备数</th>
+              <th className="text-left p-3 font-medium">件号数</th>
+              <th className="text-left p-3 font-medium">状态</th>
             </tr>
           </thead>
           <tbody>
@@ -50,4 +50,3 @@ export default async function AdminBrandsPage() {
     </div>
   );
 }
-
