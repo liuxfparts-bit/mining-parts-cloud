@@ -1,3 +1,5 @@
+﻿export const dynamic = 'force-dynamic';
+
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminSuppliersPage() {
@@ -9,20 +11,20 @@ export default async function AdminSuppliersPage() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">企业管理</h1>
-        <span className="text-sm text-gray-500">共 {suppliers.length} 家企业</span>
+        <h1 className="text-xl font-bold">浼佷笟绠＄悊</h1>
+        <span className="text-sm text-gray-500">鍏?{suppliers.length} 瀹朵紒涓?/span>
       </div>
       <div className="bg-white rounded-lg border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="text-left p-3 font-medium">ID</th>
-              <th className="text-left p-3 font-medium">企业名称</th>
-              <th className="text-left p-3 font-medium">地区</th>
-              <th className="text-left p-3 font-medium">主营品牌</th>
-              <th className="text-left p-3 font-medium">产品数</th>
-              <th className="text-left p-3 font-medium">认证状态</th>
-              <th className="text-left p-3 font-medium">会员等级</th>
+              <th className="text-left p-3 font-medium">浼佷笟鍚嶇О</th>
+              <th className="text-left p-3 font-medium">鍦板尯</th>
+              <th className="text-left p-3 font-medium">涓昏惀鍝佺墝</th>
+              <th className="text-left p-3 font-medium">浜у搧鏁?/th>
+              <th className="text-left p-3 font-medium">璁よ瘉鐘舵€?/th>
+              <th className="text-left p-3 font-medium">浼氬憳绛夌骇</th>
             </tr>
           </thead>
           <tbody>
@@ -51,3 +53,4 @@ export default async function AdminSuppliersPage() {
     </div>
   );
 }
+

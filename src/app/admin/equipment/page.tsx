@@ -1,3 +1,5 @@
+﻿export const dynamic = 'force-dynamic';
+
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminEquipmentPage() {
@@ -8,19 +10,19 @@ export default async function AdminEquipmentPage() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">设备管理</h1>
-        <span className="text-sm text-gray-500">共 {items.length} 台设备</span>
+        <h1 className="text-xl font-bold">璁惧绠＄悊</h1>
+        <span className="text-sm text-gray-500">鍏?{items.length} 鍙拌澶?/span>
       </div>
       <div className="bg-white rounded-lg border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="text-left p-3">ID</th>
-              <th className="text-left p-3">品牌</th>
-              <th className="text-left p-3">型号</th>
-              <th className="text-left p-3">类型</th>
-              <th className="text-left p-3">件号数</th>
-              <th className="text-left p-3">状态</th>
+              <th className="text-left p-3">鍝佺墝</th>
+              <th className="text-left p-3">鍨嬪彿</th>
+              <th className="text-left p-3">绫诲瀷</th>
+              <th className="text-left p-3">浠跺彿鏁?/th>
+              <th className="text-left p-3">鐘舵€?/th>
             </tr>
           </thead>
           <tbody>
@@ -42,3 +44,4 @@ export default async function AdminEquipmentPage() {
     </div>
   );
 }
+

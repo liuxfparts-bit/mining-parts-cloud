@@ -1,3 +1,5 @@
+﻿export const dynamic = 'force-dynamic';
+
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminPartNumbersPage() {
@@ -9,19 +11,19 @@ export default async function AdminPartNumbersPage() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">件号管理</h1>
-        <span className="text-sm text-gray-500">共 {items.length} 条</span>
+        <h1 className="text-xl font-bold">浠跺彿绠＄悊</h1>
+        <span className="text-sm text-gray-500">鍏?{items.length} 鏉?/span>
       </div>
       <div className="bg-white rounded-lg border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="text-left p-3">件号</th>
-              <th className="text-left p-3">名称</th>
-              <th className="text-left p-3">品牌</th>
-              <th className="text-left p-3">设备</th>
-              <th className="text-left p-3">产品数</th>
-              <th className="text-left p-3">已验证</th>
+              <th className="text-left p-3">浠跺彿</th>
+              <th className="text-left p-3">鍚嶇О</th>
+              <th className="text-left p-3">鍝佺墝</th>
+              <th className="text-left p-3">璁惧</th>
+              <th className="text-left p-3">浜у搧鏁?/th>
+              <th className="text-left p-3">宸查獙璇?/th>
             </tr>
           </thead>
           <tbody>
@@ -34,7 +36,7 @@ export default async function AdminPartNumbersPage() {
                 <td className="p-3">{p.brand?.name || "-"}</td>
                 <td className="p-3">{p.equipment?.model || "-"}</td>
                 <td className="p-3">{p._count.products}</td>
-                <td className="p-3">{p.verified ? "✓" : "-"}</td>
+                <td className="p-3">{p.verified ? "鉁? : "-"}</td>
               </tr>
             ))}
           </tbody>
@@ -43,3 +45,4 @@ export default async function AdminPartNumbersPage() {
     </div>
   );
 }
+
