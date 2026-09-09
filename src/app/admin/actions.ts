@@ -32,6 +32,39 @@ export async function updateMemberLevel(id: number, level: string) {
   revalidatePath(`/admin/suppliers/${id}`);
 }
 
+// 编辑企业信息
+export async function updateSupplier(id: number, formData: FormData) {
+  await requireAdmin();
+  const v = (k: string) => (formData.get(k) as string) || null;
+  await prisma.supplier.update({
+    where: { id },
+    data: {
+      name: (formData.get("name") as string) || "",
+      nameEn: v("nameEn"),
+      shortName: v("shortName"),
+      contactName: v("contactName"),
+      position: v("position"),
+      mobile: v("mobile"),
+      telephone: v("telephone"),
+      email: v("email"),
+      website: v("website"),
+      wechat: v("wechat"),
+      whatsapp: v("whatsapp"),
+      province: v("province"),
+      city: v("city"),
+      address: v("address"),
+      mainBusiness: (formData.get("mainBusiness") as string) || "",
+      mainBrands: v("mainBrands"),
+      mainEquipment: v("mainEquipment"),
+      description: v("description"),
+      memberLevel: (formData.get("memberLevel") as string) || "FREE",
+      verifiedStatus: (formData.get("verifiedStatus") as string) || "PENDING",
+    },
+  });
+  revalidatePath(`/admin/suppliers/${id}`);
+  revalidatePath("/admin/suppliers");
+}
+
 // 审核件号
 export async function reviewPartNumber(id: number, verified: boolean) {
   await requireAdmin();

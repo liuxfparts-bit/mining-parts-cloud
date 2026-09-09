@@ -13,8 +13,9 @@ export default async function SupplierDetail({ params }: { params: { id: string 
 
   return (
     <div className="p-6">
-      <div className="mb-6">
+      <div className="mb-6 flex justify-between items-center">
         <a href="/admin/suppliers" className="text-sm text-blue-600 hover:underline">← 返回企业列表</a>
+        <a href={`/admin/suppliers/${supplier.id}/edit`} className="text-sm bg-blue-600 text-white px-4 py-1 rounded">编辑</a>
       </div>
 
       <div className="bg-white rounded-lg border p-6 mb-6">
