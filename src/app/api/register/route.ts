@@ -20,19 +20,36 @@ export async function POST(req: Request) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    await prisma.user.create({
-      data: {
-        email,
-        name: contactName,
-        passwordHash,
-        role: "BUYER",
-        company,
-        phone,
-        status: "ACTIVE",
-      },
+    // 事务：创建用户 + 创建企业（Supplier），状态 PENDING
+    await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          name: contactName,
+          passwordHash,
+          role: "BUYER",
+          company,
+          phone,
+          status: "ACTIVE",
+        },
+      });
+
+      await tx.supplier.create({
+        data: {
+          name: company,
+          slug: `co-${Date.now()}`,
+          contactName,
+          mobile: phone,
+          email,
+          verifiedStatus: "PENDING",
+          memberLevel: "FREE",
+          mainBusiness: "",
+          users: { connect: { id: user.id } },
+        },
+      });
     });
 
-    return NextResponse.json({ success: true, message: "注册成功" });
+    return NextResponse.json({ success: true, message: "注册成功，请等待管理员审核企业" });
   } catch (e: any) {
     console.error("register error:", e);
     return NextResponse.json({ success: false, message: "服务器错误，请稍后重试" }, { status: 500 });
