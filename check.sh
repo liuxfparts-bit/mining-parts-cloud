@@ -1,4 +1,4 @@
-echo "=== Container status ==="
+cd /opt/mining-parts-cloud
 docker compose ps
-echo "=== App logs ==="
-docker compose logs app --tail=30
+echo "=== APP LOGS ==="
+docker compose logs app --tail=50
