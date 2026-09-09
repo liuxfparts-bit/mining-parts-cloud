@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import { reviewSupplier } from "../../../actions";
+import ReviewButtons from "./ReviewButtons";
 
 export default async function SupplierReview({ params }: { params: { id: string } }) {
   const s = await prisma.supplier.findUnique({ where: { id: parseInt(params.id) } });
@@ -13,7 +13,7 @@ export default async function SupplierReview({ params }: { params: { id: string 
       <a href="/admin/verification" className="text-sm text-blue-600 hover:underline">← 返回待审核</a>
       <h1 className="text-2xl font-bold mt-4 mb-6">企业审核：{s.name}</h1>
 
-      <div className="bg-white rounded-lg border p-6 mb-6">
+      <div className="bg-white rounded-lg border p-6 mb-4">
         <h2 className="font-bold mb-3">企业资料</h2>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div><span className="text-gray-500">联系人：</span>{s.contactName || "-"}</div>
@@ -25,23 +25,7 @@ export default async function SupplierReview({ params }: { params: { id: string 
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border p-6">
-        <h2 className="font-bold mb-4">审核操作</h2>
-        <form action={async () => { "use server"; await reviewSupplier(s.id, "VERIFIED"); }}>
-          <button className="bg-green-600 text-white px-6 py-2 rounded mr-3">✓ 审核通过</button>
-        </form>
-        <form
-          action={async (fd) => {
-            "use server";
-            const reason = (fd.get("reason") as string) || "";
-            await reviewSupplier(s.id, "REJECTED", reason);
-          }}
-          className="mt-4"
-        >
-          <input name="reason" placeholder="驳回原因（必填）" className="border rounded px-3 py-2 text-sm mr-2" required />
-          <button className="bg-red-600 text-white px-6 py-2 rounded">✕ 驳回</button>
-        </form>
-      </div>
+      <ReviewButtons id={s.id} />
     </div>
   );
 }
