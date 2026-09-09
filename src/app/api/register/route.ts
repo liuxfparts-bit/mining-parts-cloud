@@ -25,7 +25,7 @@ export async function POST(req: Request) {
         email,
         name: contactName,
         passwordHash,
-        role: "SUPPLIER",
+        role: "BUYER",
         company,
         phone,
         status: "ACTIVE",

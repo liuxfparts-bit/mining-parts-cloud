@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import {
   LayoutDashboard, Building2, Tags, Wrench, Package, Hash,
   FileText, MessageSquare, Search, Crown, Megaphone,
@@ -43,7 +45,11 @@ const menuSections = [
   },
 ];
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  if ((session.user as any).role !== "ADMIN") redirect("/dashboard");
+
   return (
     <div className="flex min-h-screen bg-[#f5f6f8]">
       {/* 侧边栏 */}
