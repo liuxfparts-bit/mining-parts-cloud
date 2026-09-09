@@ -55,10 +55,11 @@ export default async function SupplierHome() {
             <Link href="/supplier/products" className="bg-white border rounded-lg p-4 hover:shadow">
               <div className="text-sm text-gray-500">我的产品</div>
               <div className="text-2xl font-bold mt-1">{supplier._count.products}</div>
+              <div className="text-sm mt-1 text-blue-600">管理 →</div>
             </Link>
-            <Link href="/supplier/quotes" className="bg-white border rounded-lg p-4 hover:shadow">
-              <div className="text-sm text-gray-500">收到报价/报价数</div>
-              <div className="text-2xl font-bold mt-1">{supplier._count.quotes}</div>
+            <Link href="/supplier/rfqs" className="bg-white border rounded-lg p-4 hover:shadow">
+              <div className="text-sm text-gray-500">询价大厅</div>
+              <div className="text-sm mt-1 text-blue-600">报价 / 发布询价 →</div>
             </Link>
             <Link href="/supplier/profile" className="bg-white border rounded-lg p-4 hover:shadow">
               <div className="text-sm text-gray-500">企业资料</div>

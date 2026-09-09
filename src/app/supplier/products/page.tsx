@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export default async function SupplierProducts() {
   const session = await auth();
@@ -17,7 +18,10 @@ export default async function SupplierProducts() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">我的产品</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">我的产品</h1>
+        <Link href="/supplier/products/new" className="bg-blue-600 text-white px-4 py-2 rounded text-sm">新增产品</Link>
+      </div>
       {products.length === 0 ? (
         <div className="bg-white border rounded-lg p-12 text-center text-gray-500">
           暂无产品，联系管理员上架产品
