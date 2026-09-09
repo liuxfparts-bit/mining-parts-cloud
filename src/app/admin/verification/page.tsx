@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 
@@ -7,6 +7,7 @@ export default async function AdminVerificationPage() {
     where: { verifiedStatus: "PENDING" },
     orderBy: { createdAt: "desc" },
   });
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
@@ -25,6 +26,7 @@ export default async function AdminVerificationPage() {
                 <th className="text-left p-3">地区</th>
                 <th className="text-left p-3">主营</th>
                 <th className="text-left p-3">提交时间</th>
+                <th className="text-left p-3">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -35,6 +37,13 @@ export default async function AdminVerificationPage() {
                   <td className="p-3">{s.province || "-"}</td>
                   <td className="p-3 text-gray-600">{s.mainBusiness}</td>
                   <td className="p-3">{s.createdAt.toLocaleDateString("zh-CN")}</td>
+                  <td className="p-3">
+                    <div className="flex gap-2">
+                      <a href={`/admin/suppliers/${s.id}`} className="text-blue-600 hover:underline text-xs">查看</a>
+                      <a href={`/admin/suppliers/${s.id}/edit`} className="text-blue-600 hover:underline text-xs">编辑</a>
+                      <a href={`/admin/suppliers/${s.id}`} className="text-green-600 hover:underline text-xs">审核</a>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
