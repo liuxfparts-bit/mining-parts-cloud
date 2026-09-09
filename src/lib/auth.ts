@@ -1,55 +1,60 @@
-/**
- * 轻量认证工具（MVP 占位）
- * 后续接入 NextAuth.js / Lucia Auth
- * 当前：基于 session cookie 的简单角色判断
- */
+// ============================================================
+// Auth.js v5 配置
+// ============================================================
+import NextAuth, { CredentialsSignin } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { prisma } from "./prisma";
 
-export type UserRole = "BUYER" | "SUPPLIER" | "ADMIN";
-
-export interface CurrentUser {
-  id: number;
-  name: string;
-  email: string;
-  role: UserRole;
-  supplierId?: number;
+class InvalidLogin extends CredentialsSignin {
+  code = "invalid_credentials";
 }
 
-/**
- * 从请求中获取当前用户（MVP 阶段返回 null，接入认证后替换）
- * TODO: 接入 NextAuth.js
- */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
-  // MVP 阶段未接入认证，返回 null
-  // 生产实现：
-  // const session = await getServerSession(authOptions);
-  // if (!session?.user) return null;
-  // return { id: session.user.id, ... };
-  return null;
-}
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: process.env.AUTH_SECRET || "mining-parts-dev-secret-change-in-production",
+  session: { strategy: "jwt" },
+  pages: { signIn: "/login" },
+  providers: [
+    Credentials({
+      credentials: {
+        email: { label: "邮箱", type: "email" },
+        password: { label: "密码", type: "password" },
+      },
+      async authorize(credentials) {
+        const email = credentials?.email as string;
+        const password = credentials?.password as string;
+        if (!email || !password) return null;
 
-/** 要求登录，否则重定向到登录页 */
-export async function requireUser(): Promise<CurrentUser> {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("UNAUTHORIZED");
-  }
-  return user;
-}
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user || !user.passwordHash) return null;
+        if (user.status !== "ACTIVE") return null;
 
-/** 要求供应商角色 */
-export async function requireSupplier(): Promise<CurrentUser> {
-  const user = await requireUser();
-  if (user.role !== "SUPPLIER" && user.role !== "ADMIN") {
-    throw new Error("FORBIDDEN");
-  }
-  return user;
-}
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) throw new InvalidLogin();
 
-/** 要求管理员 */
-export async function requireAdmin(): Promise<CurrentUser> {
-  const user = await requireUser();
-  if (user.role !== "ADMIN") {
-    throw new Error("FORBIDDEN");
-  }
-  return user;
-}
+        return {
+          id: user.id.toString(),
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        };
+      },
+    }),
+  ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = (user as any).role;
+        token.uid = (user as any).id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        (session.user as any).role = token.role;
+        (session.user as any).id = token.uid;
+      }
+      return session;
+    },
+  },
+});

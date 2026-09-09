@@ -308,15 +308,18 @@ async function main() {
   console.log(`✓ 报价: 1`);
 
   // ========== 用户 ==========
+  const bcrypt = await import("bcryptjs");
+  const adminHash = await bcrypt.hash("Ningdong@2026", 10);
   await prisma.user.createMany({
     data: [
-      { email: "admin@mpc.cloud", name: "平台管理员", role: "ADMIN", status: "ACTIVE" },
+      { email: "554324068@qq.com", name: "平台管理员", role: "ADMIN", passwordHash: adminHash, status: "ACTIVE" },
       { email: "buyer@mine.com", name: "张采购", role: "BUYER", company: "山西某矿业有限公司", status: "ACTIVE" },
       { email: "sales@ningdong.example", name: "宁东机电-李总", role: "SUPPLIER", supplierId: suppliers["宁东机电"].id, status: "ACTIVE" },
       { email: "sales@jsyy.example", name: "江苏液压-张工", role: "SUPPLIER", supplierId: suppliers["江苏液压"].id, status: "ACTIVE" },
     ],
   });
   console.log(`✓ 用户: 4 (1管理员 + 1采购 + 2供应商)`);
+  console.log(`  管理员邮箱: 554324068@qq.com  密码: Ningdong@2026`);
 
   // ========== 批量扩展：更多设备和件号 ==========
   // 额外设备（重点品牌优先）
