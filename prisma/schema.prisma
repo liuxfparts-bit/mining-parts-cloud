@@ -1,0 +1,302 @@
+// ============================================================
+// 矿配云 Prisma Schema
+// 关系链：Brand → Equipment → PartNumber → Product → Supplier → RFQ → Quote
+// 本地开发：SQLite（零配置）
+// 生产部署：PostgreSQL（docker-compose / 阿里云 RDS）
+// 部署时把 provider 改为 "postgresql"，DATABASE_URL 指向生产库
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ========== 品牌 ==========
+model Brand {
+  id        Int        @id @default(autoincrement())
+  slug      String     @unique
+  name      String     @unique  // 中文品牌名
+  nameEn    String?    // 英文品牌名
+  country   String?    // 国家
+  logo      String?    // Logo URL
+  website   String?    // 官网
+  description String?  // 品牌介绍
+  seoTitle      String?  // SEO 标题
+  seoDescription String? // SEO 描述
+  status    String     @default("ACTIVE") // ACTIVE / INACTIVE
+  equipment Equipment[]
+  partNumbers PartNumber[]
+  rfqs       RFQ[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+// ========== 设备型号 ==========
+model Equipment {
+  id            Int       @id @default(autoincrement())
+  slug          String    @unique
+  brandId       Int
+  brand         Brand     @relation(fields: [brandId], references: [id])
+  model         String    @unique  // MB670-1 / LS190
+  name          String    // 中文设备名
+  nameEn        String?   // 英文设备名
+  series        String?   // 系列（如 LS 系列、LH 系列）
+  equipmentType String    // LHD / Bolter Miner / Shuttle Car / Shearer / Jumbo
+  application   String?   // 应用场景：井下出矿 / 掘进 / 长壁采煤
+  mineType      String?   // 矿山类型：地下金属矿 / 井工矿 / 露天矿
+  manufacturer  String?   // 制造商全称
+  productionYear Int?     // 生产年份
+  description   String?
+  imageUrl      String?   // 设备图片
+  brochure      String?   // 手册 PDF URL
+  status        String    @default("ACTIVE") // ACTIVE / INACTIVE
+  partNumbers   PartNumber[]
+  rfqs          RFQ[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ========== 配件分类 ==========
+model Category {
+  id          Int         @id @default(autoincrement())
+  slug        String      @unique
+  name        String      // 液压件 / 结构件 / 耐磨件
+  nameEn      String?
+  parentId    Int?
+  parent      Category?   @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[]  @relation("CategoryTree")
+  description String?
+  sortOrder   Int         @default(0)
+  partNumbers PartNumber[]
+  rfqs        RFQ[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+// ========== 件号（Part Number） ==========
+model PartNumber {
+  id            Int       @id @default(autoincrement())
+  number        String    @unique  // part_number：XP210162
+  slug          String    @unique
+  name          String    // part_name：锚杆机压块
+  nameEn        String?   // part_name_en
+  category      String    // 兼容旧字符串分类
+  categoryId    Int?      // category_id 关联 Category
+  categoryRel   Category? @relation(fields: [categoryId], references: [id])
+  oldPartNumber String?   // old_part_number：旧件号
+  newPartNumber String?   // new_part_number：新件号
+  alternativePartNumber String? // alternative_part_number：替代件号
+  oemStatus     String    @default("AFTERMARKET") // OEM / AFTERMARKET / REPLACEMENT
+  description   String?
+  application   String?   // 应用场景
+  specification String?   // 规格
+  material      String?   // 材质
+  drawing       String?   // 图纸 URL
+  images        String?   // JSON 数组字符串
+  verified      Boolean   @default(false) // 已验证
+  supplierCount Int       @default(0)  // 供应商数（缓存）
+  inquiryCount  Int       @default(0)  // 询价数（缓存）
+  viewCount     Int       @default(0)  // 浏览数
+  seoTitle      String?
+  seoDescription String?
+  brandId       Int?
+  brand         Brand?    @relation(fields: [brandId], references: [id])
+  equipmentId   Int?
+  equipment     Equipment? @relation(fields: [equipmentId], references: [id])
+  products      Product[]
+  rfqs          RFQ[]
+  favorites     Favorite[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([number])
+  @@index([categoryId])
+}
+
+// ========== 产品（供应商实际供应的产品） ==========
+// ========== 产品（供应商实际供应的产品） ==========
+// PartNumber（标准件号）→ Product（某供应商的具体产品）→ Supplier
+model Product {
+  id            Int      @id @default(autoincrement())
+  partNumberId  Int
+  partNumber    PartNumber @relation(fields: [partNumberId], references: [id])
+  supplierId    Int
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  name          String   // product_name
+  nameEn        String?  // product_name_en
+  productType   String   @default("AFTERMARKET") // OEM / Replacement / Aftermarket / Used / Reconditioned
+  oemNumber     String?  // OEM 件号
+  description   String?
+  specification String?  // 规格
+  material      String?  // 材质
+  application   String?  // 应用
+  price         Float?
+  currency      String   @default("CNY")
+  moq           Int?     // 最小起订量
+  stock         Int?     // 库存数量
+  stockStatus   String   @default("IN_STOCK") // IN_STOCK / OUT_OF_STOCK / MADE_TO_ORDER
+  leadTime      String?  // 交期
+  warranty      String?  // 质保期
+  images        String?  // JSON 数组
+  datasheet     String?  // 规格书 PDF
+  drawing       String?  // 图纸
+  status        String   @default("ACTIVE") // ACTIVE / INACTIVE
+  quotes        Quote[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([partNumberId, supplierId, oemNumber])
+  @@index([supplierId])
+  @@index([partNumberId])
+}
+
+// ========== 供应商 ==========
+// ========== 供应商 ==========
+model Supplier {
+  id             Int       @id @default(autoincrement())
+  slug           String    @unique
+  name           String    // company_name 公司全称
+  nameEn         String?   // company_name_en
+  shortName      String?   // short_name 简称
+  logo           String?   // logo URL
+  province       String?   // 省
+  city           String?   // 市
+  address        String?
+  contactName    String?   // 联系人
+  position       String?   // 职位
+  mobile         String?   // 手机
+  telephone      String?   // 座机
+  email          String?
+  website        String?
+  wechat         String?
+  whatsapp       String?
+  mainBusiness   String    // main_business 主营业务
+  mainBrands     String?   // main_brands 主营品牌
+  mainEquipment  String?   // main_equipment 主营设备
+  description    String?   // 公司简介
+  factoryImages  String?   // 工厂图片 JSON
+  certificates   String?   // 证书 JSON
+  verifiedStatus String    @default("PENDING") // PENDING / VERIFIED / REJECTED
+  memberLevel    String    @default("FREE") // FREE / BRONZE / SILVER / GOLD
+  businessLicense String?
+  // 运营数据（缓存）
+  productCount     Int     @default(0)
+  equipmentCount   Int     @default(0)
+  partNumberCount  Int     @default(0)
+  responseRate     Float?  // 回复率 %
+  viewCount        Int     @default(0)
+  inquiryCount     Int     @default(0)
+  products     Product[]
+  quotes       Quote[]
+  users        User[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ========== 用户系统 ==========
+// role: BUYER（采购方）/ SUPPLIER（供应商）/ ADMIN（管理员）
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  passwordHash  String?   // 预留，后续接 NextAuth/Auth.js
+  name          String
+  avatar        String?
+  role          String    @default("BUYER") // BUYER / SUPPLIER / ADMIN
+  supplierId    Int?      // 供应商用户关联 Supplier
+  supplier      Supplier? @relation(fields: [supplierId], references: [id])
+  phone         String?
+  company       String?   // 采购方公司名
+  emailVerified DateTime?
+  status        String    @default("ACTIVE") // ACTIVE / DISABLED
+  favorites     Favorite[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ========== 收藏（采购用户收藏件号） ==========
+model Favorite {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partNumberId Int
+  partNumber   PartNumber @relation(fields: [partNumberId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, partNumberId])
+  @@index([userId])
+}
+
+// ========== 询价单 RFQ ==========
+model RFQ {
+  id             Int        @id @default(autoincrement())
+  title          String
+  userID         Int?       // user_id 提交人（预留）
+  companyID      Int?       // company_id 采购企业（预留）
+  // 关联实体
+  brandId        Int?
+  brand          Brand?     @relation(fields: [brandId], references: [id])
+  equipmentId    Int?
+  equipment      Equipment? @relation(fields: [equipmentId], references: [id])
+  partNumberId   Int?
+  partNumber     PartNumber? @relation(fields: [partNumberId], references: [id])
+  categoryId     Int?
+  category       Category?  @relation(fields: [categoryId], references: [id])
+  // 冗余文本
+  productName    String?    // 产品名称
+  partNumberStr  String?    // 自由文本件号
+  equipmentModel String?
+  brandName      String?    // 冗余品牌名
+  // 采购需求
+  quantity       Int        @default(1)
+  unit           String     @default("pcs")
+  description    String
+  images         String?    // JSON
+  attachments    String?    // JSON
+  purchaseType   String     @default("NORMAL") // STOCK / NORMAL / URGENT / LONG_TERM / PROJECT
+  deliveryDate   DateTime?  // 期望交货日期
+  deliveryLocation String?  // 交货地点
+  incoterm       String?    // FOB / CIF / EXW ...
+  // 联系方式
+  contactName    String
+  contactPhone   String
+  contactEmail   String?
+  whatsapp       String?
+  // 可见性与匹配
+  visibility     String     @default("PUBLIC") // PUBLIC / MATCHED_SUPPLIERS / PRIVATE
+  matchedSuppliers String?  // JSON 数组
+  status         String     @default("COLLECTING") // COLLECTING / QUOTED / SELECTED / CLOSED / EXPIRED
+  region         String?
+  quotes         Quote[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  expiresAt      DateTime?  // 询价过期时间
+}
+
+// ========== 报价 Quote ==========
+model Quote {
+  id           Int      @id @default(autoincrement())
+  rfqId        Int
+  rfq          RFQ      @relation(fields: [rfqId], references: [id])
+  supplierId   Int
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  productId    Int?
+  product      Product? @relation(fields: [productId], references: [id])
+  unitPrice    Float?   // unit_price
+  currency     String   @default("CNY")
+  quantity     Int?     // 报价数量
+  moq          Int?
+  stockStatus  String?  // IN_STOCK / MADE_TO_ORDER
+  leadTime     String?
+  warranty     String?
+  paymentTerms String?  // 付款条件
+  incoterm     String?  // 贸易术语
+  remarks      String?  // remarks
+  attachments  String?  // JSON
+  status       String   @default("PENDING") // PENDING / ACCEPTED / REJECTED / WITHDRAWN
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

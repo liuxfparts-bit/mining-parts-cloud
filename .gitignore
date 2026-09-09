@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# env
+.env
+.env.local
+.env.production
+
+# database
+*.db
+*.db-journal
+prisma/dev.db
+
+# uploads (本地文件，生产用 OSS)
+public/uploads/
+
+# logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# temp
+temp_screenshot.png
