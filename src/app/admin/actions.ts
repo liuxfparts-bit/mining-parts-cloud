@@ -12,7 +12,7 @@ async function requireAdmin() {
 }
 
 // 审核企业
-export async function reviewSupplier(id: number, action: "APPROVED" | "REJECTED", reason?: string) {
+export async function reviewSupplier(id: number, action: "VERIFIED" | "REJECTED", reason?: string) {
   await requireAdmin();
   await prisma.supplier.update({
     where: { id },

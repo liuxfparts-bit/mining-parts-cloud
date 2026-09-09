@@ -50,7 +50,7 @@ export default async function SupplierDetail({ params }: { params: { id: string 
         <h2 className="font-bold mb-4">审核操作</h2>
         <div className="flex gap-3">
           {supplier.verifiedStatus !== "VERIFIED" && (
-            <form action={async () => { "use server"; await reviewSupplier(supplier.id, "APPROVED"); }}>
+            <form action={async () => { "use server"; await reviewSupplier(supplier.id, "VERIFIED"); }}>
               <button className="bg-green-600 text-white px-4 py-2 rounded text-sm">✓ 审核通过</button>
             </form>
           )}
