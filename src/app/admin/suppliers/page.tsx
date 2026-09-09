@@ -7,6 +7,7 @@ export default async function AdminSuppliersPage() {
     include: { _count: { select: { products: true } } },
     orderBy: { createdAt: "desc" },
   });
+  const MEMBER: Record<string, string> = { FREE: "普通会员", BRONZE: "铜牌", SILVER: "银牌", GOLD: "金牌" };
 
   return (
     <div className="p-6">
@@ -39,7 +40,7 @@ export default async function AdminSuppliersPage() {
                     {s.verifiedStatus}
                   </span>
                 </td>
-                <td className="p-3">{s.memberLevel}</td>
+                <td className="p-3">{MEMBER[s.memberLevel] || s.memberLevel}</td>
                 <td className="p-3">
                   <div className="flex gap-2">
                     <a href={`/admin/suppliers/${s.id}`} className="text-blue-600 hover:underline text-xs">查看</a>
