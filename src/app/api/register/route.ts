@@ -27,25 +27,30 @@ export async function POST(req: Request) {
           email,
           name: contactName,
           passwordHash,
-          role: "BUYER",
+          role: "SUPPLIER",
           company,
           phone,
           status: "ACTIVE",
         },
       });
 
-      await tx.supplier.create({
+      const supplier = await tx.supplier.create({
         data: {
           name: company,
-          slug: `co-${Date.now()}`,
+          slug: `co-${Date.now()}-${user.id}`,
           contactName,
           mobile: phone,
           email,
           verifiedStatus: "PENDING",
           memberLevel: "FREE",
           mainBusiness: "",
-          users: { connect: { id: user.id } },
         },
+      });
+
+      // 显式回填 user.supplierId
+      await tx.user.update({
+        where: { id: user.id },
+        data: { supplierId: supplier.id },
       });
     });
 
