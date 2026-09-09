@@ -25,6 +25,16 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-8">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-bold">控制台</h1>
+        <form action={async () => {
+          "use server";
+          const { signOut } = await import("@/lib/auth");
+          await signOut({ redirectTo: "/login" });
+        }}>
+          <button className="text-sm border px-3 py-1 rounded">退出登录</button>
+        </form>
+      </div>
       <div className="flex gap-6">
         <aside className="w-48 shrink-0">
           <h3 className="font-bold mb-4">控制台</h3>
