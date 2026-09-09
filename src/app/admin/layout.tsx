@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import LogoutButton from "@/components/LogoutButton";
 import {
   LayoutDashboard, Building2, Tags, Wrench, Package, Hash,
   FileText, MessageSquare, Search, Crown, Megaphone,
@@ -76,8 +77,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </div>
           ))}
         </nav>
-        <div className="p-4 border-t border-white/10">
-          <Link href="/" className="text-xs text-white/40 hover:text-white">← 返回前台</Link>
+        <div className="p-4 border-t border-white/10 space-y-2">
+          <div className="text-xs text-white/60">👤 {session.user?.name}</div>
+          <Link href="/" className="block text-xs text-white/40 hover:text-white">← 返回前台</Link>
+          <LogoutButton />
         </div>
       </aside>
 
