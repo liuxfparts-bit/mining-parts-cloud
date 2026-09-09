@@ -1,6 +1,7 @@
 # ========== 矿配云 Docker 部署 ==========
 # 使用：docker compose up -d
 # 包含：Next.js 应用 + PostgreSQL 16
+# 部署环境：腾讯云 CVM (2C4G Ubuntu 24.04)
 
 services:
   # ---- PostgreSQL 数据库 ----
