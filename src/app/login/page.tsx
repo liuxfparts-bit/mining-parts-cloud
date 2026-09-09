@@ -1,4 +1,5 @@
 import { signIn } from "@/lib/auth";
+import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
 export default async function LoginPage({
@@ -14,8 +15,11 @@ export default async function LoginPage({
         password: formData.get("password"),
         redirectTo: "/admin",
       });
-    } catch {
-      redirect("/login?error=1");
+    } catch (error) {
+      if (error instanceof AuthError) {
+        redirect("/login?error=1");
+      }
+      throw error;
     }
   }
 
