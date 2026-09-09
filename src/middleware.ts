@@ -20,6 +20,7 @@ export default auth((req) => {
   // 已登录访问登录页：按角色跳转
   if (path === "/login" && isLoggedIn) {
     if (role === "ADMIN") return NextResponse.redirect(new URL("/admin", nextUrl));
+    if (role === "SUPPLIER") return NextResponse.redirect(new URL("/supplier", nextUrl));
     return NextResponse.redirect(new URL("/dashboard", nextUrl));
   }
 });
