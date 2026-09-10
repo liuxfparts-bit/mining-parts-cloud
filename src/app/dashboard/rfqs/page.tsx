@@ -11,7 +11,10 @@ export default async function BuyerRfqs() {
   const rfqs = user ? await prisma.rFQ.findMany({ where: { userID: user.id }, orderBy: { createdAt: "desc" } }) : [];
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold mb-4">我的询价 ({rfqs.length})</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-bold">我的询价 ({rfqs.length})</h1>
+        <a href="/dashboard/rfqs/new" className="bg-blue-600 text-white px-4 py-2 rounded text-sm">发起询价</a>
+      </div>
       <div className="bg-white border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b"><tr><th className="p-3 text-left">标题</th><th className="p-3 text-left">数量</th><th className="p-3 text-left">状态</th><th className="p-3 text-left">时间</th></tr></thead>

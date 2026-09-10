@@ -45,6 +45,7 @@ export async function createRfq(formData: FormData) {
   if (!session?.user) redirect("/login");
   const user = await prisma.user.findUnique({ where: { email: (session.user as any).email as string } });
   if (!user) redirect("/login");
+  if (!user) redirect("/login");
   const title = (formData.get("title") as string).trim();
   const partNumberId = parseInt(formData.get("partNumberId") as string) || null;
   const quantity = parseFloat(formData.get("quantity") as string) || 1;
