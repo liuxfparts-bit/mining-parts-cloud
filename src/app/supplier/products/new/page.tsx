@@ -14,13 +14,11 @@ export default async function NewProduct() {
   const supplier = user?.supplierId ? await prisma.supplier.findUnique({ where: { id: user.supplierId } }) : null;
   if (!supplier) redirect("/supplier");
 
-  const partNumbers = await prisma.partNumber.findMany({ orderBy: { number: "asc" }, take: 500 });
   const maxImages = MAX_IMG[supplier.memberLevel] || 1;
-
   return (
-    <div className="p-6 max-w-2xl">
+    <div className="p-6 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">新增产品</h1>
-      <NewProductClient partNumbers={partNumbers} maxImages={maxImages} memberLevel={supplier.memberLevel} />
+      <NewProductClient maxImages={maxImages} memberLevel={supplier.memberLevel} />
     </div>
   );
 }
