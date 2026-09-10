@@ -163,3 +163,27 @@ export async function createPartNumber(formData: FormData) {
   await prisma.partNumber.create({ data: { number, name, slug: number.toLowerCase(), brandId, category: "通用" } });
   revalidatePath("/admin/part-numbers");
 }
+
+export async function updateEquipment(id: number, formData: FormData) {
+  await requireAdmin();
+  const model = (formData.get("model") as string).trim();
+  const name = (formData.get("name") as string).trim();
+  await prisma.equipment.update({
+    where: { id },
+    data: { model, name, equipmentType: (formData.get("equipmentType") as string) || "通用" },
+  });
+  revalidatePath("/admin/equipment");
+}
+
+export async function updatePartNumber(id: number, formData: FormData) {
+  await requireAdmin();
+  await prisma.partNumber.update({
+    where: { id },
+    data: {
+      name: (formData.get("name") as string).trim(),
+      specification: (formData.get("specification") as string) || null,
+      application: (formData.get("application") as string) || null,
+    },
+  });
+  revalidatePath("/admin/part-numbers");
+}

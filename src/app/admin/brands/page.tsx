@@ -39,9 +39,12 @@ export default async function AdminBrands() {
                 <td className="p-3">{b._count.equipment}</td>
                 <td className="p-3">{b._count.partNumbers}</td>
                 <td className="p-3">
-                  <form action={async () => { "use server"; await deleteBrand(b.id); }}>
-                    <button className="text-red-600 text-xs">删除</button>
-                  </form>
+                  <div className="flex gap-2">
+                    <a href={`/admin/brands/${b.id}`} className="text-blue-600 text-xs">编辑</a>
+                    <form action={async () => { "use server"; await deleteBrand(b.id); }}>
+                      <button className="text-red-600 text-xs">删除</button>
+                    </form>
+                  </div>
                 </td>
               </tr>
             ))}

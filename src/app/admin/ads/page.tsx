@@ -1,22 +1,18 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export default function AdminAds() {
+import { prisma } from "@/lib/prisma";
+
+export default async function AdminAds() {
+  const [products, suppliers] = await Promise.all([
+    prisma.product.count(),
+    prisma.supplier.count(),
+  ]);
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">广告管理</h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border rounded-lg p-6">
-          <h3 className="font-bold mb-2">首页 Banner</h3>
-          <p className="text-sm text-gray-500">管理首页顶部轮播广告位</p>
-        </div>
-        <div className="bg-white border rounded-lg p-6">
-          <h3 className="font-bold mb-2">品牌页广告</h3>
-          <p className="text-sm text-gray-500">品牌详情页推荐位</p>
-        </div>
-        <div className="bg-white border rounded-lg p-6">
-          <h3 className="font-bold mb-2">分类页广告</h3>
-          <p className="text-sm text-gray-500">件号/设备列表页右侧推荐位</p>
-        </div>
+    <div className="p-6">
+      <h1 className="text-xl font-bold mb-4">广告位</h1>
+      <div className="bg-white border rounded-lg p-6 text-sm text-gray-600">
+        <p>当前数据库无广告表。广告功能待后续版本接入 Banner 表。</p>
+        <p>现有 {products} 个产品、{suppliers} 家企业可作为推荐位来源。</p>
       </div>
     </div>
   );
