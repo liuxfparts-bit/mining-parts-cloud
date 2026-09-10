@@ -42,6 +42,7 @@ export default async function SupplierProducts() {
               <th className="text-left p-3">价格</th>
               <th className="text-left p-3">发布状态</th>
               <th className="text-left p-3">验证状态</th>
+              <th className="text-left p-3">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -60,6 +61,9 @@ export default async function SupplierProducts() {
                   <td className="p-3">{p.price ? `${p.currency} ${p.price}` : "-"}</td>
                   <td className="p-3"><span className={`text-xs px-2 py-1 rounded ${s.cls}`}>{s.text}</span></td>
                   <td className="p-3 text-xs">{p.verificationStatus}</td>
+                  <td className="p-3">
+                    <Link href={`/supplier/products/${p.id}/edit`} className="text-blue-600">编辑</Link>
+                  </td>
                 </tr>
               );
             })}

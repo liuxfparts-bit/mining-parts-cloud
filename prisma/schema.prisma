@@ -204,6 +204,7 @@ model Supplier {
   products     Product[]
   quotes       Quote[]
   users        User[]
+  partNumberRequests PartNumberRequest[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
@@ -310,4 +311,21 @@ model Quote {
   status       String   @default("PENDING") // PENDING / ACCEPTED / REJECTED / WITHDRAWN
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model PartNumberRequest {
+  id          Int      @id @default(autoincrement())
+  supplierId  Int
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  partNumber  String
+  partName    String
+  brandName   String?
+  equipmentModel String?
+  category    String?
+  description String?
+  images      String?
+  status      String   @default("PENDING")
+  reviewReason String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
