@@ -108,12 +108,22 @@ export default async function HomePage() {
       <main className="container pb-12">
         {/* 热门品牌 */}
         <section className="py-6">
-          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">热门品牌</h2><Link href="/brands" className="text-sm text-blue-600">全部 <ArrowRight className="inline h-3 w-3" /></Link></div>
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+          <div className="flex justify-between items-end mb-3">
+            <div><h2 className="text-xl font-bold">热门品牌</h2><p className="text-xs text-gray-500 mt-1">覆盖主流矿山设备品牌</p></div>
+            <Link href="/brands" className="text-sm text-blue-600">全部 <ArrowRight className="inline h-3 w-3" /></Link>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-3">
             {brands.map((b) => (
-              <Link key={b.id} href={`/brands/${b.slug}`} className="bg-white border rounded p-4 text-center hover:shadow">
-                <div className="font-bold">{b.name}</div>
-                <div className="text-xs text-gray-500 mt-1">设备 {b._count.equipment} · 件号 {b._count.partNumbers}</div>
+              <Link key={b.id} href={`/brands/${b.slug}`} className="bg-white border rounded-lg p-4 flex flex-col items-center justify-center h-[130px] hover:shadow">
+                <div className="h-14 flex items-center justify-center">
+                  {b.logo ? (
+                    <img src={b.logo} alt={b.name} className="max-h-14 max-w-[120px] object-contain" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">{b.name[0]}</div>
+                  )}
+                </div>
+                <div className="text-sm font-medium mt-2">{b.name}</div>
+                <div className="text-[10px] text-gray-400">{b._count.partNumbers} 件号</div>
               </Link>
             ))}
           </div>
