@@ -62,9 +62,13 @@ export default function SupplierProfileClient({ supplier }: { supplier: Props })
         <div><label className="block text-sm mb-1">主营设备</label><input name="mainEquipment" defaultValue={supplier.mainEquipment || ""} className={f} /></div>
       </div>
       <div><label className="block text-sm mb-1">简介</label><textarea name="description" rows={3} defaultValue={supplier.description || ""} className={f} /></div>
-      <button disabled={loading} className="bg-blue-600 text-white px-6 py-2 rounded disabled:opacity-50">
-        {loading ? "保存中..." : "保存修改"}
-      </button>
+      <div className="h-16" />
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t px-6 py-3 flex justify-end gap-2 shadow">
+        <button type="reset" className="border px-4 py-2 rounded text-sm">撤销</button>
+        <button disabled={loading} className="bg-blue-600 text-white px-6 py-2 rounded disabled:opacity-50">
+          {loading ? "保存中..." : "保存修改"}
+        </button>
+      </div>
     </form>
   );
 }

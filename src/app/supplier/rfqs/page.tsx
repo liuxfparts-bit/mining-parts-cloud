@@ -11,14 +11,9 @@ export default async function SupplierRfqs() {
   const user = await prisma.user.findUnique({ where: { email: (session.user as any).email } });
   if (!user?.supplierId) redirect("/supplier");
 
-  // 公开询价大厅中未报价的
   const openRfqs = await prisma.rFQ.findMany({
-    where: {
-      status: "COLLECTING",
-      visibility: "PUBLIC",
-      quotes: { none: { supplierId: user.supplierId } },
-    },
-    include: { partNumber: true },
+    where: { status: "COLLECTING", visibility: "PUBLIC", quotes: { none: { supplierId: user.supplierId } } },
+    include: { partNumber: { include: { brand: true } } },
     orderBy: { createdAt: "desc" },
     take: 50,
   });
@@ -27,35 +22,29 @@ export default async function SupplierRfqs() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">询价大厅（可报价）</h1>
-        <Link href="/supplier/rfqs/new" className="bg-blue-600 text-white px-4 py-2 rounded text-sm">发布询价</Link>
+        <Link href="/supplier/profile" className="border px-4 py-2 rounded text-sm">订阅配件通知 / 设置接单偏好</Link>
       </div>
       {openRfqs.length === 0 ? (
         <div className="bg-white border rounded-lg p-12 text-center text-gray-500">暂无待报价的公开询价</div>
       ) : (
-        <table className="w-full bg-white border rounded-lg text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="text-left p-3">标题</th>
-              <th className="text-left p-3">件号</th>
-              <th className="text-left p-3">数量</th>
-              <th className="text-left p-3">采购方</th>
-              <th className="text-left p-3">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {openRfqs.map((r) => (
-              <tr key={r.id} className="border-b">
-                <td className="p-3">{r.title}</td>
-                <td className="p-3 font-mono">{r.partNumber?.number || "-"}</td>
-                <td className="p-3">{r.quantity} {r.unit}</td>
-                <td className="p-3">{r.contactName}</td>
-                <td className="p-3">
-                  <Link href={`/supplier/rfqs/${r.id}`} className="text-blue-600 hover:underline">去报价</Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="grid gap-3">
+          {openRfqs.map((r) => (
+            <div key={r.id} className="bg-white border rounded-lg p-4 flex items-center justify-between">
+              <div className="flex-1">
+                <div className="font-medium">{r.title}</div>
+                <div className="flex gap-2 mt-2 text-xs text-gray-500 flex-wrap">
+                  <span className="font-mono border rounded px-1.5 py-0.5">{r.partNumber?.number || "-"}</span>
+                  {r.partNumber?.brand && <span className="bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">{r.partNumber.brand.name}</span>}
+                  <span>数量：{r.quantity} {r.unit}</span>
+                  {r.expectedDate && <span>期望交期：{r.expectedDate.toLocaleDateString()}</span>}
+                  {r.expiresAt && <span className="text-orange-600">截止：{r.expiresAt.toLocaleDateString()}</span>}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">采购方：{r.contactName}</div>
+              </div>
+              <Link href={`/supplier/rfqs/${r.id}`} className="ml-4 bg-blue-600 text-white px-4 py-2 rounded text-sm whitespace-nowrap">去报价</Link>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

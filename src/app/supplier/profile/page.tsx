@@ -14,7 +14,7 @@ export default async function SupplierProfilePage() {
   if (!supplier) redirect("/supplier");
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-6 max-w-5xl">
       <h1 className="text-2xl font-bold mb-4">企业资料</h1>
       <SupplierProfileClient supplier={supplier} />
     </div>
