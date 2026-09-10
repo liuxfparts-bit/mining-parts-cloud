@@ -1,9 +1,32 @@
-export default function DashboardRFQsPage() {
+export const dynamic = "force-dynamic";
+
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+
+export default async function BuyerRfqs() {
+  const s = await auth();
+  if (!s) redirect("/login");
+  const user = await prisma.user.findUnique({ where: { email: (s.user as any).email } });
+  const rfqs = user ? await prisma.rFQ.findMany({ where: { userID: user.id }, orderBy: { createdAt: "desc" } }) : [];
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-2">我的询价</h1>
-      <p className="text-muted mb-6">查看和管理我发布的询价单</p>
-      <div className="bg-white border border-line rounded-lg p-12 text-center text-muted">询价管理建设中</div>
+    <div className="p-6">
+      <h1 className="text-xl font-bold mb-4">我的询价 ({rfqs.length})</h1>
+      <div className="bg-white border rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b"><tr><th className="p-3 text-left">标题</th><th className="p-3 text-left">数量</th><th className="p-3 text-left">状态</th><th className="p-3 text-left">时间</th></tr></thead>
+          <tbody>
+            {rfqs.map((r) => (
+              <tr key={r.id} className="border-b">
+                <td className="p-3">{r.title}</td>
+                <td className="p-3">{r.quantity} {r.unit}</td>
+                <td className="p-3">{r.status}</td>
+                <td className="p-3">{r.createdAt.toLocaleDateString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

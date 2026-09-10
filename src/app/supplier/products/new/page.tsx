@@ -31,6 +31,10 @@ export default async function NewProduct() {
           <label className="block text-sm mb-1">报价（USD）</label>
           <input name="price" type="number" step="0.01" className="border rounded px-3 py-2 text-sm w-full" />
         </div>
+        <div>
+          <label className="block text-sm mb-1">产品图片 URL</label>
+          <input name="imageUrl" className="border rounded px-3 py-2 text-sm w-full" placeholder="https://..." />
+        </div>
         <button className="bg-blue-600 text-white px-6 py-2 rounded">提交（待管理员审核）</button>
       </form>
     </div>

@@ -19,7 +19,7 @@ export async function createProduct(formData: FormData) {
   const name = (formData.get("name") as string).trim();
   const price = parseFloat(formData.get("price") as string) || null;
   await prisma.product.create({
-    data: { name, partNumberId, supplierId, price, status: "PENDING" },
+    data: { name, partNumberId, supplierId, price, status: "PENDING", images: (formData.get("imageUrl") as string) || "" },
   });
   revalidatePath("/supplier/products");
   redirect("/supplier/products");
