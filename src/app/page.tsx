@@ -1,155 +1,202 @@
 import Link from "next/link";
-import { prisma } from "@/lib/db";
-import EquipmentCard from "@/components/EquipmentCard";
-import PartNumberCard from "@/components/PartNumberCard";
-import SupplierCard from "@/components/SupplierCard";
-import RFQCard from "@/components/RFQCard";
+import { prisma } from "@/lib/prisma";
+import { auth, signOut } from "@/lib/auth";
 import { ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
+  const session = await auth();
+  const user = session?.user ? await prisma.user.findUnique({ where: { email: (session.user as any).email } }) : null;
+  const role = (session?.user as any)?.role;
+
+  const [brandCount, equipmentCount, partNumberCount, productCount, supplierCount, rfqCount] = await Promise.all([
+    prisma.brand.count(),
+    prisma.equipment.count(),
+    prisma.partNumber.count(),
+    prisma.product.count({ where: { status: "PUBLISHED" } }),
+    prisma.supplier.count(),
+    prisma.rFQ.count({ where: { status: "COLLECTING" } }),
+  ]);
+
   const [brands, equipment, partNumbers, suppliers, recentRFQs] = await Promise.all([
-    prisma.brand.findMany({ include: { _count: { select: { equipment: true, partNumbers: true } } }, take: 8, orderBy: { name: "asc" } }),
+    prisma.brand.findMany({ include: { _count: { select: { equipment: true, partNumbers: true } } }, take: 10, orderBy: { name: "asc" } }),
     prisma.equipment.findMany({ include: { brand: true, _count: { select: { partNumbers: true } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
-      include: { brand: true, equipment: { include: { brand: true } }, products: { include: { supplier: true } } },
-      take: 6,
-      orderBy: { id: "asc" },
+      include: { brand: true, equipment: { include: { brand: true } }, products: { where: { status: "PUBLISHED" }, include: { supplier: true } } },
+      take: 6, orderBy: { id: "asc" },
     }),
-    prisma.supplier.findMany({ include: { _count: { select: { products: true } } }, take: 4, orderBy: { id: "asc" } }),
+    prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED" }, include: { _count: { select: { products: true } } }, take: 4, orderBy: { id: "asc" } }),
     prisma.rFQ.findMany({ take: 4, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
   ]);
 
+  const equipmentCats = ["连续采煤机", "锚杆钻车", "梭车", "地下铲运机", "掘进机", "采煤机", "凿岩台车", "长壁设备"];
+  const systemCats = ["液压系统", "电气控制", "发动机", "传动系统", "行走系统", "制动系统", "结构件", "滤芯维护"];
+
   return (
     <>
-      {/* Hero — 搜索为核心 */}
-      <section className="bg-gradient-to-br from-dark via-[#1a2d3a] to-[#243a48] text-white py-[64px] md:py-[80px]">
-        <div className="container text-center">
-          <h1 className="text-3xl md:text-5xl font-bold mb-3 tracking-tight">
-            找设备 · 找配件 · 找厂家 · 发询价
-          </h1>
-          <p className="text-[#9fb2bf] text-sm md:text-base mb-8">
-            Find Equipment · Find Parts · Find Suppliers · Post RFQs
-          </p>
+      {/* Header */}
+      <header className="bg-white border-b sticky top-0 z-30">
+        <div className="container flex items-center justify-between h-14">
+          <Link href="/" className="font-bold text-xl">矿配云</Link>
+          <nav className="flex gap-4 text-sm items-center">
+            <Link href="/equipment" className="hover:text-blue-600">找设备</Link>
+            <Link href="/part-number" className="hover:text-blue-600">找件号</Link>
+            <Link href="/suppliers" className="hover:text-blue-600">找厂家</Link>
+            <Link href="/rfqs" className="hover:text-blue-600">询价大厅</Link>
+            {!session ? (
+              <>
+                <Link href="/login" className="text-gray-600">登录</Link>
+                <Link href="/register" className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm">企业入驻</Link>
+              </>
+            ) : (
+              <>
+                <span className="text-gray-600">{user?.name || "用户"}</span>
+                {role === "ADMIN" && <Link href="/admin" className="text-blue-600">管理后台</Link>}
+                {role === "SUPPLIER" && <Link href="/supplier" className="text-blue-600">供应商工作台</Link>}
+                {role === "BUYER" && <Link href="/dashboard" className="text-blue-600">采购商中心</Link>}
+                <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
+                  <button className="text-gray-500">退出</button>
+                </form>
+              </>
+            )}
+          </nav>
+        </div>
+      </header>
 
-          {/* 大搜索框 */}
-          <div className="max-w-[860px] mx-auto">
-            <div className="flex gap-3 flex-col sm:flex-row">
-              <form action="/search" className="flex-1 flex items-center bg-white rounded-lg shadow-2xl overflow-hidden">
-                <input type="text" name="q" placeholder="输入品牌、设备型号、配件件号或产品名称" className="w-full px-5 py-4 text-base text-ink outline-none" />
-                <button type="submit" className="bg-accent text-ink font-bold px-6 py-4 hover:bg-[#d49215] transition-colors whitespace-nowrap">搜索</button>
-              </form>
-              <Link href="/rfq/create" className="bg-[#F59E0B] text-white font-bold px-6 py-4 rounded-lg hover:bg-[#d97706] whitespace-nowrap text-center">
-                一键发布询价
-              </Link>
+      {/* Hero */}
+      <section className="bg-[#1F2937] text-white py-16">
+        <div className="container text-center">
+          <h1 className="text-3xl md:text-4xl font-bold">中国矿山设备与配件专业平台</h1>
+          <p className="text-gray-400 mt-2">找设备 · 找配件 · 找厂家 · 发询价</p>
+          <form action="/search" className="max-w-2xl mx-auto mt-6 flex bg-white rounded-lg overflow-hidden shadow-lg">
+            <input name="q" placeholder="输入件号、设备型号、品牌或配件名称，如 XP210162 / MB670-1" className="flex-1 px-5 py-3 text-gray-900 outline-none" />
+            <button className="bg-[#F59E0B] text-white px-6 font-bold">搜索</button>
+          </form>
+          <div className="flex justify-center gap-4 mt-4 text-xs text-gray-400 flex-wrap">
+            <Link href="/rfq/create" className="bg-[#F59E0B] text-white px-4 py-2 rounded">立即发布询价</Link>
+            <Link href="/part-number" className="border border-white/30 px-4 py-2 rounded">免费找货</Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-8 text-xs max-w-3xl mx-auto">
+            <div className="border border-white/10 rounded p-3">件号数据 {partNumberCount}+</div>
+            <div className="border border-white/10 rounded p-3">设备型号 {equipmentCount}+</div>
+            <div className="border border-white/10 rounded p-3">专业供应商 {supplierCount}+</div>
+            <div className="border border-white/10 rounded p-3">已发布产品 {productCount}+</div>
+          </div>
+        </div>
+      </section>
+
+      {/* 快速找货 */}
+      <section className="container py-8">
+        <h2 className="text-xl font-bold mb-3">快速找货</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white border rounded p-4">
+            <h3 className="font-bold mb-2">按设备找</h3>
+            <div className="flex flex-wrap gap-2">
+              {equipmentCats.map((c) => <Link key={c} href={`/search?q=${c}`} className="text-xs bg-gray-100 px-2 py-1 rounded">{c}</Link>)}
             </div>
-            <div className="flex flex-wrap justify-center gap-2 mt-4 text-xs">
-              <span className="text-[#9fb2bf]">热门搜索：</span>
-              <Link href="/search?q=Sandvik MB670" className="text-[#c5d8e0] hover:text-accent">Sandvik MB670</Link>
-              <span className="text-[#4a5a66]">|</span>
-              <Link href="/search?q=Sandvik LS190" className="text-[#c5d8e0] hover:text-accent">Sandvik LS190</Link>
-              <span className="text-[#4a5a66]">|</span>
-              <Link href="/search?q=CAT CL210" className="text-[#c5d8e0] hover:text-accent">CAT CL210</Link>
-              <span className="text-[#4a5a66]">|</span>
-              <Link href="/search?q=JOY 10SC32" className="text-[#c5d8e0] hover:text-accent">JOY 10SC32</Link>
-              <span className="text-[#4a5a66]">|</span>
-              <Link href="/search?q=XP210162" className="text-[#c5d8e0] hover:text-accent">XP210162</Link>
-            </div>
-            <div className="flex flex-wrap justify-center gap-6 mt-6 text-xs text-[#9fb2bf]">
-              <span>✓ 精密件号匹配</span>
-              <span>✓ 厂家直供</span>
-              <span>✓ 多家比价</span>
-              <span>✓ 平台审核保障</span>
+          </div>
+          <div className="bg-white border rounded p-4">
+            <h3 className="font-bold mb-2">按系统找</h3>
+            <div className="flex flex-wrap gap-2">
+              {systemCats.map((c) => <Link key={c} href={`/search?q=${c}`} className="text-xs bg-gray-100 px-2 py-1 rounded">{c}</Link>)}
             </div>
           </div>
         </div>
       </section>
 
-      <main className="container">
+      <main className="container pb-12">
         {/* 热门品牌 */}
-        <section className="py-[42px]">
-          <div className="flex justify-between items-end mb-5">
-            <h2 className="text-2xl font-bold">热门品牌</h2>
-            <Link href="/brands" className="text-[13px] text-[#8a6a27] flex items-center gap-1">全部品牌 <ArrowRight className="h-3 w-3" /></Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-[14px]">
+        <section className="py-6">
+          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">热门品牌</h2><Link href="/brands" className="text-sm text-blue-600">全部 <ArrowRight className="inline h-3 w-3" /></Link></div>
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
             {brands.map((b) => (
-              <Link key={b.id} href={`/brands/${b.slug}`} className="bg-white border border-line p-5 text-center rounded-lg font-bold hover:shadow-md">
-                {b.name}
-                <small className="block text-muted font-normal mt-2 text-[11px]">
-                  设备 {b._count.equipment} · 件号 {b._count.partNumbers}
-                </small>
+              <Link key={b.id} href={`/brands/${b.slug}`} className="bg-white border rounded p-4 text-center hover:shadow">
+                <div className="font-bold">{b.name}</div>
+                <div className="text-xs text-gray-500 mt-1">设备 {b._count.equipment} · 件号 {b._count.partNumbers}</div>
               </Link>
             ))}
           </div>
         </section>
 
         {/* 热门设备 */}
-        <section className="py-[42px]">
-          <div className="flex justify-between items-end mb-5">
-            <h2 className="text-2xl font-bold">热门矿山设备</h2>
-            <Link href="/equipment" className="text-[13px] text-[#8a6a27]">全部设备 →</Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[14px]">
+        <section className="py-6">
+          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">热门矿山设备</h2><Link href="/equipment" className="text-sm text-blue-600">全部 <ArrowRight className="inline h-3 w-3" /></Link></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {equipment.map((e) => (
-              <EquipmentCard key={e.id} slug={e.slug} brandName={e.brand.name} model={e.model} equipmentType={e.equipmentType} description={e.description} partCount={e._count.partNumbers} />
+              <Link key={e.id} href={`/equipment/${e.slug}`} className="bg-white border rounded p-4 hover:shadow">
+                <span className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded">{e.brand.name}</span>
+                <div className="font-bold mt-2">{e.model}</div>
+                <div className="text-xs text-gray-500">{e.equipmentType}</div>
+                <div className="text-xs text-gray-400 mt-1">{e._count.partNumbers} 个相关件号</div>
+              </Link>
             ))}
           </div>
         </section>
 
         {/* 热门件号 */}
-        <section className="py-[42px]">
-          <div className="flex justify-between items-end mb-5">
-            <h2 className="text-2xl font-bold">热门件号</h2>
-            <Link href="/part-number" className="text-[13px] text-[#8a6a27]">件号数据库 →</Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-[14px]">
+        <section className="py-6">
+          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">热门件号</h2><Link href="/part-number" className="text-sm text-blue-600">件号数据库 <ArrowRight className="inline h-3 w-3" /></Link></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {partNumbers.map((p) => {
-              const prices = p.products.map((pr) => pr.price).filter((v): v is number => v !== null);
+              const prices = p.products.map((x) => x.price).filter((v): v is number => v !== null);
               return (
-                <PartNumberCard
-                  key={p.id}
-                  slug={p.slug}
-                  partNumber={p.number}
-                  name={p.name}
-                  category={p.category}
-                  brandName={p.brand?.name}
-                  equipmentModel={p.equipment?.model}
-                  supplierCount={p.products.length}
-                  minPrice={prices.length > 0 ? Math.min(...prices) : null}
-                />
+                <div key={p.id} className="bg-white border rounded p-4">
+                  <div className="font-mono font-bold text-blue-700 text-lg">{p.number}</div>
+                  <div className="mt-1">{p.name}</div>
+                  <div className="flex gap-2 mt-2 text-xs">
+                    {p.brand && <span className="bg-gray-100 px-2 py-0.5 rounded">{p.brand.name}</span>}
+                    {p.equipment && <span className="bg-gray-100 px-2 py-0.5 rounded">{p.equipment.model}</span>}
+                  </div>
+                  <div className="flex justify-between items-center mt-3">
+                    <span className="text-xs text-gray-500">{p.products.length} 家供应商</span>
+                    {prices.length > 0 && <span className="text-orange-600 font-bold">¥{Math.min(...prices)} 起</span>}
+                  </div>
+                  <Link href={`/part-number/${p.slug}`} className="inline-block mt-3 text-sm text-blue-600">查看件号 →</Link>
+                </div>
               );
             })}
           </div>
         </section>
 
         {/* 最新询价 */}
-        <section className="py-[42px]">
-          <div className="flex justify-between items-end mb-5">
-            <h2 className="text-2xl font-bold">最新采购需求</h2>
-            <Link href="/rfq/create" className="text-[13px] text-[#8a6a27]">发布需求 →</Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-[14px]">
-            {recentRFQs.map((r) => (
-              <RFQCard key={r.id} id={r.id} title={r.title} partNumberStr={r.partNumberStr || r.partNumber?.number} brandName={r.brandName} quantity={r.quantity} region={r.region} status={r.status} createdAt={r.createdAt} />
-            ))}
-          </div>
+        <section className="py-6">
+          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">最新公开询价</h2><Link href="/rfq/create" className="text-sm text-blue-600">发布询价 <ArrowRight className="inline h-3 w-3" /></Link></div>
+          {recentRFQs.length === 0 ? (
+            <div className="bg-white border rounded p-8 text-center text-gray-500">目前暂无公开询价，<Link href="/rfq/create" className="text-blue-600">立即发布</Link></div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {recentRFQs.map((r) => (
+                <div key={r.id} className="bg-white border rounded p-4">
+                  <div className="font-medium">{r.title}</div>
+                  <div className="text-xs text-gray-500 mt-1">件号：{r.partNumberStr || r.partNumber?.number || "-"} · 数量：{r.quantity} {r.unit}</div>
+                  <div className="text-xs text-gray-400 mt-1">{r.createdAt.toLocaleDateString()}</div>
+                  <Link href={`/rfqs/${r.id}`} className="text-sm text-blue-600 mt-2 inline-block">查看询价 →</Link>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
-        {/* 优选供应商 */}
-        <section className="py-[42px]">
-          <div className="flex justify-between items-end mb-5">
-            <h2 className="text-2xl font-bold">优选供应商</h2>
-            <Link href="/suppliers" className="text-[13px] text-[#8a6a27]">全部厂家 →</Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[14px]">
+        {/* 优质供应商 */}
+        <section className="py-6">
+          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">优质供应商</h2><Link href="/suppliers" className="text-sm text-blue-600">全部 <ArrowRight className="inline h-3 w-3" /></Link></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {suppliers.map((s) => (
-              <SupplierCard key={s.id} slug={s.slug} name={s.name} shortName={s.shortName} province={s.province} mainBusiness={s.mainBusiness} verified={s.verifiedStatus === "VERIFIED"} productCount={s._count.products} memberLevel={s.memberLevel} />
+              <div key={s.id} className="bg-white border rounded p-4">
+                <div className="font-bold">{s.name}</div>
+                <span className="inline-block mt-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">已认证</span>
+                <div className="text-xs text-gray-500 mt-2">产品 {s._count.products} 个</div>
+                <Link href={`/suppliers/${s.slug}`} className="text-sm text-blue-600 mt-2 inline-block">进入主页 →</Link>
+              </div>
             ))}
           </div>
         </section>
       </main>
+
+      <footer className="bg-gray-900 text-gray-400 text-xs py-6">
+        <div className="container text-center">© 2026 矿配云 · 中国矿山设备与配件专业平台</div>
+      </footer>
     </>
   );
 }
