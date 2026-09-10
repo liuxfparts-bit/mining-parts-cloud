@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 
 type PN = { id: number; number: string; name: string; brand?: { name: string } | null; equipment?: { model: string } | null; category?: string | null };
 
-export default function NewProductClient({ maxImages, memberLevel }: { maxImages: number; memberLevel: string }) {
+export default function NewProductClient({ maxImages, memberLevel, preselect }: { maxImages: number; memberLevel: string; preselect?: PN | null }) {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2>(preselect ? 2 : 1);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<PN[]>([]);
-  const [selected, setSelected] = useState<PN | null>(null);
+  const [selected, setSelected] = useState<PN | null>(preselect || null);
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -109,7 +109,15 @@ export default function NewProductClient({ maxImages, memberLevel }: { maxImages
               </tbody>
             </table>
           )}
-          {q && results.length === 0 && <p className="text-sm text-gray-500">暂未找到该件号。</p>}
+          {q && results.length === 0 && (
+            <div className="text-sm">
+              <p className="text-gray-600 mb-2">未找到平台件号：<span className="font-mono font-bold">{q}</span></p>
+              <p className="text-gray-500 mb-3">如果平台暂时没有该件号，您可以申请新增。审核通过后即可发布供应产品。</p>
+              <a href={`/supplier/part-number-requests/new?partNumber=${encodeURIComponent(q)}`}
+                className="inline-block bg-blue-600 text-white px-4 py-2 rounded text-sm mr-2">申请新增件号</a>
+              <button onClick={() => setQ("")} className="border px-4 py-2 rounded text-sm">重新搜索</button>
+            </div>
+          )}
         </div>
       )}
 

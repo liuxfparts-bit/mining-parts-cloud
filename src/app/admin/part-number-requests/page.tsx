@@ -5,6 +5,19 @@ import { prisma } from "@/lib/prisma";
 async function approve(formData: FormData) {
   "use server";
   const id = parseInt(formData.get("id") as string);
+  const req = await prisma.partNumberRequest.findUnique({ where: { id } });
+  if (!req) return;
+  const existing = await prisma.partNumber.findUnique({ where: { slug: req.partNumber.toLowerCase() } });
+  if (!existing) {
+    await prisma.partNumber.create({
+      data: {
+        number: req.partNumber,
+        name: req.partName,
+        slug: req.partNumber.toLowerCase(),
+        category: req.category || "通用",
+      },
+    });
+  }
   await prisma.partNumberRequest.update({ where: { id }, data: { status: "APPROVED" } });
 }
 async function reject(formData: FormData) {
@@ -38,6 +51,9 @@ export default async function AdminPartNumberRequests() {
                     <form action={approve}><input type="hidden" name="id" value={r.id} /><button className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">通过</button></form>
                     <form action={reject}><input type="hidden" name="id" value={r.id} /><button className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded">驳回</button></form>
                   </div>
+                )}
+                {r.status === "APPROVED" && (
+                  <a href={`/supplier/products/new?partNumber=${r.partNumber}`} className="text-blue-600 text-xs" target="_blank">发布产品</a>
                 )}
               </td>
             </tr>
