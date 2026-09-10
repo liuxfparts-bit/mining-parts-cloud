@@ -70,6 +70,14 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
 
           <p className="text-sm text-muted leading-relaxed">{rfq.description}</p>
 
+          {rfq.images && (
+            <div className="mt-4 flex gap-2 flex-wrap">
+              {rfq.images.split(",").filter(Boolean).map((src) => (
+                <img key={src} src={src.trim()} alt="RFQ" className="h-32 rounded border object-cover" />
+              ))}
+            </div>
+          )}
+
           {/* 供应商报价入口 */}
           <div className="mt-5 pt-5 border-t border-line">
             <Link href={`/rfq/${rfq.id}/quote`}>
