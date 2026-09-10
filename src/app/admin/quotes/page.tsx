@@ -22,6 +22,9 @@ export default async function AdminQuotesPage() {
               <th className="text-left p-3">供应商</th>
               <th className="text-left p-3">单价</th>
               <th className="text-left p-3">交期</th>
+              <th className="text-left p-3">质保</th>
+              <th className="text-left p-3">备注</th>
+              <th className="text-left p-3">时间</th>
               <th className="text-left p-3">状态</th>
             </tr>
           </thead>
@@ -33,6 +36,9 @@ export default async function AdminQuotesPage() {
                 <td className="p-3">{q.supplier.name}</td>
                 <td className="p-3">{q.unitPrice ? `${q.currency} ${q.unitPrice}` : "-"}</td>
                 <td className="p-3">{q.leadTime || "-"}</td>
+                <td className="p-3">{q.warranty || "-"}</td>
+                <td className="p-3 max-w-xs truncate">{q.remarks || "-"}</td>
+                <td className="p-3">{q.createdAt.toLocaleString("zh-CN")}</td>
                 <td className="p-3">{q.status}</td>
               </tr>
             ))}
