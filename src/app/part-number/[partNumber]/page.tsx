@@ -38,6 +38,7 @@ export default async function PartNumberDetailPage({
       brand: true,
       equipment: { include: { brand: true } },
       products: {
+        where: { status: "PUBLISHED" },
         include: { supplier: true },
         orderBy: { price: "asc" },
       },

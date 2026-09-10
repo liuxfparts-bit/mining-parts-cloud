@@ -31,6 +31,7 @@ export async function POST(req: Request) {
       description: b.description,
       images: b.images || "",
       status: b.status === "DRAFT" ? "DRAFT" : "PENDING",
+      verificationStatus: b.status === "DRAFT" ? "UNVERIFIED" : "PENDING",
     },
   });
   return NextResponse.json({ success: true });

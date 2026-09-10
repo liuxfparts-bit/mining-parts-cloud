@@ -122,6 +122,26 @@ export async function setProductStatus(id: number, status: string) {
   await prisma.product.update({ where: { id }, data: { status } });
   revalidatePath("/admin/products");
 }
+
+export async function approveProduct(id: number) {
+  const s = await requireAdmin();
+  await prisma.product.update({
+    where: { id },
+    data: { status: "PUBLISHED", verificationStatus: "VERIFIED", verifiedAt: new Date(), verifiedBy: (s.user as any).id },
+  });
+  revalidatePath("/admin/products");
+  redirect("/admin/products");
+}
+
+export async function rejectProduct(id: number, reason: string) {
+  const s = await requireAdmin();
+  await prisma.product.update({
+    where: { id },
+    data: { status: "REJECTED", verificationStatus: "REJECTED", verificationReason: reason, rejectedAt: new Date(), rejectedBy: (s.user as any).id },
+  });
+  revalidatePath("/admin/products");
+  redirect("/admin/products");
+}
 export async function updateRfqStatus(id: number, status: string) {
   await requireAdmin();
   await prisma.rFQ.update({ where: { id }, data: { status } });
