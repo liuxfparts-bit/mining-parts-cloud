@@ -36,7 +36,6 @@ export default async function SupplierRfqs() {
                   <span className="font-mono border rounded px-1.5 py-0.5">{r.partNumber?.number || "-"}</span>
                   {r.partNumber?.brand && <span className="bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">{r.partNumber.brand.name}</span>}
                   <span>数量：{r.quantity} {r.unit}</span>
-                  {r.expectedDate && <span>期望交期：{r.expectedDate.toLocaleDateString()}</span>}
                   {r.expiresAt && <span className="text-orange-600">截止：{r.expiresAt.toLocaleDateString()}</span>}
                 </div>
                 <div className="text-xs text-gray-400 mt-1">采购方：{r.contactName}</div>
