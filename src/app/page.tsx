@@ -35,8 +35,13 @@ export default async function HomePage() {
   return (
     <>
       {/* Hero */}
-      <section className="bg-[#1F2937] text-white py-16">
-        <div className="container text-center">
+      <section className="relative text-white py-20 overflow-hidden"
+        style={{
+          backgroundImage: `radial-gradient(circle at 20% 20%, rgba(245,158,11,0.15), transparent 50%), radial-gradient(circle at 80% 80%, rgba(59,130,246,0.12), transparent 50%), linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)`,
+        }}>
+        <div className="absolute inset-0 opacity-[0.08]"
+          style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`, backgroundSize: "40px 40px" }} />
+        <div className="container relative text-center">
           <h1 className="text-3xl md:text-4xl font-bold">中国矿山设备与配件专业平台</h1>
           <p className="text-gray-400 mt-2">找设备 · 找配件 · 找厂家 · 发询价</p>
           <form action="/search" className="max-w-2xl mx-auto mt-6 flex bg-white rounded-lg overflow-hidden shadow-lg">
