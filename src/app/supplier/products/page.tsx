@@ -30,6 +30,7 @@ export default async function SupplierProducts() {
         <table className="w-full bg-white border rounded-lg text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
+              <th className="text-left p-3">图片</th>
               <th className="text-left p-3">产品</th>
               <th className="text-left p-3">件号</th>
               <th className="text-left p-3">状态</th>
@@ -38,8 +39,13 @@ export default async function SupplierProducts() {
           <tbody>
             {products.map((p) => (
               <tr key={p.id} className="border-b">
+                <td className="p-3">
+                  {p.images ? (
+                    <img src={p.images.split(",")[0]} className="h-12 rounded border" />
+                  ) : <span className="text-gray-400">-</span>}
+                </td>
                 <td className="p-3">{p.name}</td>
-                <td className="p-3 font-mono">{p.partNumber.number}</td>
+                <td className="p-3 font-mono">{p.partNumber?.number || "-"}</td>
                 <td className="p-3">{p.status}</td>
               </tr>
             ))}
