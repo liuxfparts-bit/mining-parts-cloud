@@ -203,10 +203,6 @@ export default async function HomePage() {
           </div>
         </section>
       </main>
-
-      <footer className="bg-gray-900 text-gray-400 text-xs py-6">
-        <div className="container text-center">© 2026 矿配云 · 中国矿山设备与配件专业平台</div>
-      </footer>
     </>
   );
 }
