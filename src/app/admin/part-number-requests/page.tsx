@@ -25,7 +25,7 @@ export default async function AdminPartNumberRequests() {
               <td className="p-3">{r.category?.name || "-"}</td>
               <td className="p-3">{r.status}</td>
               <td className="p-3">
-                {r.status === "PENDING" && (
+                {r.status !== "APPROVED" && (
                   <div className="flex gap-2 items-center flex-wrap">
                     <form action={approvePartNumberRequest} className="flex items-center gap-1">
                       <input type="hidden" name="id" value={r.id} />
