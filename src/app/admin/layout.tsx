@@ -42,6 +42,7 @@ const menuSections = [
       { href: "/admin/seo", label: "SEO", icon: Search },
       { href: "/admin/members", label: "会员", icon: Crown },
       { href: "/admin/ads", label: "广告", icon: Megaphone },
+      { href: "/admin/banners", label: "Banner / 推荐位", icon: Megaphone },
     ],
   },
 ];
