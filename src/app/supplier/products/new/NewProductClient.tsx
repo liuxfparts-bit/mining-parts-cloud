@@ -114,7 +114,7 @@ export default function NewProductClient({ maxImages, memberLevel }: { maxImages
       )}
 
       {step === 2 && selected && (
-        <form onSubmit={(e) => submit(e, false)} className="space-y-4">
+        <form onSubmit={(e) => submit(e, (e.nativeEvent as SubmitEvent).submitter?.getAttribute("formAction") === "draft")} className="space-y-4">
           <div className="bg-gray-50 p-4 rounded text-sm">
             <div className="font-mono font-bold text-lg">{selected.number}</div>
             <div>{selected.name}</div>
@@ -160,6 +160,7 @@ export default function NewProductClient({ maxImages, memberLevel }: { maxImages
           </div>
           <div className="flex gap-3 pt-3">
             <button type="button" onClick={() => setStep(1)} className="border px-4 py-2 rounded text-sm">上一步</button>
+            <button type="submit" formAction="draft" className="border px-4 py-2 rounded text-sm">保存草稿</button>
             <button type="submit" disabled={loading} className="flex-1 bg-blue-600 text-white px-6 py-2 rounded disabled:opacity-50">
               {loading ? "提交中..." : "提交审核"}
             </button>
