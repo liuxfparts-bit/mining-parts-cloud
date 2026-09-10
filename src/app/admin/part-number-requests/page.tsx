@@ -1,33 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
-
-async function approve(formData: FormData) {
-  "use server";
-  const id = parseInt(formData.get("id") as string);
-  const categoryId = formData.get("categoryId") ? parseInt(formData.get("categoryId") as string) : null;
-  const req = await prisma.partNumberRequest.findUnique({ where: { id } });
-  if (!req) return;
-  const existing = await prisma.partNumber.findUnique({ where: { number: req.partNumber } });
-  if (!existing) {
-    await prisma.partNumber.create({
-      data: {
-        number: req.partNumber,
-        name: req.partName,
-        slug: req.partNumber.toLowerCase(),
-        category: "其他",
-        categoryId: categoryId || req.categoryId,
-      },
-    });
-  }
-  await prisma.partNumberRequest.update({ where: { id }, data: { status: "APPROVED", categoryId: categoryId || req.categoryId } });
-}
-async function reject(formData: FormData) {
-  "use server";
-  const id = parseInt(formData.get("id") as string);
-  const reason = (formData.get("reason") as string) || "不符合要求";
-  await prisma.partNumberRequest.update({ where: { id }, data: { status: "REJECTED", reviewReason: reason } });
-}
+import { approvePartNumberRequest, rejectPartNumberRequest } from "../actions";
 
 export default async function AdminPartNumberRequests() {
   const list = await prisma.partNumberRequest.findMany({ include: { supplier: true, category: true }, orderBy: { createdAt: "desc" } });
@@ -36,7 +10,7 @@ export default async function AdminPartNumberRequests() {
     <div className="p-6">
       <h1 className="text-xl font-bold mb-4">件号申请审核</h1>
       <table className="w-full bg-white border rounded-lg text-sm">
-        <thead className="bg-gray-50"><tr>
+        <thead className="bg-gray-50 border-b"><tr>
           <th className="text-left p-3">件号</th><th className="text-left p-3">名称</th><th className="text-left p-3">供应商</th>
           <th className="text-left p-3">品牌</th><th className="text-left p-3">设备</th><th className="text-left p-3">分类</th><th className="text-left p-3">状态</th><th></th>
         </tr></thead>
@@ -52,8 +26,8 @@ export default async function AdminPartNumberRequests() {
               <td className="p-3">{r.status}</td>
               <td className="p-3">
                 {r.status === "PENDING" && (
-                  <div className="flex gap-2 items-center">
-                    <form action={approve} className="flex items-center gap-1">
+                  <div className="flex gap-2 items-center flex-wrap">
+                    <form action={approvePartNumberRequest} className="flex items-center gap-1">
                       <input type="hidden" name="id" value={r.id} />
                       <select name="categoryId" defaultValue={r.categoryId || ""} className="text-xs border rounded px-1 py-1">
                         {parents.map((p) => (
@@ -63,12 +37,12 @@ export default async function AdminPartNumberRequests() {
                           </optgroup>
                         ))}
                       </select>
-                      <button className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">通过</button>
+                      <button type="submit" className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">通过</button>
                     </form>
-                    <form action={reject} className="flex items-center gap-1">
+                    <form action={rejectPartNumberRequest} className="flex items-center gap-1">
                       <input type="hidden" name="id" value={r.id} />
                       <input name="reason" placeholder="原因" className="text-xs border rounded px-1 py-1 w-24" />
-                      <button className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded">驳回</button>
+                      <button type="submit" className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded">驳回</button>
                     </form>
                   </div>
                 )}

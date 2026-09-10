@@ -210,3 +210,35 @@ export async function updatePartNumber(id: number, formData: FormData) {
   revalidatePath("/admin/part-numbers");
   redirect("/admin/part-numbers");
 }
+
+export async function approvePartNumberRequest(formData: FormData) {
+  await requireAdmin();
+  const id = parseInt(formData.get("id") as string);
+  const categoryId = formData.get("categoryId") ? parseInt(formData.get("categoryId") as string) : null;
+  const req = await prisma.partNumberRequest.findUnique({ where: { id } });
+  if (!req) redirect("/admin/part-number-requests");
+  const existing = await prisma.partNumber.findUnique({ where: { number: req.partNumber } });
+  if (!existing) {
+    await prisma.partNumber.create({
+      data: {
+        number: req.partNumber,
+        name: req.partName,
+        slug: req.partNumber.toLowerCase(),
+        category: "其他",
+        categoryId: categoryId || req.categoryId,
+      },
+    });
+  }
+  await prisma.partNumberRequest.update({ where: { id }, data: { status: "APPROVED", categoryId: categoryId || req.categoryId } });
+  revalidatePath("/admin/part-number-requests");
+  redirect("/admin/part-number-requests");
+}
+
+export async function rejectPartNumberRequest(formData: FormData) {
+  await requireAdmin();
+  const id = parseInt(formData.get("id") as string);
+  const reason = (formData.get("reason") as string) || "不符合要求";
+  await prisma.partNumberRequest.update({ where: { id }, data: { status: "REJECTED", reviewReason: reason } });
+  revalidatePath("/admin/part-number-requests");
+  redirect("/admin/part-number-requests");
+}
