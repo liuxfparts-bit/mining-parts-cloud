@@ -4,8 +4,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import ProductCard from "@/components/ProductCard";
-import { CheckCircle2, MessageSquare, Send } from "lucide-react";
+import { CheckCircle2, Send, Store, MessageSquare } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -19,19 +18,20 @@ export async function generateMetadata({
     include: { brand: true, equipment: true },
   });
   if (!pn) return { title: "Part Not Found" };
-
-  const title = pn.seoTitle || `${pn.number} ${pn.name} for ${pn.brand?.name || ""} ${pn.equipment?.model || ""} | Mining Parts Cloud`;
-  const description = pn.seoDescription || `Find ${pn.number} (${pn.name}/${pn.nameEn || ""}) spare parts for ${pn.brand?.name || ""} ${pn.equipment?.model || ""} from verified mining equipment suppliers.`;
-
+  const title = pn.seoTitle || `${pn.number} ${pn.name} | ${pn.brand?.name || ""} ${pn.equipment?.model || ""} | 矿配云`;
+  const description = pn.seoDescription || `Find ${pn.number} (${pn.name}) for ${pn.brand?.name || ""} ${pn.equipment?.model || ""}. Compare suppliers, prices, stock, lead time and warranty.`;
   return { title, description };
 }
+
+const TYPE_LABEL: Record<string, string> = {
+  OEM: "OEM 原厂", Replacement: "替代件", Aftermarket: "售后件", Used: "二手", Reconditioned: "再制造",
+};
 
 export default async function PartNumberDetailPage({
   params,
 }: {
   params: { partNumber: string };
 }) {
-  // partNumber 参数是 slug，按 slug 查询
   const pn = await prisma.partNumber.findUnique({
     where: { slug: params.partNumber },
     include: {
@@ -48,7 +48,6 @@ export default async function PartNumberDetailPage({
 
   const supplierCount = new Set(pn.products.map((p) => p.supplierId)).size;
 
-  // 相关件号（同设备或同品牌同分类）
   const relatedParts = await prisma.partNumber.findMany({
     where: {
       id: { not: pn.id },
@@ -57,115 +56,146 @@ export default async function PartNumberDetailPage({
         { AND: [{ brandId: pn.brandId || -1 }, { category: pn.category }] },
       ],
     },
-    take: 6,
+    take: 8,
     orderBy: { id: "asc" },
   });
 
   return (
-    <div className="container py-[42px]">
-      <div className="text-sm text-muted mb-6">
-        <Link href="/" className="hover:text-accent">首页</Link> /{" "}
-        <Link href="/part-number" className="hover:text-accent">件号</Link> /{" "}
-        <span className="text-ink font-mono">{pn.number}</span>
+    <div className="container py-6">
+      {/* 面包屑 */}
+      <div className="text-xs text-muted mb-3">
+        <Link href="/" className="hover:text-accent">首页</Link> /
+        <Link href="/part-number" className="hover:text-accent ml-1">找配件</Link> /
+        <span className="ml-1">{pn.category || "配件"}</span> /
+        {pn.equipment && <Link href={`/equipment/${pn.equipment.slug}`} className="hover:text-accent ml-1">{pn.brand?.name} {pn.equipment.model}</Link>} /
+        <span className="ml-1 font-mono font-medium text-ink">{pn.number}</span>
       </div>
 
-      {/* 件号信息 */}
-      <div className="bg-white border border-line rounded-lg p-8 mb-8">
-        <h1 className="font-mono text-3xl font-bold text-accent mb-3">{pn.number}</h1>
-        <p className="text-xl font-bold mb-3">{pn.name} {pn.nameEn && `· ${pn.nameEn}`}</p>
-        <div className="flex gap-2 flex-wrap mb-4">
-          <Badge variant="secondary">{pn.category}</Badge>
-          {pn.brand && (
-            <Link href={`/brands/${pn.brand.slug}`}><Badge>{pn.brand.name}</Badge></Link>
-          )}
-          {pn.equipment && (
-            <Link href={`/equipment/${pn.equipment.slug}`}>
-              <Badge variant="outline">适配：{pn.brand?.name} {pn.equipment.model}</Badge>
-            </Link>
-          )}
-        </div>
-        {pn.description && <p className="text-muted">{pn.description}</p>}
-
-        {/* 统计数据 */}
-        <div className="flex gap-8 mt-5 pt-5 border-t border-line text-sm">
+      {/* 件号主信息 */}
+      <div className="bg-white border border-line rounded-lg p-6 mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <span className="text-2xl font-bold text-accent">{supplierCount}</span>
-            <span className="text-muted ml-1">家供应商</span>
+            <h1 className="font-mono text-3xl font-bold text-accent">{pn.number}</h1>
+            <p className="text-lg font-medium mt-1">{pn.name} {pn.nameEn && <span className="text-muted">· {pn.nameEn}</span>}</p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {pn.brand && <Badge>{pn.brand.name}</Badge>}
+              {pn.equipment && <Badge variant="outline">适配：{pn.equipment.model}</Badge>}
+              <Badge variant="secondary">{pn.category || "配件"}</Badge>
+              {pn.verified ? (
+                <span className="inline-flex items-center gap-1 text-xs text-green"><CheckCircle2 size={13}/> 已验证</span>
+              ) : (
+                <span className="text-xs text-muted">待验证</span>
+              )}
+            </div>
           </div>
-          <div>
-            <span className="text-2xl font-bold text-accent">{pn.products.length}</span>
-            <span className="text-muted ml-1">个产品</span>
+          <div className="text-right">
+            <div className="flex gap-5 text-sm">
+              <div><div className="text-2xl font-bold text-accent">{supplierCount}</div><div className="text-xs text-muted">家供应商</div></div>
+              <div><div className="text-2xl font-bold text-accent">{pn.products.length}</div><div className="text-xs text-muted">个产品</div></div>
+              <div><div className="text-2xl font-bold text-accent">{pn._count.rfqs}</div><div className="text-xs text-muted">条询价</div></div>
+            </div>
           </div>
-          <div>
-            <span className="text-2xl font-bold text-accent">{pn._count.rfqs}</span>
-            <span className="text-muted ml-1">条询价</span>
-          </div>
-        </div>
-
-        {/* 扩展属性 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 pt-5 border-t border-line text-sm">
-          <div><span className="text-muted">验证状态：</span>{pn.verified ? <span className="text-green">✓ 已验证</span> : "待验证"}</div>
-          <div><span className="text-muted">OEM 状态：</span>{pn.oemStatus === "OEM" ? "原厂 OEM" : "售后替代"}</div>
-          {pn.material && <div><span className="text-muted">材质：</span>{pn.material}</div>}
-          {pn.specification && <div><span className="text-muted">规格：</span>{pn.specification}</div>}
-          {pn.application && <div><span className="text-muted">应用：</span>{pn.application}</div>}
-          {pn.oldPartNumber && <div><span className="text-muted">旧件号：</span>{pn.oldPartNumber}</div>}
-          {pn.alternativePartNumber && <div><span className="text-muted">替代件号：</span>{pn.alternativePartNumber}</div>}
         </div>
       </div>
 
-      {/* 供应商产品列表 */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold">可供货产品（{pn.products.length}）</h2>
+      {/* 供应商产品 */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xl font-bold">可供货产品（{pn.products.length}）</h2>
         {pn.products.length > 0 && (
           <Link href={`/rfq/create?partNumber=${pn.number}`}>
-            <Button className="bg-accent text-ink hover:bg-[#d49215] flex items-center gap-1">
-              <Send size={15} /> 询价全部供应商
+            <Button className="bg-accent text-ink hover:bg-[#d49215] flex items-center gap-1 text-sm">
+              <Send size={14} /> 询价全部供应商
             </Button>
           </Link>
         )}
       </div>
+
       {pn.products.length === 0 ? (
-        <div className="bg-white border border-line rounded-lg p-8 text-center">
-          <p className="text-muted mb-4">暂无供应商提供该件号</p>
-          <Link href="/rfq/create"><Button>发布询价找货</Button></Link>
+        <div className="bg-white border rounded-lg p-8 text-center text-muted">
+          暂无供应商提供该件号，<Link href="/rfq/create" className="text-accent">发布询价</Link>找货
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[14px]">
-          {pn.products.map((prod) => (
-            <ProductCard
-              key={prod.id}
-              id={prod.id}
-              partNumber={pn.number}
-              productName={prod.name}
-              supplierName={prod.supplier.shortName || prod.supplier.name}
-              supplierSlug={prod.supplier.slug}
-              price={prod.price}
-              productType={prod.productType}
-              leadTime={prod.leadTime}
-              stock={prod.stock}
-              stockStatus={prod.stockStatus}
-              warranty={prod.warranty}
-              moq={prod.moq}
-              image={prod.images ? prod.images.split(",")[0] : null}
-            />
-          ))}
-        </div>
+        <>
+          {/* 比较表 */}
+          <div className="bg-white border rounded-lg overflow-x-auto mb-4 hidden md:block">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left p-2">供应商</th>
+                  <th className="text-left p-2">类型</th>
+                  <th className="text-left p-2">价格</th>
+                  <th className="text-left p-2">库存</th>
+                  <th className="text-left p-2">交期</th>
+                  <th className="text-left p-2">质保</th>
+                  <th className="text-left p-2">认证</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pn.products.map((p) => (
+                  <tr key={p.id} className="border-b">
+                    <td className="p-2">{p.supplier.shortName || p.supplier.name}</td>
+                    <td className="p-2">{TYPE_LABEL[p.productType] || p.productType}</td>
+                    <td className="p-2 font-bold text-green">{p.price ? `¥${p.price.toLocaleString()}` : "询价"}</td>
+                    <td className="p-2">{p.stockStatus === "IN_STOCK" ? `现货 ${p.stock || ""}` : p.stockStatus}</td>
+                    <td className="p-2">{p.leadTime || "-"}</td>
+                    <td className="p-2">{p.warranty || "-"}</td>
+                    <td className="p-2">{p.supplier.verifiedStatus === "VERIFIED" ? <span className="text-green">✓ 已认证</span> : p.supplier.verifiedStatus}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 产品卡片 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {pn.products.map((prod) => (
+              <div key={prod.id} className="bg-white border rounded-lg p-4">
+                {prod.images ? (
+                  <img src={prod.images.split(",")[0]} className="w-full h-36 object-cover rounded mb-3 bg-gray-50" />
+                ) : (
+                  <div className="w-full h-36 rounded mb-3 bg-gray-100 flex items-center justify-center text-gray-300 text-sm">无图片</div>
+                )}
+                <div className="text-xs text-muted mb-1">Part No. <span className="font-mono font-medium text-ink">{pn.number}</span></div>
+                <h3 className="font-medium">{prod.name}</h3>
+                <div className="flex items-center gap-1 mt-1 text-sm">
+                  <Store size={13} className="text-muted" />
+                  <Link href={`/suppliers/${prod.supplier.slug}`} className="text-accent hover:underline">
+                    {prod.supplier.shortName || prod.supplier.name}
+                  </Link>
+                  {prod.supplier.verifiedStatus === "VERIFIED" && <span className="text-xs text-green">✓</span>}
+                </div>
+                <div className="flex items-baseline gap-2 mt-3">
+                  {prod.price ? <span className="text-xl font-bold text-green">¥{prod.price.toLocaleString()}</span> : <span className="text-sm text-muted">询价</span>}
+                  {prod.leadTime && <span className="text-xs text-muted">{prod.leadTime}</span>}
+                </div>
+                <div className="flex gap-2 mt-1 text-xs text-muted">
+                  {prod.stockStatus === "IN_STOCK" && <span className="text-green">现货</span>}
+                  {prod.warranty && <span>质保 {prod.warranty}</span>}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <Link href={`/suppliers/${prod.supplier.slug}`} className="flex-1 text-center border rounded py-1.5 text-sm hover:bg-gray-50">查看供应商</Link>
+                  <Link
+                    href={`/rfq/create?partNumber=${pn.number}&supplierId=${prod.supplierId}`}
+                    className="flex-1 text-center bg-accent text-ink rounded py-1.5 text-sm hover:bg-[#d49215] font-medium"
+                  >
+                    立即询价
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* 相关件号 */}
       {relatedParts.length > 0 && (
         <>
-          <h2 className="text-2xl font-bold mt-10 mb-4">相关件号</h2>
-          <div className="flex flex-wrap gap-3">
+          <h2 className="text-lg font-bold mt-8 mb-3">相关件号</h2>
+          <div className="flex flex-wrap gap-2">
             {relatedParts.map((rp) => (
-              <Link
-                key={rp.id}
-                href={`/part-number/${rp.slug}`}
-                className="bg-white border border-line px-4 py-2 rounded-md hover:shadow-md transition-shadow text-sm font-mono"
-              >
-                {rp.number}
-                <span className="text-muted ml-2 font-sans">{rp.name}</span>
+              <Link key={rp.id} href={`/part-number/${rp.slug}`}
+                className="bg-white border px-3 py-2 rounded text-sm font-mono hover:shadow">
+                {rp.number} <span className="text-muted font-sans ml-1">{rp.name}</span>
               </Link>
             ))}
           </div>
