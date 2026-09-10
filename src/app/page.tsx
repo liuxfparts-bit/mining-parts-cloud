@@ -35,22 +35,15 @@ export default async function HomePage() {
 
           {/* 大搜索框 */}
           <div className="max-w-[860px] mx-auto">
-            <form action="/search" className="flex items-center bg-white rounded-lg shadow-2xl overflow-hidden">
-              <div className="flex-1 flex items-center">
-                <input
-                  type="text"
-                  name="q"
-                  placeholder="输入品牌、设备型号、配件件号或产品名称"
-                  className="w-full px-5 py-4 text-base text-ink outline-none"
-                />
-              </div>
-              <button
-                type="submit"
-                className="bg-accent text-ink font-bold px-8 py-4 hover:bg-[#d49215] transition-colors whitespace-nowrap"
-              >
-                搜索
-              </button>
-            </form>
+            <div className="flex gap-3 flex-col sm:flex-row">
+              <form action="/search" className="flex-1 flex items-center bg-white rounded-lg shadow-2xl overflow-hidden">
+                <input type="text" name="q" placeholder="输入品牌、设备型号、配件件号或产品名称" className="w-full px-5 py-4 text-base text-ink outline-none" />
+                <button type="submit" className="bg-accent text-ink font-bold px-6 py-4 hover:bg-[#d49215] transition-colors whitespace-nowrap">搜索</button>
+              </form>
+              <Link href="/rfq/create" className="bg-[#F59E0B] text-white font-bold px-6 py-4 rounded-lg hover:bg-[#d97706] whitespace-nowrap text-center">
+                一键发布询价
+              </Link>
+            </div>
             <div className="flex flex-wrap justify-center gap-2 mt-4 text-xs">
               <span className="text-[#9fb2bf]">热门搜索：</span>
               <Link href="/search?q=Sandvik MB670" className="text-[#c5d8e0] hover:text-accent">Sandvik MB670</Link>
@@ -62,6 +55,12 @@ export default async function HomePage() {
               <Link href="/search?q=JOY 10SC32" className="text-[#c5d8e0] hover:text-accent">JOY 10SC32</Link>
               <span className="text-[#4a5a66]">|</span>
               <Link href="/search?q=XP210162" className="text-[#c5d8e0] hover:text-accent">XP210162</Link>
+            </div>
+            <div className="flex flex-wrap justify-center gap-6 mt-6 text-xs text-[#9fb2bf]">
+              <span>✓ 精密件号匹配</span>
+              <span>✓ 厂家直供</span>
+              <span>✓ 多家比价</span>
+              <span>✓ 平台审核保障</span>
             </div>
           </div>
         </div>
