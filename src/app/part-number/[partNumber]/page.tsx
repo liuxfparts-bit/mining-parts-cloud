@@ -147,6 +147,7 @@ export default async function PartNumberDetailPage({
               stockStatus={prod.stockStatus}
               warranty={prod.warranty}
               moq={prod.moq}
+              image={prod.images ? prod.images.split(",")[0] : null}
             />
           ))}
         </div>

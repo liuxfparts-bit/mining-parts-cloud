@@ -14,6 +14,7 @@ interface ProductCardProps {
   stockStatus?: string;
   warranty?: string | null;
   moq?: number | null;
+  image?: string | null;
 }
 
 const typeBadgeMap: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "success" }> = {
@@ -44,12 +45,18 @@ export default function ProductCard({
   stockStatus,
   warranty,
   moq,
+  image,
 }: ProductCardProps) {
   const typeBadge = productType ? typeBadgeMap[productType] : null;
   const stockBadge = stockStatus ? stockBadgeMap[stockStatus] : null;
 
   return (
     <div className="bg-white border border-line rounded-lg p-4 hover:shadow-md transition-shadow">
+      {image ? (
+        <img src={image} alt={productName} className="w-full h-40 object-cover rounded mb-3 bg-gray-50" />
+      ) : (
+        <div className="w-full h-40 rounded mb-3 bg-gray-100 flex items-center justify-center text-gray-300 text-sm">无图片</div>
+      )}
       <div className="flex items-start justify-between mb-2 gap-2">
         <span className="font-mono font-bold text-accent text-sm">{partNumber}</span>
         {typeBadge && <Badge variant={typeBadge.variant}>{typeBadge.label}</Badge>}
