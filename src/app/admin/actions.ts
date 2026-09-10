@@ -125,9 +125,10 @@ export async function setProductStatus(id: number, status: string) {
 
 export async function approveProduct(id: number) {
   const s = await requireAdmin();
+  const admin = await prisma.user.findUnique({ where: { email: (s.user as any).email } });
   await prisma.product.update({
     where: { id },
-    data: { status: "PUBLISHED", verificationStatus: "VERIFIED", verifiedAt: new Date(), verifiedBy: (s.user as any).id },
+    data: { status: "PUBLISHED", verificationStatus: "VERIFIED", verifiedAt: new Date(), verifiedBy: admin?.id ?? null },
   });
   revalidatePath("/admin/products");
   redirect("/admin/products");
@@ -135,9 +136,10 @@ export async function approveProduct(id: number) {
 
 export async function rejectProduct(id: number, reason: string) {
   const s = await requireAdmin();
+  const admin = await prisma.user.findUnique({ where: { email: (s.user as any).email } });
   await prisma.product.update({
     where: { id },
-    data: { status: "REJECTED", verificationStatus: "REJECTED", verificationReason: reason, rejectedAt: new Date(), rejectedBy: (s.user as any).id },
+    data: { status: "REJECTED", verificationStatus: "REJECTED", verificationReason: reason, rejectedAt: new Date(), rejectedBy: admin?.id ?? null },
   });
   revalidatePath("/admin/products");
   redirect("/admin/products");
