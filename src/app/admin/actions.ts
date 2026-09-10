@@ -146,6 +146,7 @@ export async function updateBrand(id: number, formData: FormData) {
   const country = (formData.get("country") as string)?.trim() || null;
   await prisma.brand.update({ where: { id }, data: { name, nameEn, country } });
   revalidatePath("/admin/brands");
+  redirect("/admin/brands");
 }
 export async function createEquipment(formData: FormData) {
   await requireAdmin();
@@ -173,6 +174,7 @@ export async function updateEquipment(id: number, formData: FormData) {
     data: { model, name, equipmentType: (formData.get("equipmentType") as string) || "通用" },
   });
   revalidatePath("/admin/equipment");
+  redirect("/admin/equipment");
 }
 
 export async function updatePartNumber(id: number, formData: FormData) {
@@ -186,4 +188,5 @@ export async function updatePartNumber(id: number, formData: FormData) {
     },
   });
   revalidatePath("/admin/part-numbers");
+  redirect("/admin/part-numbers");
 }
