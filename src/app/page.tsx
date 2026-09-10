@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { auth, signOut } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const session = await auth();
-  const user = session?.user ? await prisma.user.findUnique({ where: { email: (session.user as any).email } }) : null;
   const role = (session?.user as any)?.role;
 
   const [brandCount, equipmentCount, partNumberCount, productCount, supplierCount, rfqCount] = await Promise.all([
@@ -35,35 +34,6 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-30">
-        <div className="container flex items-center justify-between h-14">
-          <Link href="/" className="font-bold text-xl">矿配云</Link>
-          <nav className="flex gap-4 text-sm items-center">
-            <Link href="/equipment" className="hover:text-blue-600">找设备</Link>
-            <Link href="/part-number" className="hover:text-blue-600">找件号</Link>
-            <Link href="/suppliers" className="hover:text-blue-600">找厂家</Link>
-            <Link href="/rfqs" className="hover:text-blue-600">询价大厅</Link>
-            {!session ? (
-              <>
-                <Link href="/login" className="text-gray-600">登录</Link>
-                <Link href="/register" className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm">企业入驻</Link>
-              </>
-            ) : (
-              <>
-                <span className="text-gray-600">{user?.name || "用户"}</span>
-                {role === "ADMIN" && <Link href="/admin" className="text-blue-600">管理后台</Link>}
-                {role === "SUPPLIER" && <Link href="/supplier" className="text-blue-600">供应商工作台</Link>}
-                {role === "BUYER" && <Link href="/dashboard" className="text-blue-600">采购商中心</Link>}
-                <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
-                  <button className="text-gray-500">退出</button>
-                </form>
-              </>
-            )}
-          </nav>
-        </div>
-      </header>
-
       {/* Hero */}
       <section className="bg-[#1F2937] text-white py-16">
         <div className="container text-center">
