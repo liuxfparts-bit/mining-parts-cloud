@@ -73,6 +73,7 @@ model Category {
   sortOrder   Int         @default(0)
   partNumbers PartNumber[]
   rfqs        RFQ[]
+  partNumberRequests PartNumberRequest[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 }
@@ -321,7 +322,8 @@ model PartNumberRequest {
   partName    String
   brandName   String?
   equipmentModel String?
-  category    String?
+  categoryId  Int?
+  category    Category? @relation(fields: [categoryId], references: [id])
   description String?
   images      String?
   status      String   @default("PENDING")
