@@ -85,16 +85,38 @@ export default async function MobileHome() {
         </div>
       </section>
 
+      {/* Lightweight Footer */}
+      <footer className="bg-[#1F2937] text-gray-400 text-xs text-center py-4 mt-6">
+        <div className="flex justify-center gap-3 mb-2">
+          <Link href="/about" className="hover:text-white">关于我们</Link>
+          <span>·</span>
+          <Link href="/terms" className="hover:text-white">服务协议</Link>
+          <span>·</span>
+          <Link href="/privacy" className="hover:text-white">隐私政策</Link>
+        </div>
+        <div>© 2026 矿配云 · 晋ICP备xxxxxxxx号</div>
+      </footer>
+
       {/* TabBar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around py-2 z-20">
-        <Link href="/m" className="text-xs text-center">🏠<div>首页</div></Link>
-        <Link href="/search" className="text-xs text-center">🔍<div>搜索</div></Link>
-        <Link href="/rfq/create" className="text-xs text-center -mt-6">
-          <div className="w-12 h-12 bg-[#F59E0B] text-white rounded-full flex items-center justify-center shadow-lg border-4 border-white">📢</div>
-          <div className="text-orange-600">发询价</div>
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t grid grid-cols-5 z-20 pb-[env(safe-area-inset-bottom)]">
+        <Link href="/m" className="flex flex-col items-center py-2 text-gray-600">
+          <span className="text-lg">🏠</span><span className="text-[10px]">首页</span>
         </Link>
-        <Link href="/suppliers" className="text-xs text-center">🏭<div>企业</div></Link>
-        <Link href="/login" className="text-xs text-center">👤<div>我的</div></Link>
+        <Link href="/search" className="flex flex-col items-center py-2 text-gray-600">
+          <span className="text-lg">🔍</span><span className="text-[10px]">搜索</span>
+        </Link>
+        <div className="relative flex flex-col items-center">
+          <Link href="/rfq/create" className="absolute -top-5 w-12 h-12 bg-[#F59E0B] text-white rounded-full flex items-center justify-center shadow-lg border-4 border-white text-xl">
+            +
+          </Link>
+          <span className="text-[10px] text-[#F59E0B] mt-8 font-bold">发询价</span>
+        </div>
+        <Link href="/suppliers" className="flex flex-col items-center py-2 text-gray-600">
+          <span className="text-lg">🏭</span><span className="text-[10px]">企业</span>
+        </Link>
+        <Link href="/login" className="flex flex-col items-center py-2 text-gray-600">
+          <span className="text-lg">👤</span><span className="text-[10px]">我的</span>
+        </Link>
       </nav>
     </div>
   );
