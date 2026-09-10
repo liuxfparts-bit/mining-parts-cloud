@@ -50,7 +50,7 @@ export default async function AdminPartNumbersPage() {
             {items.map((p) => (
               <tr key={p.id} className="border-b hover:bg-gray-50">
                 <td className="p-3 font-mono font-medium">
-                  <a href={`/part-number/${p.number}`} className="text-blue-600 hover:underline">{p.number}</a>
+                  <a href={`/admin/part-numbers/${p.id}`} className="text-blue-600 hover:underline">{p.number}</a>
                 </td>
                 <td className="p-3">{p.name}</td>
                 <td className="p-3">{p.brand?.name || "-"}</td>
