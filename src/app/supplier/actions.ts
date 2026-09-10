@@ -67,6 +67,7 @@ export async function createRfq(formData: FormData) {
       productName: title,
       purchaseType: "NORMAL",
       visibility: "PUBLIC",
+      images: (formData.get("images") as string) || "",
     },
   });
   revalidatePath("/supplier/rfqs");
