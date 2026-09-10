@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { updateBrand } from "../../actions";
+import BrandLogoUploader from "./BrandLogoUploader";
 
 export default async function BrandEdit({ params }: { params: { id: string } }) {
   const b = await prisma.brand.findUnique({ where: { id: parseInt(params.id) } });
@@ -17,6 +18,7 @@ export default async function BrandEdit({ params }: { params: { id: string } }) 
         <div><label className="block text-sm mb-1">品牌名</label><input name="name" defaultValue={b.name} required className={f} /></div>
         <div><label className="block text-sm mb-1">英文名</label><input name="nameEn" defaultValue={b.nameEn || ""} className={f} /></div>
         <div><label className="block text-sm mb-1">国家</label><input name="country" defaultValue={b.country || ""} className={f} /></div>
+        <BrandLogoUploader brandId={b.id} initialLogo={b.logo} />
         <button className="bg-blue-600 text-white px-6 py-2 rounded">保存</button>
       </form>
     </div>
