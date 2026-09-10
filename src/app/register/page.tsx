@@ -8,6 +8,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [accountType, setAccountType] = useState<"SUPPLIER" | "BUYER">("SUPPLIER");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -21,9 +22,10 @@ export default function RegisterPage() {
     const phone = (data.get("phone") as string)?.trim();
     const email = (data.get("email") as string)?.trim();
     const password = data.get("password") as string;
+    const role: "SUPPLIER" | "BUYER" = accountType;
 
     // 前端校验
-    if (!company) return setError("请填写企业全称"), setLoading(false);
+    if (role === "SUPPLIER" && !company) return setError("供应商注册请填写企业全称"), setLoading(false);
     if (!contactName) return setError("请填写联系人姓名"), setLoading(false);
     if (!phone) return setError("请填写手机号/WhatsApp"), setLoading(false);
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("请填写正确的邮箱"), setLoading(false);
@@ -33,7 +35,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company, contactName, phone, email, password }),
+        body: JSON.stringify({ company, contactName, phone, email, password, role }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
@@ -84,7 +86,19 @@ export default function RegisterPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4 max-w-[400px]">
-            <input name="company" className="w-full border rounded-md px-3 py-2.5 text-sm" placeholder="企业全称 *" required />
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setAccountType("SUPPLIER")}
+                className={`py-2 rounded border text-sm ${accountType === "SUPPLIER" ? "bg-blue-600 text-white border-blue-600" : "bg-white"}`}>
+                我是供应商
+              </button>
+              <button type="button" onClick={() => setAccountType("BUYER")}
+                className={`py-2 rounded border text-sm ${accountType === "BUYER" ? "bg-blue-600 text-white border-blue-600" : "bg-white"}`}>
+                我是采购商
+              </button>
+            </div>
+            {accountType === "SUPPLIER" && (
+              <input name="company" className="w-full border rounded-md px-3 py-2.5 text-sm" placeholder="企业全称 *" required />
+            )}
             <input name="contactName" className="w-full border rounded-md px-3 py-2.5 text-sm" placeholder="联系人姓名 *" required />
             <input name="phone" className="w-full border rounded-md px-3 py-2.5 text-sm" placeholder="手机号 / WhatsApp *" required />
             <input name="email" type="email" className="w-full border rounded-md px-3 py-2.5 text-sm" placeholder="工作邮箱 *" required />
