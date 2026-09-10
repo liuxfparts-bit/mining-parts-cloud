@@ -40,7 +40,7 @@ export default function SupplierProfileClient({ supplier }: { supplier: Props })
     const data = await res.json();
     setMsg(data.message || "");
     setLoading(false);
-    if (data.success) router.refresh();
+    if (data.success) router.push("/supplier");
   }
 
   return (
