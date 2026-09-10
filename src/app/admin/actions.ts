@@ -138,6 +138,15 @@ export async function deleteBrand(id: number) {
   await prisma.brand.delete({ where: { id } });
   revalidatePath("/admin/brands");
 }
+
+export async function updateBrand(id: number, formData: FormData) {
+  await requireAdmin();
+  const name = (formData.get("name") as string).trim();
+  const nameEn = (formData.get("nameEn") as string)?.trim() || null;
+  const country = (formData.get("country") as string)?.trim() || null;
+  await prisma.brand.update({ where: { id }, data: { name, nameEn, country } });
+  revalidatePath("/admin/brands");
+}
 export async function createEquipment(formData: FormData) {
   await requireAdmin();
   const model = (formData.get("model") as string).trim();

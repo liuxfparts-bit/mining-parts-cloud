@@ -1,22 +1,54 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export default function AdminMembers() {
-  const levels = [
-    { name: "FREE", desc: "免费企业：企业主页 + 10个产品", color: "gray" },
-    { name: "BRONZE", desc: "铜牌企业：产品优先展示", color: "orange" },
-    { name: "SILVER", desc: "银牌企业：首页展示 + 置顶", color: "gray" },
-    { name: "GOLD", desc: "金牌企业：全部权益 + RFQ优先匹配", color: "yellow" },
-  ];
+import { prisma } from "@/lib/prisma";
+import { updateMemberLevel } from "../actions";
+
+const MEMBER: Record<string, string> = {
+  FREE: "普通会员",
+  BRONZE: "铜牌会员",
+  SILVER: "银牌会员",
+  GOLD: "金牌会员",
+};
+
+export default async function AdminMembers() {
+  const suppliers = await prisma.supplier.findMany({ orderBy: { memberLevel: "asc" } });
+
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">会员等级</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {levels.map((l) => (
-          <div key={l.name} className="bg-white border rounded-lg p-6">
-            <span className={`px-2 py-1 bg-${l.color}-100 text-${l.color}-700 rounded text-sm font-medium`}>{l.name}</span>
-            <p className="text-sm text-gray-600 mt-2">{l.desc}</p>
-          </div>
-        ))}
+    <div className="p-6">
+      <h1 className="text-xl font-bold mb-4">会员管理（{suppliers.length} 家企业）</h1>
+      <div className="bg-white rounded-lg border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="text-left p-3">企业</th>
+              <th className="text-left p-3">联系人</th>
+              <th className="text-left p-3">当前等级</th>
+              <th className="text-left p-3">认证状态</th>
+              <th className="text-left p-3">修改等级</th>
+            </tr>
+          </thead>
+          <tbody>
+            {suppliers.map((s) => (
+              <tr key={s.id} className="border-b hover:bg-gray-50">
+                <td className="p-3 font-medium">{s.name}</td>
+                <td className="p-3">{s.contactName || "-"}</td>
+                <td className="p-3">{MEMBER[s.memberLevel] || s.memberLevel}</td>
+                <td className="p-3">{s.verifiedStatus}</td>
+                <td className="p-3">
+                  <div className="flex gap-1">
+                    {["FREE", "BRONZE", "SILVER", "GOLD"].map((lv) => (
+                      <form key={lv} action={async () => { "use server"; await updateMemberLevel(s.id, lv); }}>
+                        <button className={`text-xs px-2 py-1 rounded ${s.memberLevel === lv ? "bg-blue-600 text-white" : "bg-gray-100"}`}>
+                          {MEMBER[lv]}
+                        </button>
+                      </form>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
