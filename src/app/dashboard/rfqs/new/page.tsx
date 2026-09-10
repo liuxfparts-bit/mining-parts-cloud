@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { createRfq } from "../../../supplier/actions";
+import ImageUpload from "../../../../components/ImageUpload";
 
 export default async function NewBuyerRfq() {
   const s = await auth();
@@ -55,9 +56,8 @@ export default async function NewBuyerRfq() {
           <textarea name="description" rows={4} className={f} placeholder="详细说明需求：品牌、型号、技术要求、交期等" />
         </div>
         <div>
-          <label className="block text-sm mb-1">图片（选填，粘贴图片 URL）</label>
-          <input name="images" className={f} placeholder="https://..." />
-          <p className="text-xs text-gray-400 mt-1">可上传示意图/图纸后粘贴 URL，多张用逗号分隔</p>
+          <label className="block text-sm mb-1">图片（选填）</label>
+          <ImageUpload name="images" />
         </div>
         <button className="bg-blue-600 text-white px-6 py-2 rounded">提交询价</button>
       </form>
