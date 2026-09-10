@@ -17,6 +17,17 @@ export default auth((req) => {
     }
   }
 
+  // Supplier 路由保护
+  if (path.startsWith("/supplier")) {
+    if (!isLoggedIn) return NextResponse.redirect(new URL("/login", nextUrl));
+    if (role !== "SUPPLIER" && role !== "ADMIN") return NextResponse.redirect(new URL("/dashboard", nextUrl));
+  }
+
+  // Buyer dashboard 保护
+  if (path === "/dashboard" && !isLoggedIn) {
+    return NextResponse.redirect(new URL("/login", nextUrl));
+  }
+
   // 已登录访问登录页：按角色跳转
   if (path === "/login" && isLoggedIn) {
     if (role === "ADMIN") return NextResponse.redirect(new URL("/admin", nextUrl));
@@ -28,6 +39,8 @@ export default auth((req) => {
 export const config = {
   matcher: [
     "/admin/:path*",
+    "/supplier/:path*",
     "/login",
+    "/dashboard",
   ],
 };

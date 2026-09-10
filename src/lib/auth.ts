@@ -10,8 +10,10 @@ class InvalidLogin extends CredentialsSignin {
   code = "invalid_credentials";
 }
 
+const secret = process.env.AUTH_SECRET || "dev-only-secret";
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  secret: process.env.AUTH_SECRET || "mining-parts-dev-secret-change-in-production",
+  secret,
   trustHost: true,
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
