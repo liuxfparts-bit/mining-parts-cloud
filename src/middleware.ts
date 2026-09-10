@@ -7,6 +7,14 @@ export default auth((req) => {
   const role = (req.auth as any)?.user?.role;
   const path = nextUrl.pathname;
 
+  // 手机访问根路径 → 跳 H5
+  if (path === "/") {
+    const ua = req.headers.get("user-agent") || "";
+    if (/Android|iPhone|iPad|iPod|Mobile|MicroMessenger/i.test(ua)) {
+      return NextResponse.redirect(new URL("/m", nextUrl));
+    }
+  }
+
   // Admin 路由保护
   if (path.startsWith("/admin")) {
     if (!isLoggedIn) {
@@ -38,6 +46,7 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
+    "/",
     "/admin/:path*",
     "/supplier/:path*",
     "/login",
