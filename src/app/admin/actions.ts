@@ -181,7 +181,7 @@ export async function createPartNumber(formData: FormData) {
   const number = (formData.get("number") as string).trim().toUpperCase();
   const name = (formData.get("name") as string).trim();
   const brandId = parseInt(formData.get("brandId") as string) || null;
-  await prisma.partNumber.create({ data: { number, name, slug: number.toLowerCase(), brandId, category: "通用" } });
+  await prisma.partNumber.create({ data: { number, name, slug: number.toLowerCase(), brandId, category: "其他" } });
   revalidatePath("/admin/part-numbers");
 }
 
