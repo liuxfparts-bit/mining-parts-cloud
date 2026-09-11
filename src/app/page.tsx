@@ -18,7 +18,7 @@ export default async function HomePage() {
     prisma.rFQ.count({ where: { status: "COLLECTING" } }),
   ]);
 
-  const [brands, equipment, partNumbers, suppliers, recentRFQs, banners] = await Promise.all([
+  const [brands, equipment, partNumbers, suppliers, recentRFQs, homeBanners, recommendProducts] = await Promise.all([
     prisma.brand.findMany({ include: { _count: { select: { equipment: true, partNumbers: true } } }, take: 10, orderBy: { name: "asc" } }),
     prisma.equipment.findMany({ include: { brand: true, _count: { select: { partNumbers: true } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
@@ -27,9 +27,12 @@ export default async function HomePage() {
     }),
     prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED" }, include: { _count: { select: { products: true } } }, take: 4, orderBy: { id: "asc" } }),
     prisma.rFQ.findMany({ take: 4, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
-    prisma.banner.findMany({ where: { status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }], take: 8 }),
+    prisma.banner.findMany({ where: { position: "HOME_TOP", status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
+    prisma.product.findMany({ where: { status: "PUBLISHED" }, include: { partNumber: true }, take: 8, orderBy: { id: "desc" } }),
   ]);
-  const fallbackProducts = await prisma.product.findMany({ where: { status: "PUBLISHED" }, include: { partNumber: true }, take: 8, orderBy: { id: "desc" } }).then(list => list.map(p => ({ title: p.name + " " + (p.partNumber?.number || "") })));
+  if (homeBanners.length > 0) {
+    await prisma.banner.updateMany({ where: { id: { in: homeBanners.map((b) => b.id) } }, data: { impressions: { increment: 1 } } });
+  }
 
   const equipmentCats = ["连续采煤机", "锚杆钻车", "梭车", "地下铲运机", "掘进机", "采煤机", "凿岩台车", "长壁设备"];
   const systemCats = ["液压系统", "电气控制", "发动机", "传动系统", "行走系统", "制动系统", "结构件", "滤芯维护"];
@@ -63,14 +66,25 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* 顶部广告 */}
+      {homeBanners.length > 0 && (
+        <section className="container py-4">
+          {homeBanners.map((b) => (
+            <a key={b.id} href={`/api/banner/click/${b.id}`} target="_blank">
+              <img src={b.imageUrl} alt={b.title} className="w-full rounded-lg border" />
+            </a>
+          ))}
+        </section>
+      )}
+
       {/* 推荐位 */}
       <section className="container py-6">
         <h2 className="text-xl font-bold mb-3">推荐产品</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {(banners.length > 0 ? banners : fallbackProducts).map((b: any, i: number) => (
-            <div key={i} className="bg-white border rounded p-3">
-              <div className="h-24 bg-gray-100 rounded mb-2 flex items-center justify-center text-gray-400 text-xs">{b.title}</div>
-              <div className="text-sm">{b.title}</div>
+          {recommendProducts.map((p) => (
+            <div key={p.id} className="bg-white border rounded p-3">
+              <div className="h-24 bg-gray-100 rounded mb-2 flex items-center justify-center text-gray-400 text-xs">{p.partNumber?.number || p.name}</div>
+              <div className="text-sm">{p.name}</div>
             </div>
           ))}
         </div>

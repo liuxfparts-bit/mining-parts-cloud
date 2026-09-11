@@ -333,14 +333,19 @@ model PartNumberRequest {
 }
 
 model Banner {
-  id        Int      @id @default(autoincrement())
-  title     String
-  imageUrl  String
-  targetType String
-  targetId  Int?
-  targetUrl String?
-  sortOrder Int      @default(0)
-  status    String   @default("ACTIVE")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  title       String
+  imageUrl    String
+  position    String   @default("HOME_TOP")
+  targetType  String
+  targetId    Int?
+  targetUrl   String?
+  sortOrder   Int      @default(0)
+  status      String   @default("ACTIVE")
+  startAt     DateTime?
+  endAt       DateTime?
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

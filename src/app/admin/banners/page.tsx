@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import Pagination from "@/components/Pagination";
 
 async function save(formData: FormData) {
   "use server";
@@ -11,11 +12,12 @@ async function save(formData: FormData) {
   const data = {
     title: (formData.get("title") as string).trim(),
     imageUrl: (formData.get("imageUrl") as string).trim(),
-    targetType: formData.get("targetType") as string,
+    position: (formData.get("position") as string) || "HOME_TOP",
+    targetType: (formData.get("targetType") as string) || "URL",
     targetId: formData.get("targetId") ? parseInt(formData.get("targetId") as string) : null,
     targetUrl: (formData.get("targetUrl") as string) || null,
     sortOrder: parseInt((formData.get("sortOrder") as string) || "0"),
-    status: formData.get("status") ? "ACTIVE" : "INACTIVE",
+    status: (formData.get("status") as string) || "ACTIVE",
   };
   if (id) await prisma.banner.update({ where: { id: parseInt(id) }, data });
   else await prisma.banner.create({ data });
@@ -39,69 +41,131 @@ async function toggle(formData: FormData) {
   revalidatePath("/");
 }
 
-export default async function AdminBanners() {
-  const [banners, products, companies] = await Promise.all([
-    prisma.banner.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
-    prisma.product.findMany({ where: { status: "PUBLISHED" }, include: { partNumber: true }, take: 100, orderBy: { id: "desc" } }),
+const POS: Record<string, string> = { HOME_TOP: "首页顶部", HOME_RECOMMEND: "首页推荐", HOME_MIDDLE: "首页中部", HOME_BOTTOM: "首页底部" };
+const TYP: Record<string, string> = { PRODUCT: "产品", COMPANY: "企业", URL: "自定义链接" };
+const STA: Record<string, { t: string; c: string }> = {
+  DRAFT: { t: "草稿", c: "bg-gray-100" },
+  ACTIVE: { t: "已启用", c: "bg-green-100 text-green-700" },
+  INACTIVE: { t: "已停用", c: "bg-gray-100 text-gray-600" },
+  EXPIRED: { t: "已过期", c: "bg-red-100 text-red-700" },
+};
+
+export default async function AdminBanners({ searchParams }: { searchParams: { q?: string; position?: string; type?: string; status?: string; page?: string; pageSize?: string; edit?: string } }) {
+  const q = (searchParams.q || "").trim();
+  const page = Math.max(1, parseInt(searchParams.page || "1"));
+  const pageSize = [20, 50, 100].includes(parseInt(searchParams.pageSize || "20")) ? parseInt(searchParams.pageSize || "20") : 20;
+  const where: any = {};
+  if (q) where.title = { contains: q, mode: "insensitive" };
+  if (searchParams.position) where.position = searchParams.position;
+  if (searchParams.type) where.targetType = searchParams.type;
+  if (searchParams.status) where.status = searchParams.status;
+
+  const [list, total, products, companies, editing] = await Promise.all([
+    prisma.banner.findMany({ where, orderBy: [{ sortOrder: "asc" }, { id: "desc" }], skip: (page - 1) * pageSize, take: pageSize }),
+    prisma.banner.count({ where }),
+    prisma.product.findMany({ where: { status: "PUBLISHED" }, include: { partNumber: true }, take: 200, orderBy: { id: "desc" } }),
     prisma.supplier.findMany({ orderBy: { id: "desc" } }),
+    searchParams.edit ? prisma.banner.findUnique({ where: { id: parseInt(searchParams.edit) } }) : null,
   ]);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Banner / 推荐位管理</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">广告位管理</h1>
+      </div>
+
+      <form method="GET" className="bg-white border rounded p-3 mb-4 flex gap-2 flex-wrap">
+        <input name="q" defaultValue={q} placeholder="广告标题" className="border rounded px-3 py-2 text-sm flex-1 min-w-[160px]" />
+        <select name="position" className="border rounded px-3 py-2 text-sm">
+          <option value="">全部位置</option>
+          {Object.entries(POS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select name="type" className="border rounded px-3 py-2 text-sm">
+          <option value="">全部类型</option>
+          {Object.entries(TYP).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select name="status" className="border rounded px-3 py-2 text-sm">
+          <option value="">全部状态</option>
+          {Object.entries(STA).map(([k, v]) => <option key={k} value={k}>{v.t}</option>)}
+        </select>
+        <button className="bg-blue-600 text-white px-4 py-2 rounded text-sm">搜索</button>
+        <a href="/admin/banners" className="border px-4 py-2 rounded text-sm">重置</a>
+      </form>
+
       <form action={save} className="bg-white border rounded p-4 mb-6 space-y-3">
-        <h2 className="font-bold">新增</h2>
-        <input name="title" placeholder="标题" required className="border rounded px-3 py-2 text-sm w-full" />
+        <h2 className="font-bold">{editing ? `编辑 #${editing.id}` : "+ 新增广告"}</h2>
+        {editing && <input type="hidden" name="id" value={editing.id} />}
+        <input name="title" placeholder="广告标题" required defaultValue={editing?.title || ""} className="border rounded px-3 py-2 text-sm w-full" />
         <div>
-          <label className="block text-xs mb-1">图片</label>
+          <label className="block text-xs mb-1">广告图片（推荐 1440×480）</label>
           <div className="flex gap-2">
-            <input name="imageUrl" id="imageUrlInput" placeholder="图片 URL" required className="border rounded px-3 py-2 text-sm flex-1" />
+            <input name="imageUrl" id="imageUrlInput" placeholder="图片 URL" required defaultValue={editing?.imageUrl || ""} className="border rounded px-3 py-2 text-sm flex-1" />
             <ImageUploader />
           </div>
+          {editing?.imageUrl && <img src={editing.imageUrl} className="mt-2 h-20 object-contain border rounded" />}
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <select name="targetType" className="border rounded px-3 py-2 text-sm">
-            <option value="product">产品</option>
-            <option value="company">企业</option>
-            <option value="url">外部链接</option>
+          <select name="position" className="border rounded px-3 py-2 text-sm" defaultValue={editing?.position || "HOME_TOP"}>
+            {Object.entries(POS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-          <input name="targetUrl" placeholder="外部链接（targetType=url 时填）" className="border rounded px-3 py-2 text-sm" />
+          <select name="targetType" className="border rounded px-3 py-2 text-sm" defaultValue={editing?.targetType || "URL"}>
+            {Object.entries(TYP).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <select name="targetId" className="border rounded px-3 py-2 text-sm">
             <option value="">- 关联产品/企业 -</option>
-            {products.map((p) => <option key={p.id} value={p.id}>产品：{p.name} ({p.partNumber?.number})</option>)}
-            {companies.map((c) => <option key={c.id} value={c.id}>企业：{c.name}</option>)}
+            {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.partNumber?.number})</option>)}
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <div className="flex gap-2 items-center">
-            <input name="sortOrder" type="number" defaultValue={0} className="border rounded px-3 py-2 text-sm w-24" />
-            <label className="text-sm flex items-center gap-1"><input type="checkbox" name="status" defaultChecked /> 启用</label>
-          </div>
+          <input name="targetUrl" placeholder="自定义 URL" defaultValue={editing?.targetUrl || ""} className="border rounded px-3 py-2 text-sm" />
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded">保存</button>
+        <div className="grid grid-cols-3 gap-3">
+          <input name="sortOrder" type="number" defaultValue={editing?.sortOrder || 0} className="border rounded px-3 py-2 text-sm" placeholder="排序" />
+          <select name="status" className="border rounded px-3 py-2 text-sm" defaultValue={editing?.status || "ACTIVE"}>
+            {Object.entries(STA).map(([k, v]) => <option key={k} value={k}>{v.t}</option>)}
+          </select>
+          <button className="bg-blue-600 text-white px-4 py-2 rounded">{editing ? "保存修改" : "保存"}</button>
+        </div>
       </form>
 
       <table className="w-full bg-white border rounded text-sm">
-        <thead className="bg-gray-50"><tr><th className="p-2">ID</th><th className="p-2">图</th><th className="p-2">标题</th><th className="p-2">类型</th><th className="p-2">目标</th><th className="p-2">排序</th><th className="p-2">启用</th><th></th></tr></thead>
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="p-2">图</th><th className="p-2">标题</th><th className="p-2">位置</th><th className="p-2">类型</th><th className="p-2">状态</th><th className="p-2">排序</th>
+            <th className="p-2">曝光</th><th className="p-2">点击</th><th className="p-2">CTR</th><th className="p-2">操作</th>
+          </tr>
+        </thead>
         <tbody>
-          {banners.map((b) => (
-            <tr key={b.id} className="border-b">
-              <td className="p-2">{b.id}</td>
-              <td className="p-2"><img src={b.imageUrl} className="h-10 w-20 object-cover" /></td>
-              <td className="p-2">{b.title}</td>
-              <td className="p-2">{b.targetType}</td>
-              <td className="p-2">{b.targetId || b.targetUrl}</td>
-              <td className="p-2">{b.sortOrder}</td>
-              <td className="p-2">
-                <form action={toggle}><input type="hidden" name="id" value={b.id} /><button className={`text-xs px-2 py-1 rounded ${b.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-gray-100"}`}>{b.status === "ACTIVE" ? "启用" : "停用"}</button></form>
-              </td>
-              <td className="p-2">
-                <form action={del}><input type="hidden" name="id" value={b.id} /><button className="text-red-600 text-xs">删除</button></form>
-              </td>
-            </tr>
-          ))}
+          {list.length === 0 ? <tr><td colSpan={10} className="p-6 text-center text-gray-500">暂无广告</td></tr> :
+            list.map((b) => {
+              const st = STA[b.status] || { t: b.status, c: "" };
+              const ctr = b.impressions > 0 ? ((b.clicks / b.impressions) * 100).toFixed(2) + "%" : "0%";
+              return (
+                <tr key={b.id} className="border-b">
+                  <td className="p-2"><img src={b.imageUrl} className="h-10 w-20 object-cover rounded" /></td>
+                  <td className="p-2">{b.title}</td>
+                  <td className="p-2">{POS[b.position] || b.position}</td>
+                  <td className="p-2">{TYP[b.targetType] || b.targetType}</td>
+                  <td className="p-2"><span className={`text-xs px-2 py-1 rounded ${st.c}`}>{st.t}</span></td>
+                  <td className="p-2">{b.sortOrder}</td>
+                  <td className="p-2">{b.impressions}</td>
+                  <td className="p-2">{b.clicks}</td>
+                  <td className="p-2">{ctr}</td>
+                  <td className="p-2">
+                    <div className="flex gap-1">
+                      <a href={`/admin/banners?edit=${b.id}`} className="text-xs text-blue-600">编辑</a>
+                      <form action={toggle}><input type="hidden" name="id" value={b.id} /><button className="text-xs text-gray-600">{b.status === "ACTIVE" ? "停用" : "启用"}</button></form>
+                      <form action={del}><input type="hidden" name="id" value={b.id} /><button className="text-xs text-red-600" onClick={(e) => { if (!confirm("确定删除该广告？")) e.preventDefault(); }}>删除</button></form>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
         </tbody>
       </table>
+      <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} baseQuery={new URLSearchParams(searchParams as any)} />
     </div>
   );
 }
