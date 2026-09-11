@@ -4,29 +4,39 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-  const [brands, equipment, parts, products, suppliers, rfqs, quotes, pendingSuppliers, recentSuppliers, recentRfqs] = await Promise.all([
-    prisma.brand.count(),
-    prisma.equipment.count(),
-    prisma.partNumber.count(),
-    prisma.product.count(),
-    prisma.supplier.count(),
-    prisma.rFQ.count(),
-    prisma.quote.count(),
-    prisma.supplier.count({ where: { verifiedStatus: "PENDING" } }),
-    prisma.supplier.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
-    prisma.rFQ.findMany({ include: { partNumber: true }, orderBy: { createdAt: "desc" }, take: 5 }),
-  ]);
-
-  const stats = [
-    { label: "企业总数", value: suppliers, href: "/admin/suppliers" },
-    { label: "待审核企业", value: pendingSuppliers, href: "/admin/verification", warn: true },
-    { label: "品牌", value: brands, href: "/admin/brands" },
-    { label: "设备", value: equipment, href: "/admin/equipment" },
-    { label: "件号", value: parts, href: "/admin/part-numbers" },
-    { label: "产品", value: products, href: "/admin/products" },
-    { label: "询价单", value: rfqs, href: "/admin/rfqs" },
-    { label: "报价", value: quotes, href: "/admin/quotes" },
-  ];
+  let stats: any[] = [];
+  let recentSuppliers: any[] = [];
+  let recentRfqs: any[] = [];
+  try {
+    const [brands, equipment, parts, products, suppliers, rfqs, quotes, pendingSuppliers, sList, rList, bannerCount] = await Promise.all([
+      prisma.brand.count(),
+      prisma.equipment.count(),
+      prisma.partNumber.count(),
+      prisma.product.count(),
+      prisma.supplier.count(),
+      prisma.rFQ.count(),
+      prisma.quote.count(),
+      prisma.supplier.count({ where: { verifiedStatus: "PENDING" } }),
+      prisma.supplier.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
+      prisma.rFQ.findMany({ include: { partNumber: true }, orderBy: { createdAt: "desc" }, take: 5 }),
+      prisma.banner.count().catch(() => 0),
+    ]);
+    recentSuppliers = sList;
+    recentRfqs = rList;
+    stats = [
+      { label: "企业总数", value: suppliers, href: "/admin/suppliers" },
+      { label: "待审核企业", value: pendingSuppliers, href: "/admin/verification", warn: true },
+      { label: "品牌", value: brands, href: "/admin/brands" },
+      { label: "设备", value: equipment, href: "/admin/equipment" },
+      { label: "件号", value: parts, href: "/admin/part-numbers" },
+      { label: "产品", value: products, href: "/admin/products" },
+      { label: "询价单", value: rfqs, href: "/admin/rfqs" },
+      { label: "报价", value: quotes, href: "/admin/quotes" },
+      { label: "广告位", value: bannerCount, href: "/admin/banners" },
+    ];
+  } catch (e: any) {
+    return <div className="p-6 text-red-600">控制台加载失败：{e?.message || "未知错误"}。请确认数据库已迁移。</div>;
+  }
 
   return (
     <div className="p-6">
