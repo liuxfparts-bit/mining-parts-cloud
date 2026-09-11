@@ -17,6 +17,7 @@ export default async function BrandEdit({ params }: { params: { id: string } }) 
       <form action={async (fd) => { "use server"; await updateBrand(b.id, fd); }} className="bg-white rounded-lg border p-6 space-y-4">
         <div><label className="block text-sm mb-1">品牌名</label><input name="name" defaultValue={b.name} required className={f} /></div>
         <div><label className="block text-sm mb-1">英文名</label><input name="nameEn" defaultValue={b.nameEn || ""} className={f} /></div>
+        <div><label className="block text-sm mb-1">URL Slug</label><input name="slug" defaultValue={b.slug} className={f} /><p className="text-xs text-gray-500 mt-1">用于品牌详情页 URL，建议英文小写短横线，如 valley-longwall</p></div>
         <div><label className="block text-sm mb-1">国家</label><input name="country" defaultValue={b.country || ""} className={f} /></div>
         <BrandLogoUploader brandId={b.id} initialLogo={b.logo} />
         <button className="bg-blue-600 text-white px-6 py-2 rounded">保存</button>

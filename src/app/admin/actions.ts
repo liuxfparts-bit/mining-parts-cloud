@@ -152,8 +152,15 @@ export async function updateRfqStatus(id: number, status: string) {
 export async function createBrand(formData: FormData) {
   await requireAdmin();
   const name = (formData.get("name") as string).trim();
-  await prisma.brand.create({ data: { name, slug: name.toLowerCase().replace(/\s+/g, "-") } });
+  const nameEn = (formData.get("nameEn") as string)?.trim() || null;
+  let slug = (formData.get("slug") as string)?.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || "";
+  if (!slug) slug = (nameEn || name).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  if (!slug) slug = "brand-" + Date.now();
+  const exists = await prisma.brand.findUnique({ where: { slug } });
+  if (exists) throw new Error("该品牌 URL 标识已存在，请修改");
+  await prisma.brand.create({ data: { name, slug, nameEn } });
   revalidatePath("/admin/brands");
+  revalidatePath("/");
 }
 export async function deleteBrand(id: number) {
   await requireAdmin();
@@ -166,8 +173,14 @@ export async function updateBrand(id: number, formData: FormData) {
   const name = (formData.get("name") as string).trim();
   const nameEn = (formData.get("nameEn") as string)?.trim() || null;
   const country = (formData.get("country") as string)?.trim() || null;
-  await prisma.brand.update({ where: { id }, data: { name, nameEn, country } });
+  let slug = (formData.get("slug") as string)?.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || "";
+  if (!slug) slug = (nameEn || name).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  if (!slug) slug = "brand-" + Date.now();
+  const dup = await prisma.brand.findFirst({ where: { slug, NOT: { id } } });
+  if (dup) throw new Error("该品牌 URL 标识已存在，请修改");
+  await prisma.brand.update({ where: { id }, data: { name, nameEn, country, slug } });
   revalidatePath("/admin/brands");
+  revalidatePath("/");
   redirect("/admin/brands");
 }
 export async function createEquipment(formData: FormData) {
