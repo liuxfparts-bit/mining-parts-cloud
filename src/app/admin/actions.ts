@@ -202,14 +202,45 @@ export async function createPartNumber(formData: FormData) {
 
 export async function updateEquipment(id: number, formData: FormData) {
   await requireAdmin();
-  const model = (formData.get("model") as string).trim();
-  const name = (formData.get("name") as string).trim();
+  const v = (k: string) => (formData.get(k) as string)?.trim() || null;
   await prisma.equipment.update({
     where: { id },
-    data: { model, name, equipmentType: (formData.get("equipmentType") as string) || "通用" },
+    data: {
+      brandId: parseInt(formData.get("brandId") as string),
+      model: (formData.get("model") as string).trim(),
+      name: (formData.get("name") as string).trim(),
+      nameEn: v("nameEn"),
+      series: v("series"),
+      equipmentType: (formData.get("equipmentType") as string) || "通用",
+      application: v("application"),
+      description: v("description"),
+      imageUrl: v("imageUrl"),
+      brochure: v("brochure"),
+      status: (formData.get("status") as string) || "ACTIVE",
+    },
   });
   revalidatePath("/admin/equipment");
+  revalidatePath("/equipment");
   redirect("/admin/equipment");
+}
+
+export async function deleteEquipment(id: number) {
+  await requireAdmin();
+  const used = await prisma.partNumber.count({ where: { equipmentId: id } });
+  if (used > 0) {
+    await prisma.equipment.update({ where: { id }, data: { status: "OFFLINE" } });
+  } else {
+    await prisma.equipment.delete({ where: { id } });
+  }
+  revalidatePath("/admin/equipment");
+}
+
+export async function toggleEquipmentStatus(id: number) {
+  await requireAdmin();
+  const e = await prisma.equipment.findUnique({ where: { id } });
+  if (!e) return;
+  await prisma.equipment.update({ where: { id }, data: { status: e.status === "ACTIVE" ? "OFFLINE" : "ACTIVE" } });
+  revalidatePath("/admin/equipment");
 }
 
 export async function updatePartNumber(id: number, formData: FormData) {
