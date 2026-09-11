@@ -12,7 +12,7 @@ const systemCats = ["液压系统", "电气系统", "发动机", "传动系统",
 export default async function HomePage() {
   await auth();
 
-  const [brands, equipment, partNumbers, suppliers, recentRFQs, homeBanners] = await Promise.all([
+  const [brands, equipment, partNumbers, suppliers, recentRFQs, homeBanners, brandsWithEquipment] = await Promise.all([
     prisma.brand.findMany({ include: { _count: { select: { equipment: true, partNumbers: true } } }, take: 12, orderBy: { name: "asc" } }),
     prisma.equipment.findMany({ include: { brand: true, _count: { select: { partNumbers: true } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
@@ -22,6 +22,7 @@ export default async function HomePage() {
     prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED" }, include: { _count: { select: { products: true } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.rFQ.findMany({ take: 6, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
     prisma.banner.findMany({ where: { status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
+    prisma.brand.findMany({ where: { equipment: { some: {} } }, include: { equipment: { take: 6, orderBy: { id: "desc" } }, _count: { select: { partNumbers: true } } }, orderBy: { name: "asc" } }),
   ]);
   if (homeBanners.length > 0) {
     await prisma.banner.updateMany({ where: { id: { in: homeBanners.map((b) => b.id) } }, data: { impressions: { increment: 1 } } }).catch(() => {});
@@ -29,6 +30,16 @@ export default async function HomePage() {
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify([
+            { "@context": "https://schema.org", "@type": "Organization", name: "矿配云 Mining Parts Cloud", url: "https://kuangpeiyun.com", description: "中国矿山设备与配件专业展示、找货与询价平台" },
+            { "@context": "https://schema.org", "@type": "WebSite", name: "矿配云", url: "https://kuangpeiyun.com", potentialAction: { "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: "https://kuangpeiyun.com/search?q={search_term_string}" }, "query-input": "required name=search_term_string" } },
+            { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "首页", item: "https://kuangpeiyun.com" }] },
+          ]),
+        }}
+      />
       {/* Hero */}
       <section className="relative text-white py-14 md:py-16 overflow-hidden"
         style={{
@@ -155,6 +166,27 @@ export default async function HomePage() {
                 </Link>
               );
             })}
+          </div>
+        </section>
+
+        {/* 按设备找配件 */}
+        <section>
+          <div className="flex justify-between items-end mb-3">
+            <div><h2 className="text-xl font-bold">按设备找配件</h2><p className="text-xs text-gray-500 mt-1">不知道件号？选择设备型号，快速查看相关配件</p></div>
+            <Link href="/equipment" className="text-sm text-blue-600">全部设备 <ArrowRight className="inline h-3 w-3" /></Link>
+          </div>
+          <div className="bg-white border rounded divide-y">
+            {brandsWithEquipment.map((b) => (
+              <div key={b.id} className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6 p-4">
+                <div className="w-40 shrink-0 font-bold">{b.name}</div>
+                <div className="flex flex-wrap gap-2 flex-1">
+                  {b.equipment.length === 0 ? <span className="text-xs text-gray-400">暂无设备</span> :
+                    b.equipment.map((e) => (
+                      <Link key={e.id} href={`/equipment/${e.slug}`} className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">{e.model}</Link>
+                    ))}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
