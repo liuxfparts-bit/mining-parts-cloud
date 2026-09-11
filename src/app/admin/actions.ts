@@ -243,6 +243,19 @@ export async function toggleEquipmentStatus(id: number) {
   revalidatePath("/admin/equipment");
 }
 
+export async function quickCreateBrand(name: string, nameEn?: string) {
+  await requireAdmin();
+  const n = name.trim();
+  const ne = nameEn?.trim() || null;
+  if (!n) return { error: "品牌名必填" };
+  const slug = (ne || n).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  const exists = await prisma.brand.findFirst({ where: { OR: [{ name: n }, { slug }] } });
+  if (exists) return { error: "该品牌已存在", id: exists.id };
+  const b = await prisma.brand.create({ data: { name: n, nameEn: ne, slug: slug || "brand-" + Date.now() } });
+  revalidatePath("/admin/equipment/new");
+  return { id: b.id };
+}
+
 export async function updatePartNumber(id: number, formData: FormData) {
   await requireAdmin();
   await prisma.partNumber.update({
