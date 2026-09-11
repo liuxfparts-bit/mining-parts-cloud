@@ -6,32 +6,41 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import Pagination from "@/components/Pagination";
 
 async function save(formData: FormData) {
   "use server";
-  const id = formData.get("id") as string;
-  const start = (formData.get("startAt") as string) || null;
-  const end = (formData.get("endAt") as string) || null;
-  if (start && end && new Date(end) < new Date(start)) {
-    throw new Error("结束时间不能早于开始时间");
+  try {
+    const id = formData.get("id") as string;
+    const start = (formData.get("startAt") as string) || null;
+    const end = (formData.get("endAt") as string) || null;
+    if (start && end && new Date(end).getTime() < new Date(start).getTime()) {
+      redirect("/admin/banners?error=" + encodeURIComponent("结束时间不能早于开始时间"));
+    }
+    const data: any = {
+      title: ((formData.get("title") as string) || "").trim(),
+      imageUrl: ((formData.get("imageUrl") as string) || "").trim(),
+      position: (formData.get("position") as string) || "HOME_TOP",
+      targetType: (formData.get("targetType") as string) || "URL",
+      targetId: formData.get("targetId") ? parseInt(formData.get("targetId") as string) : null,
+      targetUrl: (formData.get("targetUrl") as string) || null,
+      sortOrder: parseInt((formData.get("sortOrder") as string) || "0"),
+      status: (formData.get("status") as string) || "ACTIVE",
+      startAt: start ? new Date(start) : null,
+      endAt: end ? new Date(end) : null,
+    };
+    if (!data.title || !data.imageUrl) {
+      redirect("/admin/banners?error=" + encodeURIComponent("标题和图片必填"));
+    }
+    if (id) await prisma.banner.update({ where: { id: parseInt(id) }, data });
+    else await prisma.banner.create({ data });
+    revalidatePath("/admin/banners");
+    revalidatePath("/");
+    redirect("/admin/banners?ok=1");
+  } catch (e: any) {
+    redirect("/admin/banners?error=" + encodeURIComponent(e?.message || "保存失败"));
   }
-  const data = {
-    title: (formData.get("title") as string).trim(),
-    imageUrl: (formData.get("imageUrl") as string).trim(),
-    position: (formData.get("position") as string) || "HOME_TOP",
-    targetType: (formData.get("targetType") as string) || "URL",
-    targetId: formData.get("targetId") ? parseInt(formData.get("targetId") as string) : null,
-    targetUrl: (formData.get("targetUrl") as string) || null,
-    sortOrder: parseInt((formData.get("sortOrder") as string) || "0"),
-    status: (formData.get("status") as string) || "ACTIVE",
-    startAt: start ? new Date(start) : null,
-    endAt: end ? new Date(end) : null,
-  };
-  if (id) await prisma.banner.update({ where: { id: parseInt(id) }, data });
-  else await prisma.banner.create({ data });
-  revalidatePath("/admin/banners");
-  revalidatePath("/");
 }
 
 async function del(formData: FormData) {
@@ -59,7 +68,7 @@ const STA: Record<string, { t: string; c: string }> = {
   EXPIRED: { t: "已过期", c: "bg-red-100 text-red-700" },
 };
 
-export default async function AdminBanners({ searchParams }: { searchParams: { q?: string; position?: string; type?: string; status?: string; page?: string; pageSize?: string; edit?: string } }) {
+export default async function AdminBanners({ searchParams }: { searchParams: any }) {
   const q = (searchParams.q || "").trim();
   const page = Math.max(1, parseInt(searchParams.page || "1"));
   const pageSize = [20, 50, 100].includes(parseInt(searchParams.pageSize || "20")) ? parseInt(searchParams.pageSize || "20") : 20;
@@ -69,11 +78,9 @@ export default async function AdminBanners({ searchParams }: { searchParams: { q
   if (searchParams.type) where.targetType = searchParams.type;
   if (searchParams.status) where.status = searchParams.status;
 
-  const [list, total, products, companies, editing] = await Promise.all([
+  const [list, total, editing] = await Promise.all([
     prisma.banner.findMany({ where, orderBy: [{ sortOrder: "asc" }, { id: "desc" }], skip: (page - 1) * pageSize, take: pageSize }),
     prisma.banner.count({ where }),
-    prisma.product.findMany({ where: { status: "PUBLISHED" }, include: { partNumber: true }, take: 200, orderBy: { id: "desc" } }),
-    prisma.supplier.findMany({ orderBy: { id: "desc" } }),
     searchParams.edit ? prisma.banner.findUnique({ where: { id: parseInt(searchParams.edit) } }) : null,
   ]);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -83,6 +90,9 @@ export default async function AdminBanners({ searchParams }: { searchParams: { q
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">广告位管理</h1>
       </div>
+
+      {searchParams?.error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{searchParams.error as string}</div>}
+      {searchParams?.ok && <div className="bg-green-100 text-green-700 p-3 rounded mb-4">保存成功</div>}
 
       <form method="GET" className="bg-white border rounded p-3 mb-4 flex gap-2 flex-wrap">
         <input name="q" defaultValue={q} placeholder="广告标题" className="border rounded px-3 py-2 text-sm flex-1 min-w-[160px]" />
