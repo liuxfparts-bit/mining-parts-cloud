@@ -18,7 +18,7 @@ export default async function HomePage() {
     prisma.rFQ.count({ where: { status: "COLLECTING" } }),
   ]);
 
-  const [brands, equipment, partNumbers, suppliers, recentRFQs, homeBanners, recommendProducts] = await Promise.all([
+  const [brands, equipment, partNumbers, suppliers, recentRFQs, homeBanners] = await Promise.all([
     prisma.brand.findMany({ include: { _count: { select: { equipment: true, partNumbers: true } } }, take: 10, orderBy: { name: "asc" } }),
     prisma.equipment.findMany({ include: { brand: true, _count: { select: { partNumbers: true } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
@@ -28,12 +28,6 @@ export default async function HomePage() {
     prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED" }, include: { _count: { select: { products: true } } }, take: 4, orderBy: { id: "asc" } }),
     prisma.rFQ.findMany({ take: 4, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
     prisma.banner.findMany({ where: { status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
-    prisma.product.findMany({
-      where: { OR: [{ isFeatured: true }, { status: "PUBLISHED" }] },
-      include: { partNumber: true },
-      orderBy: [{ isFeatured: "desc" }, { featuredOrder: "asc" }, { id: "desc" }],
-      take: 8,
-    }),
   ]);
   console.log("[home] banners raw count:", homeBanners.length, homeBanners.map((b) => ({ id: b.id, pos: b.position, status: b.status, title: b.title })));
   if (homeBanners.length > 0) {
@@ -82,19 +76,6 @@ export default async function HomePage() {
           ))}
         </section>
       )}
-
-      {/* 推荐位 */}
-      <section className="container py-6">
-        <h2 className="text-xl font-bold mb-3">推荐产品</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {recommendProducts.map((p) => (
-            <div key={p.id} className="bg-white border rounded p-3">
-              <div className="h-24 bg-gray-100 rounded mb-2 flex items-center justify-center text-gray-400 text-xs">{p.partNumber?.number || p.name}</div>
-              <div className="text-sm">{p.name}</div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* 快速找货 */}
       <section className="container py-8">
