@@ -192,7 +192,7 @@ export default async function HomePage() {
 
         {/* 最新询价 */}
         <section className="bg-slate-50 -mx-4 px-4 py-8 rounded">
-          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">最新公开询价</h2><Link href="/rfqs" className="text-sm text-blue-600">进入询价大厅 <ArrowRight className="inline h-3 w-3" /></Link></div>
+          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">最新公开询价</h2><Link href="/rfq" className="text-sm text-blue-600">进入询价大厅 <ArrowRight className="inline h-3 w-3" /></Link></div>
           {recentRFQs.length === 0 ? (
             <div className="bg-white border rounded p-8 text-center text-gray-500">目前暂无公开询价，<Link href="/rfq/create" className="text-blue-600">立即发布</Link></div>
           ) : (
@@ -202,7 +202,7 @@ export default async function HomePage() {
                   <div className="font-medium">{r.title}</div>
                   <div className="text-xs text-gray-500 mt-1">件号：{r.partNumberStr || r.partNumber?.number || "-"} · 数量：{r.quantity} {r.unit}</div>
                   <div className="text-xs text-gray-400 mt-1">{r.createdAt.toLocaleDateString()}</div>
-                  <Link href={`/rfqs/${r.id}`} className="text-sm text-blue-600 mt-2 inline-block">查看询价 →</Link>
+                  <Link href={`/rfq/${r.id}`} className="text-sm text-blue-600 mt-2 inline-block">查看询价 →</Link>
                 </div>
               ))}
             </div>

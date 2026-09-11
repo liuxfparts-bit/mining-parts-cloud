@@ -7,7 +7,7 @@ const navItems = [
   { label: "找设备", href: "/equipment" },
   { label: "找件号", href: "/part-number" },
   { label: "找厂家", href: "/suppliers" },
-  { label: "询价大厅", href: "/rfqs" },
+  { label: "询价大厅", href: "/rfq" },
 ];
 
 export default async function Header() {
