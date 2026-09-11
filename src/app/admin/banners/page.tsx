@@ -1,6 +1,7 @@
 import ImageUploader from "./ImageUploader";
 import AsyncTargetSelect from "./AsyncTargetSelect";
 import BannerPreviewModal from "./BannerPreviewModal";
+import ConfirmButton from "./ConfirmButton";
 
 export const dynamic = "force-dynamic";
 
@@ -185,7 +186,7 @@ export default async function AdminBanners({ searchParams }: { searchParams: any
                       <a href={`/admin/banners?edit=${b.id}`} className="text-xs text-blue-600">编辑</a>
                       <BannerPreviewModal banner={b} />
                       <form action={toggle}><input type="hidden" name="id" value={b.id} /><button className="text-xs text-gray-600">{b.status === "ACTIVE" ? "停用" : "启用"}</button></form>
-                      <form action={del}><input type="hidden" name="id" value={b.id} /><button className="text-xs text-red-600" onClick={(e) => { if (!confirm("确定删除该广告？")) e.preventDefault(); }}>删除</button></form>
+                      <ConfirmButton formAction={del} confirmText="确定删除该广告？" className="text-xs text-red-600" id={String(b.id)}>删除</ConfirmButton>
                     </div>
                   </td>
                 </tr>
