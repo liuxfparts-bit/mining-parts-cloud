@@ -244,3 +244,12 @@ export async function rejectPartNumberRequest(formData: FormData) {
   revalidatePath("/admin/part-number-requests");
   redirect("/admin/part-number-requests");
 }
+
+export async function toggleFeaturedProduct(id: number) {
+  await requireAdmin();
+  const p = await prisma.product.findUnique({ where: { id } });
+  if (!p) return;
+  await prisma.product.update({ where: { id }, data: { isFeatured: !p.isFeatured } });
+  revalidatePath("/admin/products");
+  revalidatePath("/");
+}

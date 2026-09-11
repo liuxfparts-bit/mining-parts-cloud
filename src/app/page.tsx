@@ -28,7 +28,12 @@ export default async function HomePage() {
     prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED" }, include: { _count: { select: { products: true } } }, take: 4, orderBy: { id: "asc" } }),
     prisma.rFQ.findMany({ take: 4, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
     prisma.banner.findMany({ where: { status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
-    prisma.product.findMany({ where: { status: "PUBLISHED" }, include: { partNumber: true }, take: 8, orderBy: { id: "desc" } }),
+    prisma.product.findMany({
+      where: { OR: [{ isFeatured: true }, { status: "PUBLISHED" }] },
+      include: { partNumber: true },
+      orderBy: [{ isFeatured: "desc" }, { featuredOrder: "asc" }, { id: "desc" }],
+      take: 8,
+    }),
   ]);
   console.log("[home] banners raw count:", homeBanners.length, homeBanners.map((b) => ({ id: b.id, pos: b.position, status: b.status, title: b.title })));
   if (homeBanners.length > 0) {
