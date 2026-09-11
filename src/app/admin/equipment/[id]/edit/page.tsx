@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { updateEquipment, deleteEquipment, toggleEquipmentStatus } from "../../../actions";
+import ImageUploader from "./ImageUploader";
 
 export default async function EquipmentEdit({ params }: { params: { id: string } }) {
   const id = parseInt(params.id);
@@ -37,7 +38,7 @@ export default async function EquipmentEdit({ params }: { params: { id: string }
             </select>
           </div>
         </div>
-        <div><label className="block text-sm mb-1">设备图片 URL</label><input name="imageUrl" defaultValue={e.imageUrl || ""} className={f} /><p className="text-xs text-gray-500 mt-1">上传图片后粘贴 URL，或直接用 /api/upload</p></div>
+        <div><label className="block text-sm mb-1">设备图片</label><ImageUploader initialUrl={e.imageUrl || ""} /></div>
         <div><label className="block text-sm mb-1">简介</label><textarea name="description" defaultValue={e.description || ""} rows={3} className={f} /></div>
         <button className="bg-blue-600 text-white px-6 py-2 rounded">保存修改</button>
       </form>

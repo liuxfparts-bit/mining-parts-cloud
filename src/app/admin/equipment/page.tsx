@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
-import { createEquipment } from "../actions";
+import { createEquipment, deleteEquipment, toggleEquipmentStatus } from "../actions";
+import ConfirmButton from "./ConfirmButton";
 import Pagination from "@/components/Pagination";
 
 export default async function AdminEquipmentPage({ searchParams }: { searchParams: { q?: string; page?: string; pageSize?: string; brandId?: string } }) {
@@ -54,7 +55,15 @@ export default async function AdminEquipmentPage({ searchParams }: { searchParam
                   <td className="p-3">{e.name}</td>
                   <td className="p-3">{e.equipmentType}</td>
                   <td className="p-3">{e._count.partNumbers}</td>
-                  <td className="p-3"><a href={`/admin/equipment/${e.id}/edit`} className="text-xs text-blue-600">编辑</a></td>
+                  <td className="p-3">
+                    <div className="flex gap-1">
+                      <a href={`/admin/equipment/${e.id}/edit`} className="text-xs text-blue-600">编辑</a>
+                      <form action={async () => { "use server"; await toggleEquipmentStatus(e.id); }}>
+                        <button className="text-xs text-gray-600">{e.status === "ACTIVE" ? "下架" : "启用"}</button>
+                      </form>
+                      <ConfirmButton action={deleteEquipment} confirmText="确定要删除该设备吗？如果有关联件号将自动转为下架状态。" className="text-xs text-red-600" id={String(e.id)}>删除</ConfirmButton>
+                    </div>
+                  </td>
                 </tr>
               ))}
           </tbody>
