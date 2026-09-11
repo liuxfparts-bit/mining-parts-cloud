@@ -1,4 +1,6 @@
 import ImageUploader from "./ImageUploader";
+import AsyncTargetSelect from "./AsyncTargetSelect";
+import BannerPreviewModal from "./BannerPreviewModal";
 
 export const dynamic = "force-dynamic";
 
@@ -121,11 +123,7 @@ export default async function AdminBanners({ searchParams }: { searchParams: { q
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <select name="targetId" className="border rounded px-3 py-2 text-sm">
-            <option value="">- 关联产品/企业 -</option>
-            {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.partNumber?.number})</option>)}
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <AsyncTargetSelect type={(editing?.targetType as any) || "URL"} targetId={editing?.targetId} />
           <input name="targetUrl" placeholder="自定义 URL" defaultValue={editing?.targetUrl || ""} className="border rounded px-3 py-2 text-sm" />
         </div>
         <div className="grid grid-cols-3 gap-3">
@@ -175,6 +173,7 @@ export default async function AdminBanners({ searchParams }: { searchParams: { q
                   <td className="p-2">
                     <div className="flex gap-1">
                       <a href={`/admin/banners?edit=${b.id}`} className="text-xs text-blue-600">编辑</a>
+                      <BannerPreviewModal banner={b} />
                       <form action={toggle}><input type="hidden" name="id" value={b.id} /><button className="text-xs text-gray-600">{b.status === "ACTIVE" ? "停用" : "启用"}</button></form>
                       <form action={del}><input type="hidden" name="id" value={b.id} /><button className="text-xs text-red-600" onClick={(e) => { if (!confirm("确定删除该广告？")) e.preventDefault(); }}>删除</button></form>
                     </div>
