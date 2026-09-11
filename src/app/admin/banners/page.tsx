@@ -9,6 +9,11 @@ import Pagination from "@/components/Pagination";
 async function save(formData: FormData) {
   "use server";
   const id = formData.get("id") as string;
+  const start = (formData.get("startAt") as string) || null;
+  const end = (formData.get("endAt") as string) || null;
+  if (start && end && new Date(end) < new Date(start)) {
+    throw new Error("结束时间不能早于开始时间");
+  }
   const data = {
     title: (formData.get("title") as string).trim(),
     imageUrl: (formData.get("imageUrl") as string).trim(),
@@ -18,6 +23,8 @@ async function save(formData: FormData) {
     targetUrl: (formData.get("targetUrl") as string) || null,
     sortOrder: parseInt((formData.get("sortOrder") as string) || "0"),
     status: (formData.get("status") as string) || "ACTIVE",
+    startAt: start ? new Date(start) : null,
+    endAt: end ? new Date(end) : null,
   };
   if (id) await prisma.banner.update({ where: { id: parseInt(id) }, data });
   else await prisma.banner.create({ data });
@@ -122,7 +129,17 @@ export default async function AdminBanners({ searchParams }: { searchParams: { q
           <input name="targetUrl" placeholder="自定义 URL" defaultValue={editing?.targetUrl || ""} className="border rounded px-3 py-2 text-sm" />
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <input name="sortOrder" type="number" defaultValue={editing?.sortOrder || 0} className="border rounded px-3 py-2 text-sm" placeholder="排序" />
+          <div>
+            <label className="text-xs">开始时间</label>
+            <input name="startAt" type="datetime-local" defaultValue={editing?.startAt ? new Date(editing.startAt).toISOString().slice(0, 16) : ""} className="border rounded px-2 py-1.5 text-sm w-full" />
+          </div>
+          <div>
+            <label className="text-xs">结束时间</label>
+            <input name="endAt" type="datetime-local" defaultValue={editing?.endAt ? new Date(editing.endAt).toISOString().slice(0, 16) : ""} className="border rounded px-2 py-1.5 text-sm w-full" />
+          </div>
+          <input name="sortOrder" type="number" defaultValue={editing?.sortOrder || 0} className="border rounded px-3 py-2 text-sm self-end" placeholder="排序" />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
           <select name="status" className="border rounded px-3 py-2 text-sm" defaultValue={editing?.status || "ACTIVE"}>
             {Object.entries(STA).map(([k, v]) => <option key={k} value={k}>{v.t}</option>)}
           </select>
@@ -140,7 +157,9 @@ export default async function AdminBanners({ searchParams }: { searchParams: { q
         <tbody>
           {list.length === 0 ? <tr><td colSpan={10} className="p-6 text-center text-gray-500">暂无广告</td></tr> :
             list.map((b) => {
-              const st = STA[b.status] || { t: b.status, c: "" };
+              const now = new Date();
+              const expired = b.endAt && b.endAt < now;
+              const st = expired ? { t: "已过期", c: "bg-red-100 text-red-700" } : (STA[b.status] || { t: b.status, c: "" });
               const ctr = b.impressions > 0 ? ((b.clicks / b.impressions) * 100).toFixed(2) + "%" : "0%";
               return (
                 <tr key={b.id} className="border-b">

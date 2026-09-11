@@ -27,7 +27,10 @@ export default async function HomePage() {
     }),
     prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED" }, include: { _count: { select: { products: true } } }, take: 4, orderBy: { id: "asc" } }),
     prisma.rFQ.findMany({ take: 4, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
-    prisma.banner.findMany({ where: { position: "HOME_TOP", status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
+    prisma.banner.findMany({
+      where: { position: "HOME_TOP", status: "ACTIVE", OR: [{ startAt: null }, { startAt: { lte: new Date() } }], AND: [{ OR: [{ endAt: null }, { endAt: { gte: new Date() } }] }] },
+      orderBy: [{ sortOrder: "asc" }, { id: "desc" }],
+    }),
     prisma.product.findMany({ where: { status: "PUBLISHED" }, include: { partNumber: true }, take: 8, orderBy: { id: "desc" } }),
   ]);
   if (homeBanners.length > 0) {
