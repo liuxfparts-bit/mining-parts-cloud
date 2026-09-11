@@ -40,6 +40,7 @@ async function save(formData: FormData) {
     revalidatePath("/");
     redirect("/admin/banners?ok=1");
   } catch (e: any) {
+    if (e?.digest?.startsWith("NEXT_REDIRECT")) throw e;
     redirect("/admin/banners?error=" + encodeURIComponent(e?.message || "保存失败"));
   }
 }

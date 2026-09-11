@@ -27,14 +27,7 @@ export default async function HomePage() {
     }),
     prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED" }, include: { _count: { select: { products: true } } }, take: 4, orderBy: { id: "asc" } }),
     prisma.rFQ.findMany({ take: 4, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
-    prisma.banner.findMany({
-      where: {
-        status: "ACTIVE",
-        OR: [{ startAt: null }, { startAt: { lte: new Date() } }],
-        AND: [{ OR: [{ endAt: null }, { endAt: { gte: new Date() } }] }],
-      },
-      orderBy: [{ position: "asc" }, { sortOrder: "asc" }, { id: "desc" }],
-    }),
+    prisma.banner.findMany({ where: { status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
     prisma.product.findMany({ where: { status: "PUBLISHED" }, include: { partNumber: true }, take: 8, orderBy: { id: "desc" } }),
   ]);
   console.log("[home] banners raw count:", homeBanners.length, homeBanners.map((b) => ({ id: b.id, pos: b.position, status: b.status, title: b.title })));
