@@ -28,6 +28,7 @@ export default async function NewEquipmentPage() {
           <div><label className="block text-sm mb-1">矿山类型</label><input name="mineType" className="border rounded px-3 py-2 text-sm w-full" /></div>
           <div><label className="block text-sm mb-1">制造商</label><input name="manufacturer" className="border rounded px-3 py-2 text-sm w-full" /></div>
         </div>
+        <div><label className="block text-sm mb-1">Slug（可选，留空自动生成）</label><input name="slug" placeholder="mb670-1" className="border rounded px-3 py-2 text-sm w-full" /></div>
         <div><label className="block text-sm mb-1">设备图片</label><ImageUploader /></div>
         <div><label className="block text-sm mb-1">简介</label><textarea name="description" rows={3} className="border rounded px-3 py-2 text-sm w-full" /></div>
         <button className="bg-blue-600 text-white px-6 py-2 rounded">保存设备</button>

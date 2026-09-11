@@ -185,10 +185,23 @@ export async function updateBrand(id: number, formData: FormData) {
 }
 export async function createEquipment(formData: FormData) {
   await requireAdmin();
+  const v = (k: string) => (formData.get(k) as string)?.trim() || null;
   const model = (formData.get("model") as string).trim();
   const name = (formData.get("name") as string).trim();
   const brandId = parseInt(formData.get("brandId") as string);
-  await prisma.equipment.create({ data: { model, name, brandId, equipmentType: "通用", slug: model.toLowerCase() } });
+  const inputSlug = (formData.get("slug") as string)?.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  const slug = inputSlug || model.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  await prisma.equipment.create({
+    data: {
+      model, name, brandId,
+      nameEn: v("nameEn"), series: v("series"),
+      equipmentType: (formData.get("equipmentType") as string) || "通用",
+      application: v("application"), mineType: v("mineType"), manufacturer: v("manufacturer"),
+      description: v("description"), imageUrl: v("imageUrl"),
+      slug: slug || "eq-" + Date.now(),
+      status: "ACTIVE",
+    },
+  });
   revalidatePath("/admin/equipment");
 }
 export async function createPartNumber(formData: FormData) {
