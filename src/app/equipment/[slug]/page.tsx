@@ -64,8 +64,13 @@ export default async function EquipmentDetailPage({ params }: { params: { slug: 
       {/* 设备介绍 */}
       <div className="bg-white border border-line rounded-lg p-8 mb-8">
         <div className="flex items-start gap-6 flex-wrap">
-          <div className="w-40 h-40 bg-gradient-to-br from-[#35444c] to-[#17222a] rounded-lg flex items-center justify-center text-white font-bold text-center p-4 shrink-0">
-            {equipment.brand.name}<br />{equipment.model}
+          <div className="w-40 h-40 bg-gradient-to-br from-[#35444c] to-[#17222a] rounded-lg flex items-center justify-center text-white font-bold text-center p-4 shrink-0 overflow-hidden relative">
+            {equipment.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={equipment.imageUrl} alt={equipment.model} className="absolute inset-0 w-full h-full object-cover" />
+            ) : (
+              <span>{equipment.brand.name}<br />{equipment.model}</span>
+            )}
           </div>
           <div className="flex-1 min-w-[300px]">
             <h1 className="text-3xl font-bold mb-2">{equipment.name}</h1>

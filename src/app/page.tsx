@@ -131,7 +131,12 @@ export default async function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {equipment.map((e) => (
               <Link key={e.id} href={`/equipment/${e.slug}`} className="bg-white border rounded p-4 hover:shadow">
-                <div className="h-24 bg-gradient-to-br from-slate-700 to-slate-900 rounded mb-3 flex items-center justify-center text-white text-2xl font-bold">{e.brand.name[0]}</div>
+                <div className="h-24 bg-gradient-to-br from-slate-700 to-slate-900 rounded mb-3 flex items-center justify-center text-white text-2xl font-bold overflow-hidden relative">
+                  {e.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={e.imageUrl} alt={e.model} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : e.brand.name[0]}
+                </div>
                 <span className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded">{e.brand.name}</span>
                 <div className="font-bold mt-2">{e.model}</div>
                 <div className="text-xs text-gray-500">{e.equipmentType}</div>

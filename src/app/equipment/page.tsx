@@ -16,7 +16,7 @@ export default async function EquipmentListPage() {
       <p className="text-muted mb-8">按品牌浏览矿山设备型号，点击查看关联件号</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[14px]">
         {equipment.map((e) => (
-          <EquipmentCard key={e.id} slug={e.slug} brandName={e.brand.name} model={e.model} equipmentType={e.equipmentType} description={e.description} partCount={e._count.partNumbers} />
+          <EquipmentCard key={e.id} slug={e.slug} brandName={e.brand.name} model={e.model} equipmentType={e.equipmentType} description={e.description} partCount={e._count.partNumbers} imageUrl={e.imageUrl} />
         ))}
       </div>
     </div>
