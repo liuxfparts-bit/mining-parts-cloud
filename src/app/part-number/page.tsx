@@ -76,7 +76,7 @@ export default async function PartNumbersPage({
     return `/part-number?${sp.toString()}`;
   };
 
-  const reset = () => "/part-number";
+  const reset = "/part-number";
 
   return (
     <div className="container py-[42px]">
