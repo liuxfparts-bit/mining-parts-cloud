@@ -9,7 +9,7 @@ export default async function SupplierRequestsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const user = await prisma.user.findUnique({ where: { id: (session.user as any).id }, select: { supplierId: true } });
+  const user = await prisma.user.findUnique({ where: { id: parseInt((session.user as any).id) }, select: { supplierId: true } });
   if (!user?.supplierId) redirect("/register");
 
   const [pnRequests, eqRequests] = await Promise.all([

@@ -9,7 +9,7 @@ export async function submitPartNumberRequest(formData: FormData) {
   if (!session?.user) redirect("/login?next=/part-number/request");
 
   try {
-    const userId = (session.user as any).id;
+    const userId = parseInt((session.user as any).id);
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { supplierId: true } });
     if (!user?.supplierId) redirect("/part-number/request?error=" + encodeURIComponent("请先完成企业入驻"));
 

@@ -9,7 +9,7 @@ export async function submitEquipmentRequest(formData: FormData) {
   if (!session?.user) redirect("/login?next=/equipment/request");
 
   try {
-    const userId = (session.user as any).id;
+    const userId = parseInt((session.user as any).id);
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { supplierId: true } });
     if (!user?.supplierId) redirect("/equipment/request?error=" + encodeURIComponent("请先完成企业入驻"));
     const supplierId = user.supplierId;
