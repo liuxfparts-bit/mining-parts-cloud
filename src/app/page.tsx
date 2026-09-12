@@ -12,7 +12,7 @@ const systemCats = ["液压系统", "电气系统", "发动机", "传动系统",
 export default async function HomePage() {
   await auth();
 
-  const [brands, equipment, partNumbers, suppliers, recentRFQs, homeBanners, brandsWithEquipment] = await Promise.all([
+  const [brands, equipment, partNumbers, suppliers, recentRFQs, homeBanners, brandsWithEquipment, categories] = await Promise.all([
     prisma.brand.findMany({ include: { _count: { select: { equipment: true, partNumbers: true } } }, take: 12, orderBy: { name: "asc" } }),
     prisma.equipment.findMany({ include: { brand: true, _count: { select: { partNumbers: true } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
@@ -20,9 +20,10 @@ export default async function HomePage() {
       take: 6, orderBy: { id: "asc" },
     }),
     prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED" }, include: { _count: { select: { products: true } } }, take: 8, orderBy: { id: "asc" } }),
-    prisma.rFQ.findMany({ take: 6, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
+    prisma.rFQ.findMany({ where: { status: "COLLECTING" }, take: 6, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
     prisma.banner.findMany({ where: { status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
     prisma.brand.findMany({ where: { equipment: { some: {} } }, include: { equipment: { take: 6, orderBy: { id: "desc" } }, _count: { select: { partNumbers: true } } }, orderBy: { name: "asc" } }),
+    prisma.category.findMany({ take: 16, orderBy: { sortOrder: "asc" } }),
   ]);
   if (homeBanners.length > 0) {
     await prisma.banner.updateMany({ where: { id: { in: homeBanners.map((b) => b.id) } }, data: { impressions: { increment: 1 } } }).catch(() => {});
@@ -84,18 +85,10 @@ export default async function HomePage() {
       {/* 快速找货 */}
       <section className="container py-8">
         <h2 className="text-xl font-bold mb-3">快速找货</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white border rounded p-4">
-            <h3 className="font-bold mb-2">按设备找配件</h3>
-            <div className="flex flex-wrap gap-2">
-              {equipmentCats.map((c) => <Link key={c} href={`/search?q=${c}`} className="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">{c}</Link>)}
-            </div>
-          </div>
-          <div className="bg-white border rounded p-4">
-            <h3 className="font-bold mb-2">按系统找配件</h3>
-            <div className="flex flex-wrap gap-2">
-              {systemCats.map((c) => <Link key={c} href={`/search?q=${c}`} className="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">{c}</Link>)}
-            </div>
+        <div className="bg-white border rounded p-4">
+          <div className="flex flex-wrap gap-2">
+            {categories.map((c) => <Link key={c.id} href={`/search?q=${encodeURIComponent(c.name)}`} className="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">{c.name}</Link>)}
+            {categories.length === 0 && <span className="text-xs text-gray-400">数据库暂无分类，请先在后台添加配件分类</span>}
           </div>
         </div>
         <div className="mt-3 text-sm text-blue-600">不知道件号？<Link href="/equipment">按设备找配件 →</Link></div>
