@@ -31,6 +31,7 @@ model Brand {
   equipment Equipment[]
   partNumbers PartNumber[]
   rfqs       RFQ[]
+  equipmentRequests EquipmentRequest[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 }
@@ -208,6 +209,7 @@ model Supplier {
   quotes       Quote[]
   users        User[]
   partNumberRequests PartNumberRequest[]
+  equipmentRequests  EquipmentRequest[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
@@ -332,6 +334,30 @@ model PartNumberRequest {
   reviewReason String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model EquipmentRequest {
+  id           Int      @id @default(autoincrement())
+  supplierId   Int
+  supplier     Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  brandId      Int?
+  brand        Brand?   @relation(fields: [brandId], references: [id])
+  brandName    String
+  model        String
+  name         String
+  nameEn       String?
+  series       String?
+  equipmentType String
+  application  String?
+  mineType     String?
+  manufacturer String?
+  description  String?
+  imageUrl     String?
+  status       String   @default("PENDING")
+  reviewReason String?
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Banner {
