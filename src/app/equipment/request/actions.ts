@@ -59,7 +59,8 @@ export async function submitEquipmentRequest(formData: FormData) {
     });
 
     redirect("/equipment/request/success");
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.digest?.startsWith("NEXT_REDIRECT")) throw e;
     console.error("[EquipmentRequest] ERROR", e);
     redirect("/equipment/request?error=" + encodeURIComponent("提交失败，请稍后重试"));
   }

@@ -46,7 +46,8 @@ export async function submitPartNumberRequest(formData: FormData) {
     });
 
     redirect("/part-number/request/success");
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.digest?.startsWith("NEXT_REDIRECT")) throw e;
     console.error("[PartNumberRequest] ERROR", e);
     redirect("/part-number/request?error=" + encodeURIComponent("提交失败，请稍后重试"));
   }
