@@ -6,16 +6,23 @@ import { submitEquipmentRequest } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function EquipmentRequestPage() {
+export default async function EquipmentRequestPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | undefined>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login?next=/equipment/request");
 
   const brands = await prisma.brand.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, nameEn: true } });
+  const error = searchParams.error;
 
   return (
     <div className="container py-[42px] max-w-[720px]">
       <h1 className="text-3xl font-bold mb-2">申请新增设备</h1>
       <p className="text-muted mb-6">提交设备资料，平台管理员审核通过后将加入设备数据库。</p>
+
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded mb-4">{error}</div>}
 
       <form action={async (fd) => {
         "use server";

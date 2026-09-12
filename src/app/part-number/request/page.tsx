@@ -6,16 +6,23 @@ import { submitPartNumberRequest } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function PartNumberRequestPage() {
+export default async function PartNumberRequestPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | undefined>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login?next=/part-number/request");
 
   const categories = await prisma.category.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, name: true } });
+  const error = searchParams.error;
 
   return (
     <div className="container py-[42px] max-w-[720px]">
       <h1 className="text-3xl font-bold mb-2">申请新增件号</h1>
       <p className="text-muted mb-6">提交件号资料，平台管理员审核通过后将正式收录。</p>
+
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded mb-4">{error}</div>}
 
       <form action={async (fd) => { "use server"; await submitPartNumberRequest(fd); }} className="bg-white border rounded p-6 space-y-4">
         <div>
