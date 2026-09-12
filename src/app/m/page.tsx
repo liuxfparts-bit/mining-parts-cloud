@@ -85,18 +85,6 @@ export default async function MobileHome() {
         </div>
       </section>
 
-      {/* Lightweight Footer */}
-      <footer className="bg-[#1F2937] text-gray-400 text-xs text-center py-4 mt-6">
-        <div className="flex justify-center gap-3 mb-2">
-          <Link href="/about" className="hover:text-white">关于我们</Link>
-          <span>·</span>
-          <Link href="/terms" className="hover:text-white">服务协议</Link>
-          <span>·</span>
-          <Link href="/privacy" className="hover:text-white">隐私政策</Link>
-        </div>
-        <div>© 2026 矿配云 · 晋ICP备xxxxxxxx号</div>
-      </footer>
-
       {/* TabBar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t grid grid-cols-5 z-20 pb-[env(safe-area-inset-bottom)]">
         <Link href="/m" className="flex flex-col items-center py-2 text-gray-600">
