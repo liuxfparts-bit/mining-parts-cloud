@@ -56,11 +56,21 @@ export default async function MobileHome() {
         <h2 className="px-4 text-base font-bold mb-2">热门矿山设备</h2>
         <div className="flex gap-3 overflow-x-auto px-4 pb-2">
           {equipment.map((e) => (
-            <Link key={e.id} href={`/equipment/${e.slug}`} className="min-w-[160px] bg-white border rounded-lg p-3 shrink-0">
-              <span className="inline-block bg-blue-50 text-blue-700 text-xs px-1.5 py-0.5 rounded">{e.brand.name}</span>
-              <div className="font-bold mt-1">{e.model}</div>
-              <div className="text-xs text-gray-500">{e.equipmentType}</div>
-              <div className="text-xs text-gray-400 mt-1">{e._count.partNumbers} 个件号</div>
+            <Link key={e.id} href={`/equipment/${e.slug}`} className="min-w-[160px] bg-white border rounded-lg overflow-hidden shrink-0">
+              <div className="h-24 bg-gradient-to-br from-slate-700 to-slate-900 relative">
+                {e.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={e.imageUrl} alt={`${e.brand.name} ${e.model}`} className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-white text-2xl font-bold">{e.brand.name[0]}</div>
+                )}
+              </div>
+              <div className="p-3">
+                <span className="inline-block bg-blue-50 text-blue-700 text-xs px-1.5 py-0.5 rounded">{e.brand.name}</span>
+                <div className="font-bold mt-1">{e.model}</div>
+                <div className="text-xs text-gray-500">{e.equipmentType}</div>
+                <div className="text-xs text-gray-400 mt-1">{e._count.partNumbers} 个件号</div>
+              </div>
             </Link>
           ))}
         </div>
