@@ -5,7 +5,11 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function SupplierRequestsPage() {
+export default async function SupplierRequestsPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | undefined>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
@@ -17,6 +21,8 @@ export default async function SupplierRequestsPage() {
     prisma.equipmentRequest.findMany({ where: { supplierId: user.supplierId }, orderBy: { createdAt: "desc" } }),
   ]);
 
+  const showToast = searchParams.submitted === "true";
+
   const statusTag = (s: string) => (
     <span className={
       s === "APPROVED" ? "text-green-600" :
@@ -27,6 +33,7 @@ export default async function SupplierRequestsPage() {
   return (
     <div className="container py-[42px]">
       <h1 className="text-2xl font-bold mb-4">我的申请</h1>
+      {showToast && <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded mb-4">提交成功，等待管理员审核</div>}
 
       <h2 className="text-lg font-bold mt-6 mb-2">件号申请</h2>
       <table className="w-full bg-white border rounded text-sm">

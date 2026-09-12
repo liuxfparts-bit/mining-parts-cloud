@@ -45,7 +45,7 @@ export async function submitPartNumberRequest(formData: FormData) {
       },
     });
 
-    redirect("/part-number/request/success");
+    redirect("/supplier/requests?type=partNumber&submitted=true");
   } catch (e: any) {
     if (e?.digest?.startsWith("NEXT_REDIRECT")) throw e;
     console.error("[PartNumberRequest] ERROR", e);

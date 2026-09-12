@@ -58,7 +58,7 @@ export async function submitEquipmentRequest(formData: FormData) {
       },
     });
 
-    redirect("/equipment/request/success");
+    redirect("/supplier/requests?type=equipment&submitted=true");
   } catch (e: any) {
     if (e?.digest?.startsWith("NEXT_REDIRECT")) throw e;
     console.error("[EquipmentRequest] ERROR", e);
