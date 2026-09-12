@@ -21,6 +21,15 @@ export default async function SupplierRequestsPage({
     prisma.equipmentRequest.findMany({ where: { supplierId: user.supplierId }, orderBy: { createdAt: "desc" } }),
   ]);
 
+  // 查 approved 件号对应的正式 part number slug
+  const approvedSlugs: Record<number, string> = {};
+  for (const r of pnRequests) {
+    if (r.status === "APPROVED") {
+      const pn = await prisma.partNumber.findUnique({ where: { number: r.partNumber }, select: { slug: true } });
+      if (pn) approvedSlugs[r.id] = pn.slug;
+    }
+  }
+
   const showToast = searchParams.submitted === "true";
 
   const statusTag = (s: string) => (
@@ -56,8 +65,8 @@ export default async function SupplierRequestsPage({
               <td className="p-2">{statusTag(r.status)}</td>
               <td className="p-2 text-xs text-muted">{r.createdAt.toLocaleDateString()}</td>
               <td className="p-2">
-                {r.status === "APPROVED" ? (
-                  <Link href={`/supplier/products/new?partNumberId=${r.id}`} className="bg-amber-500 text-white px-2 py-1 rounded text-xs">发布产品</Link>
+                {r.status === "APPROVED" && approvedSlugs[r.id] ? (
+                  <Link href={`/supplier/products/new?partNumber=${approvedSlugs[r.id]}`} className="bg-amber-500 text-white px-2 py-1 rounded text-xs">发布产品</Link>
                 ) : (
                   r.reviewReason && <span className="text-xs text-red-500">{r.reviewReason}</span>
                 )}
