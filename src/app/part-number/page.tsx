@@ -5,10 +5,12 @@ import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "矿山设备配件件号数据库｜矿配云",
-  description: "矿配云矿山设备配件件号数据库，支持按件号、品牌、设备型号和配件分类查询矿山设备配件信息及供应商。",
-};
+export function generateMetadata(): Metadata {
+  return {
+    title: "矿山设备配件件号数据库｜矿配云",
+    description: "矿配云矿山设备配件件号数据库，支持按件号、品牌、设备型号和配件分类查询矿山设备配件信息及供应商。",
+  };
+}
 
 export default async function PartNumbersPage({
   searchParams,
