@@ -254,6 +254,11 @@ export async function toggleEquipmentStatus(id: number) {
   if (!e) return;
   await prisma.equipment.update({ where: { id }, data: { status: e.status === "ACTIVE" ? "OFFLINE" : "ACTIVE" } });
   revalidatePath("/admin/equipment");
+  revalidatePath("/");
+  revalidatePath("/equipment");
+  revalidatePath(`/equipment/${e.slug}`);
+  revalidatePath(`/brands/${e.slug}`);
+  revalidatePath("/sitemap.xml");
 }
 
 export async function quickCreateBrand(name: string, nameEn?: string) {

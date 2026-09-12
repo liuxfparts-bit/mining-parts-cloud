@@ -25,6 +25,7 @@ export async function searchAll(q: string) {
     }),
     prisma.equipment.findMany({
       where: {
+        status: "ACTIVE",
         OR: [
           { model: { contains: keyword } },
           { name: { contains: keyword } },

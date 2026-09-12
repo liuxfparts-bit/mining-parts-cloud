@@ -9,7 +9,7 @@ export default async function BrandDetailPage({ params }: { params: { slug: stri
   const brand = await prisma.brand.findUnique({
     where: { slug: params.slug },
     include: {
-      equipment: { include: { _count: { select: { partNumbers: true } } } },
+      equipment: { where: { status: "ACTIVE" }, include: { _count: { select: { partNumbers: true } } } },
       partNumbers: { include: { brand: true, equipment: true }, take: 20 },
     },
   });

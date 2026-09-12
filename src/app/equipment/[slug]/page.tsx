@@ -19,7 +19,7 @@ export async function generateMetadata({
     where: { slug: params.slug },
     include: { brand: true, _count: { select: { partNumbers: true } } },
   });
-  if (!eq) return { title: "Equipment Not Found" };
+  if (!eq || eq.status !== "ACTIVE") return { title: "Equipment Not Found" };
 
   return {
     title: `${eq.brand.name} ${eq.model} ${eq.name} | Mining Parts Cloud`,
@@ -39,7 +39,7 @@ export default async function EquipmentDetailPage({ params }: { params: { slug: 
       rfqs: { take: 3, orderBy: { createdAt: "desc" } },
     },
   });
-  if (!equipment) notFound();
+  if (!equipment || equipment.status !== "ACTIVE") notFound();
 
   // 汇总供应商
   const supplierMap = new Map<number, { name: string; slug: string; productCount: number; verified: boolean; province: string | null }>();

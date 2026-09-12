@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export default async function MobileHome() {
   const [equipment, partNumbers] = await Promise.all([
-    prisma.equipment.findMany({ include: { brand: true, _count: { select: { partNumbers: true } } }, take: 20, orderBy: { id: "asc" } }),
+    prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumbers: true } } }, take: 20, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
       include: { brand: true, products: { where: { status: "PUBLISHED" } } },
       take: 10, orderBy: { id: "asc" },

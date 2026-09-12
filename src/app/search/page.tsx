@@ -51,6 +51,7 @@ export default async function SearchPage({
     }),
     prisma.equipment.findMany({
       where: {
+        status: "ACTIVE",
         OR: [
           { model: { contains: q } },
           { name: { contains: q } },
