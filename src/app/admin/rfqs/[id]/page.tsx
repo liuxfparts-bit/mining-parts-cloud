@@ -11,31 +11,54 @@ export default async function RfqDetail({ params }: { params: { id: string } }) 
   });
   if (!rfq) notFound();
 
+  let imgs: string[] = [];
+  try { imgs = rfq.images ? JSON.parse(rfq.images) : []; if (!Array.isArray(imgs)) imgs = []; } catch { imgs = []; }
+
   return (
     <div className="p-6">
       <a href="/admin/rfqs" className="text-sm text-blue-600 hover:underline">← 返回询价列表</a>
 
       <div className="bg-white rounded-lg border p-6 mt-4">
         <div className="flex justify-between items-start mb-4">
-          <h1 className="text-xl font-bold">{rfq.title}</h1>
+          <h1 className="text-xl font-bold">#{rfq.id} {rfq.title}</h1>
           <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm">{rfq.status}</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
           <div><span className="text-gray-500">件号：</span>{rfq.partNumber?.number || rfq.partNumberStr || "-"}</div>
+          <div><span className="text-gray-500">品牌：</span>{rfq.brandName || "-"}</div>
+          <div><span className="text-gray-500">设备型号：</span>{rfq.equipmentModel || "-"}</div>
           <div><span className="text-gray-500">数量：</span>{rfq.quantity} {rfq.unit}</div>
           <div><span className="text-gray-500">类型：</span>{rfq.purchaseType}</div>
           <div><span className="text-gray-500">联系人：</span>{rfq.contactName}</div>
           <div><span className="text-gray-500">电话：</span>{rfq.contactPhone}</div>
+          <div><span className="text-gray-500">Email：</span>{rfq.contactEmail || "-"}</div>
+          <div><span className="text-gray-500">交货地：</span>{rfq.deliveryLocation || "-"}</div>
+          <div><span className="text-gray-500">贸易术语：</span>{rfq.incoterm || "-"}</div>
+          <div><span className="text-gray-500">期望交期：</span>{rfq.deliveryDate ? new Date(rfq.deliveryDate).toLocaleDateString("zh-CN") : "-"}</div>
           <div><span className="text-gray-500">发布：</span>{rfq.createdAt.toLocaleString("zh-CN")}</div>
         </div>
-        <p className="mt-4 text-sm text-gray-700">{rfq.description}</p>
+        <p className="mt-4 text-sm text-gray-700 whitespace-pre-wrap">{rfq.description}</p>
+
+        {imgs.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-sm font-bold mb-2">图片 / 图纸</h3>
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+              {imgs.map((src) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <a key={src} href={src} target="_blank">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="" className="h-24 w-full object-cover rounded border" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 状态操作 */}
       <div className="bg-white rounded-lg border p-6 mt-4">
         <h2 className="font-bold mb-3">修改状态</h2>
         <div className="flex gap-2 flex-wrap">
-          {["COLLECTING", "QUOTED", "SELECTED", "CLOSED", "EXPIRED"].map((st) => (
+          {["COLLECTING", "CLOSED", "REJECTED"].map((st) => (
             <form key={st} action={async () => { "use server"; await updateRfqStatus(rfq.id, st); }}>
               <button className={`px-3 py-1 rounded text-sm ${rfq.status === st ? "bg-blue-600 text-white" : "bg-gray-100"}`}>{st}</button>
             </form>
@@ -43,7 +66,6 @@ export default async function RfqDetail({ params }: { params: { id: string } }) 
         </div>
       </div>
 
-      {/* 报价列表 */}
       <div className="bg-white rounded-lg border p-6 mt-4">
         <h2 className="font-bold mb-3">报价 ({rfq.quotes.length})</h2>
         {rfq.quotes.length === 0 ? (
