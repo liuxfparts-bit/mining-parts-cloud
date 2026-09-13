@@ -61,6 +61,9 @@ export default async function LoginPage({
             className="w-full bg-blue-600 text-white py-2 rounded font-medium hover:bg-blue-700">
             登录
           </button>
+          <div className="text-right">
+            <a href="/forgot-password" className="text-sm text-blue-600">忘记密码？</a>
+          </div>
         </form>
       </div>
     </div>

@@ -230,8 +230,23 @@ model User {
   emailVerified DateTime?
   status        String    @default("ACTIVE") // ACTIVE / DISABLED
   favorites     Favorite[]
+  passwordResetTokens PasswordResetToken[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// ========== 密码重置 Token ==========
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ========== 收藏（采购用户收藏件号） ==========
