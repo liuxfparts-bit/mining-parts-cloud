@@ -28,3 +28,8 @@ Thumbs.db
 
 # temp
 temp_screenshot.png
+
+kuangpeiyun.com/
+.env
+*.key
+*.crt
