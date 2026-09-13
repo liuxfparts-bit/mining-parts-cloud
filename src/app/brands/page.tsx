@@ -4,10 +4,16 @@ import { prisma } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function BrandsPage() {
-  const brands = await prisma.brand.findMany({
-    include: { _count: { select: { equipment: true, partNumbers: true } } },
-    orderBy: { name: "asc" },
-  });
+  let brands: any[] = [];
+  try {
+    brands = await prisma.brand.findMany({
+      include: { _count: { select: { equipment: true, partNumbers: true } } },
+      orderBy: { name: "asc" },
+    });
+  } catch (e) {
+    console.error("[brands] query error", e);
+  }
+  brands = brands || [];
 
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const grouped: Record<string, typeof brands> = {};
@@ -56,7 +62,7 @@ export default async function BrandsPage() {
                     <div className="font-bold">{b.name}</div>
                     {b.nameEn && <div className="text-xs text-muted">{b.nameEn}</div>}
                     <div className="text-xs text-muted mt-2">
-                      设备 {b._count.equipment} · 件号 {b._count.partNumbers}
+                      设备 {b._count?.equipment ?? 0} · 件号 {b._count?.partNumbers ?? 0}
                     </div>
                   </div>
                 </Link>
