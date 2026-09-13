@@ -33,18 +33,33 @@ function ImageUploader() {
       setErr("最多上传 5 张");
       return;
     }
+    for (const f of list) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(f.type)) {
+        setErr(`文件 ${f.name} 格式不支持，仅 jpg/png/webp`);
+        return;
+      }
+      if (f.size > 5 * 1024 * 1024) {
+        setErr(`文件 ${f.name} 超过 5MB`);
+        return;
+      }
+    }
     setUploading(true);
     const done: string[] = [];
     for (const f of list) {
       try {
         const fd = new FormData();
         fd.append("file", f);
-        const r = await fetch("/api/upload", { method: "POST", body: fd });
+        const r = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+        if (r.status === 401) {
+          setErr("登录已失效，即将跳转登录…");
+          setTimeout(() => (location.href = "/login?redirect=/rfq/create"), 1500);
+          return;
+        }
         const j = await r.json();
-        if (!r.ok) throw new Error(j.error || "上传失败");
+        if (!r.ok || !j.success) throw new Error(j.message || "上传失败");
         done.push(j.url);
       } catch (e: any) {
-        setErr(e.message || "上传失败");
+        setErr(e.message || "上传失败，请重试");
       }
     }
     setImages([...images, ...done]);
