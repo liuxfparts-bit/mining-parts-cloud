@@ -23,8 +23,9 @@ export default async function BrandsPage() {
       prisma.equipment.groupBy({ by: ["brandId"], _count: true }),
       prisma.partNumber.groupBy({ by: ["brandId"], _count: true }),
     ]);
-    for (const g of eqGroups) countsMap[g.brandId] = { equipment: g._count, partNumbers: 0 };
+    for (const g of eqGroups) if (g.brandId) countsMap[g.brandId] = { equipment: g._count, partNumbers: 0 };
     for (const g of pnGroups) {
+      if (!g.brandId) continue;
       if (!countsMap[g.brandId]) countsMap[g.brandId] = { equipment: 0, partNumbers: 0 };
       countsMap[g.brandId].partNumbers = g._count;
     }
