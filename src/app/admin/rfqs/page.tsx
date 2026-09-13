@@ -105,12 +105,7 @@ export default async function AdminRfqsPage({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="text-left p-3 w-8"><input type="checkbox" onChange={(e) => {
-                const checked = e.target.checked;
-                document.querySelectorAll("input.row-cb").forEach((el) => {
-                  (el as HTMLInputElement).checked = checked;
-                });
-              }} /></th>
+              <th className="text-left p-3 w-8">#</th>
               <th className="text-left p-3">ID</th>
               <th className="text-left p-3">标题</th>
               <th className="text-left p-3">件号</th>
