@@ -76,9 +76,7 @@ export default async function BrandsPage() {
                     <div className="aspect-[16/9] bg-slate-100 flex items-center justify-center overflow-hidden">
                       {b.logo ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={b.logo} alt={b.name}
-                             className="max-h-full max-w-full object-contain p-3"
-                             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        <img src={b.logo} alt={b.name} className="max-h-full max-w-full object-contain p-3" />
                       ) : (
                         <span className="text-3xl font-black text-slate-300">{(b.name || "?").charAt(0)}</span>
                       )}
@@ -110,9 +108,7 @@ export default async function BrandsPage() {
                   <div className="aspect-[16/9] bg-slate-100 flex items-center justify-center">
                     {b.logo ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={b.logo} alt={b.name}
-                           className="max-h-full max-w-full object-contain p-3"
-                           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                      <img src={b.logo} alt={b.name} className="max-h-full max-w-full object-contain p-3" />
                     ) : (
                       <span className="text-3xl font-black text-slate-300">{(b.name || "?").charAt(0)}</span>
                     )}
