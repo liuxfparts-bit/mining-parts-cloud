@@ -4,7 +4,8 @@ import { useFormState, useFormStatus } from "react-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createRFQ } from "@/app/actions";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, X, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 
 const initialState = { error: "" };
 
@@ -15,6 +16,73 @@ function SubmitButton() {
       {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
       {pending ? "发布中..." : "发布询价"}
     </Button>
+  );
+}
+
+function ImageUploader() {
+  const [images, setImages] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function onFiles(files: FileList | null) {
+    if (!files) return;
+    setErr("");
+    const list = Array.from(files);
+    if (images.length + list.length > 5) {
+      setErr("最多上传 5 张");
+      return;
+    }
+    setUploading(true);
+    const done: string[] = [];
+    for (const f of list) {
+      try {
+        const fd = new FormData();
+        fd.append("file", f);
+        const r = await fetch("/api/upload", { method: "POST", body: fd });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || "上传失败");
+        done.push(j.url);
+      } catch (e: any) {
+        setErr(e.message || "上传失败");
+      }
+    }
+    setImages([...images, ...done]);
+    setUploading(false);
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  function remove(i: number) {
+    setImages(images.filter((_, idx) => idx !== i));
+  }
+
+  return (
+    <div>
+      <input type="hidden" name="images" value={JSON.stringify(images)} />
+      <div
+        onClick={() => inputRef.current?.click()}
+        className="border-2 border-dashed rounded p-6 text-center cursor-pointer hover:bg-slate-50">
+        {uploading ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : <Upload className="mx-auto h-5 w-5 text-muted" />}
+        <p className="text-sm text-muted mt-2">点击上传图片 / 图纸（jpg/png/webp，单张≤5MB，最多5张）</p>
+      </div>
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple
+        className="hidden" onChange={(e) => onFiles(e.target.files)} />
+      {err && <p className="text-red-500 text-xs mt-2">{err}</p>}
+      {images.length > 0 && (
+        <div className="grid grid-cols-5 gap-2 mt-3">
+          {images.map((u, i) => (
+            <div key={u} className="relative border rounded p-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={u} alt="" className="w-full h-16 object-cover" />
+              <button type="button" onClick={() => remove(i)}
+                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs">
+                <X className="w-3 h-3 m-auto" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -74,6 +142,10 @@ export default function RFQForm({
               placeholder="请描述规格、材质、交期、质保、替代要求等"
               className="flex min-h-[90px] w-full rounded-md border border-[#dce2e6] bg-white px-3 py-2 text-sm placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-bold mb-1">产品图片 / 图纸（选填）</label>
+            <ImageUploader />
           </div>
         </div>
       </div>

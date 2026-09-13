@@ -20,6 +20,9 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
   const contactPhone = String(formData.get("contactPhone") || "");
   const contactEmail = String(formData.get("contactEmail") || "");
   const whatsapp = String(formData.get("whatsapp") || "");
+  const imagesRaw = String(formData.get("images") || "[]");
+  let images: string[] = [];
+  try { images = JSON.parse(imagesRaw); if (!Array.isArray(images)) images = []; } catch { images = []; }
 
   if (!title || !description || !contactName || !contactPhone) {
     return { error: "请填写所有必填字段" };
@@ -52,6 +55,7 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
         quantity: parseInt(quantity) || 1,
         unit,
         description,
+        images: images.length ? JSON.stringify(images) : null,
         deliveryDate: deliveryDateStr ? new Date(deliveryDateStr) : null,
         deliveryLocation: deliveryLocation || null,
         incoterm: incoterm || null,
