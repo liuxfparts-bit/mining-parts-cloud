@@ -151,16 +151,28 @@ export async function updateRfqStatus(id: number, status: string) {
 }
 export async function createBrand(formData: FormData) {
   await requireAdmin();
-  const name = (formData.get("name") as string).trim();
-  const nameEn = (formData.get("nameEn") as string)?.trim() || null;
-  let slug = (formData.get("slug") as string)?.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || "";
-  if (!slug) slug = (nameEn || name).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-  if (!slug) slug = "brand-" + Date.now();
-  const exists = await prisma.brand.findUnique({ where: { slug } });
-  if (exists) throw new Error("该品牌 URL 标识已存在，请修改");
-  await prisma.brand.create({ data: { name, slug, nameEn } });
-  revalidatePath("/admin/brands");
-  revalidatePath("/");
+  try {
+    const name = (formData.get("name") as string || "").trim();
+    const nameEn = (formData.get("nameEn") as string || "").trim() || null;
+    if (!name) throw new Error("品牌名称必填");
+    let slug = (formData.get("slug") as string || "").trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    if (!slug) slug = (nameEn || name).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    if (!slug) slug = "brand-" + Date.now().toString();
+
+    const nameDup = await prisma.brand.findUnique({ where: { name } });
+    if (nameDup) throw new Error("该品牌名称已存在，请直接编辑已有品牌");
+    const slugDup = await prisma.brand.findUnique({ where: { slug } });
+    if (slugDup) throw new Error("该品牌 URL 标识已存在，请修改");
+
+    await prisma.brand.create({ data: { name, slug, nameEn } });
+    revalidatePath("/admin/brands");
+    revalidatePath("/");
+    redirect("/admin/brands");
+  } catch (e: any) {
+    if (e?.digest?.startsWith("NEXT_REDIRECT")) throw e;
+    console.error("[createBrand] ERROR", e);
+    redirect("/admin/brands?error=" + encodeURIComponent(e?.message || "新增品牌失败"));
+  }
 }
 export async function deleteBrand(id: number) {
   await requireAdmin();
@@ -170,18 +182,27 @@ export async function deleteBrand(id: number) {
 
 export async function updateBrand(id: number, formData: FormData) {
   await requireAdmin();
-  const name = (formData.get("name") as string).trim();
-  const nameEn = (formData.get("nameEn") as string)?.trim() || null;
-  const country = (formData.get("country") as string)?.trim() || null;
-  let slug = (formData.get("slug") as string)?.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || "";
-  if (!slug) slug = (nameEn || name).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-  if (!slug) slug = "brand-" + Date.now();
-  const dup = await prisma.brand.findFirst({ where: { slug, NOT: { id } } });
-  if (dup) throw new Error("该品牌 URL 标识已存在，请修改");
-  await prisma.brand.update({ where: { id }, data: { name, nameEn, country, slug } });
-  revalidatePath("/admin/brands");
-  revalidatePath("/");
-  redirect("/admin/brands");
+  try {
+    const name = (formData.get("name") as string || "").trim();
+    const nameEn = (formData.get("nameEn") as string || "").trim() || null;
+    const country = (formData.get("country") as string || "").trim() || null;
+    if (!name) throw new Error("品牌名称必填");
+    let slug = (formData.get("slug") as string || "").trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    if (!slug) slug = (nameEn || name).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    if (!slug) slug = "brand-" + Date.now().toString();
+
+    const dup = await prisma.brand.findFirst({ where: { OR: [{ slug, NOT: { id } }, { name, NOT: { id } }] } });
+    if (dup) throw new Error("品牌名称或 URL 标识已被其他品牌占用");
+
+    await prisma.brand.update({ where: { id }, data: { name, nameEn, country, slug } });
+    revalidatePath("/admin/brands");
+    revalidatePath("/");
+    redirect("/admin/brands");
+  } catch (e: any) {
+    if (e?.digest?.startsWith("NEXT_REDIRECT")) throw e;
+    console.error("[updateBrand] ERROR", e);
+    redirect(`/admin/brands?error=` + encodeURIComponent(e?.message || "保存失败"));
+  }
 }
 export async function createEquipment(formData: FormData) {
   await requireAdmin();
@@ -263,15 +284,21 @@ export async function toggleEquipmentStatus(id: number) {
 
 export async function quickCreateBrand(name: string, nameEn?: string) {
   await requireAdmin();
-  const n = name.trim();
-  const ne = nameEn?.trim() || null;
-  if (!n) return { error: "品牌名必填" };
-  const slug = (ne || n).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-  const exists = await prisma.brand.findFirst({ where: { OR: [{ name: n }, { slug }] } });
-  if (exists) return { error: "该品牌已存在", id: exists.id };
-  const b = await prisma.brand.create({ data: { name: n, nameEn: ne, slug: slug || "brand-" + Date.now() } });
-  revalidatePath("/admin/equipment/new");
-  return { id: b.id };
+  try {
+    const n = (name || "").trim();
+    const ne = nameEn?.trim() || null;
+    if (!n) return { error: "品牌名必填" };
+    const slug = (ne || n).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    const exists = await prisma.brand.findFirst({ where: { OR: [{ name: n }, { slug }] } });
+    if (exists) return { error: "该品牌已存在", id: exists.id };
+    const b = await prisma.brand.create({ data: { name: n, nameEn: ne, slug: slug || "brand-" + Date.now().toString() } });
+    revalidatePath("/admin/equipment/new");
+    return { id: b.id };
+  } catch (e: any) {
+    console.error("[quickCreateBrand] ERROR", e);
+    if (e?.code === "P2002") return { error: "品牌名称或代号已存在" };
+    return { error: "创建失败：" + (e?.message || "未知错误") };
+  }
 }
 
 export async function updatePartNumber(id: number, formData: FormData) {
