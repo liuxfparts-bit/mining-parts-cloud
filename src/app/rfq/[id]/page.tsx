@@ -70,13 +70,28 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
 
           <p className="text-sm text-muted leading-relaxed">{rfq.description}</p>
 
-          {rfq.images && (
-            <div className="mt-4 flex gap-2 flex-wrap">
-              {rfq.images.split(",").filter(Boolean).map((src) => (
-                <img key={src} src={src.trim()} alt="RFQ" className="h-32 rounded border object-cover" />
-              ))}
-            </div>
-          )}
+          {(() => {
+            let imgs: string[] = [];
+            try {
+              imgs = rfq.images ? JSON.parse(rfq.images) : [];
+              if (!Array.isArray(imgs)) imgs = [];
+            } catch {
+              imgs = rfq.images ? rfq.images.split(",").map((s) => s.trim()).filter(Boolean) : [];
+            }
+            if (imgs.length === 0) return null;
+            return (
+              <div className="mt-4">
+                <h3 className="text-sm font-bold mb-2">图片 / 图纸</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {imgs.map((src) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={src} src={src} alt="RFQ"
+                      className="h-32 w-full object-cover rounded border" />
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* 供应商报价入口 */}
           <div className="mt-5 pt-5 border-t border-line">
