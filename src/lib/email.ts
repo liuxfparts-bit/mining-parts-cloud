@@ -25,7 +25,7 @@ export async function sendPasswordResetEmail(to: string, rawToken: string) {
   const link = `${appUrl}/reset-password?token=${rawToken}`;
   const t = getTransporter();
   if (!t) {
-    console.warn("[email] SMTP not configured, reset link:", link);
+    console.error("[email] SMTP not configured; reset email NOT sent to:", to);
     return;
   }
   await t.sendMail({

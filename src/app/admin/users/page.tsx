@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import ResetPwButton from "./ResetPwButton";
 
 export default async function AdminUsers() {
   const users = await prisma.user.findMany({
@@ -22,6 +23,7 @@ export default async function AdminUsers() {
               <th className="text-left p-3">状态</th>
               <th className="text-left p-3">关联企业</th>
               <th className="text-left p-3">注册时间</th>
+              <th className="text-left p-3">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -33,6 +35,9 @@ export default async function AdminUsers() {
                 <td className="p-3">{u.status}</td>
                 <td className="p-3">{u.supplier?.name || "-"}</td>
                 <td className="p-3">{u.createdAt.toLocaleDateString("zh-CN")}</td>
+                <td className="p-3">
+                  <ResetPwButton userId={u.id} userEmail={u.email} />
+                </td>
               </tr>
             ))}
           </tbody>
