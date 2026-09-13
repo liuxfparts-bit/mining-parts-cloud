@@ -33,3 +33,11 @@ kuangpeiyun.com/
 .env
 *.key
 *.crt
+
+*.pem
+cert.*
+nginx/ssl/
+*.p7b
+*.pfx
+*.der
+*.jks
