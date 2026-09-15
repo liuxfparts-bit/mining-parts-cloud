@@ -41,11 +41,11 @@ export default async function SupplierHome() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">供应商工作台</h1>
           {supplier && (
-            <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
+            <div className="flex flex-wrap items-center gap-2 mt-1 text-sm text-gray-500">
               <span>{supplier.name}</span>
               <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">{MEMBER_CN[supplier.memberLevel] || supplier.memberLevel}</span>
               {supplier.verifiedStatus === "VERIFIED" && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">已认证</span>}
@@ -54,7 +54,7 @@ export default async function SupplierHome() {
             </div>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href="/supplier/products/new" className="bg-blue-600 text-white px-4 py-2 rounded text-sm">+ 发布新产品</Link>
           <Link href="/supplier/profile" className="border px-4 py-2 rounded text-sm">设置接单偏好</Link>
           <form action={async () => { "use server"; const { signOut } = await import("@/lib/auth"); await signOut({ redirectTo: "/login" }); }}>
@@ -66,7 +66,7 @@ export default async function SupplierHome() {
       {supplier ? (
         <>
           {/* KPI cards */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div className="bg-white border rounded-lg p-4">
               <div className="text-sm text-gray-500">在线产品</div>
               <div className="text-2xl font-bold mt-1">{onlineProducts}</div>
@@ -88,7 +88,7 @@ export default async function SupplierHome() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Left: shortcuts */}
             <div className="bg-white border rounded-lg p-4">
               <h2 className="font-bold mb-3">高频功能</h2>
