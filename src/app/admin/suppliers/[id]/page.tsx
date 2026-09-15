@@ -67,7 +67,7 @@ export default async function SupplierDetail({ params }: { params: { id: string 
       {/* 审核操作 */}
       <div className="bg-white rounded-lg border p-6 mb-6">
         <h2 className="font-bold mb-4">审核操作</h2>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {supplier.verifiedStatus !== "VERIFIED" && (
             <form action={async () => { "use server"; await reviewSupplier(supplier.id, "VERIFIED"); }}>
               <button className="bg-green-600 text-white px-4 py-2 rounded text-sm">✓ 审核通过</button>
@@ -83,7 +83,7 @@ export default async function SupplierDetail({ params }: { params: { id: string 
 
         <h2 className="font-bold mt-6 mb-3">修改会员等级</h2>
         <form action={async (fd: FormData) => { "use server"; await updateMemberLevel(supplier.id, String(fd.get("memberLevel") || "FREE")); }}>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             <select name="memberLevel" defaultValue={supplier.memberLevel || "FREE"} className="border rounded px-3 py-2 text-sm">
               <option value="FREE">FREE（免费）</option>
               <option value="BRONZE">BRONZE（铜牌）</option>
