@@ -8,6 +8,7 @@ interface EquipmentCardProps {
   equipmentType: string;
   description?: string | null;
   partCount: number;
+  supplierCount?: number;
   imageUrl?: string | null;
 }
 
@@ -18,6 +19,7 @@ export default function EquipmentCard({
   equipmentType,
   description,
   partCount,
+  supplierCount,
   imageUrl,
 }: EquipmentCardProps) {
   return (
@@ -45,6 +47,11 @@ export default function EquipmentCard({
           <span className="inline-block bg-[#f2f4f5] px-2 py-1 rounded text-[11px]">
             件号 {partCount}
           </span>
+          {supplierCount !== undefined && (
+            <span className="inline-block bg-[#f2f4f5] px-2 py-1 rounded text-[11px]">
+              厂家 {supplierCount} 家
+            </span>
+          )}
           <span className="text-accent text-xs flex items-center">
             查看 <ChevronRight className="h-3 w-3 ml-0.5" />
           </span>

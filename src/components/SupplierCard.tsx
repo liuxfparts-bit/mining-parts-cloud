@@ -8,6 +8,8 @@ interface SupplierCardProps {
   shortName?: string | null;
   province?: string | null;
   mainBusiness: string;
+  mainBrands?: string | null;
+  mainEquipment?: string | null;
   verified: boolean;
   productCount: number;
   memberLevel?: string;
@@ -27,6 +29,8 @@ export default function SupplierCard({
   shortName,
   province,
   mainBusiness,
+  mainBrands,
+  mainEquipment,
   verified,
   productCount,
   memberLevel,
@@ -52,6 +56,16 @@ export default function SupplierCard({
       <p className="text-xs text-muted leading-relaxed mt-3 line-clamp-2">
         主营：{mainBusiness}
       </p>
+      {(mainBrands || mainEquipment) && (
+        <div className="flex flex-col gap-1 mt-2 text-xs text-muted">
+          {mainBrands && (
+            <p className="truncate">主营品牌：<span className="text-ink">{mainBrands}</span></p>
+          )}
+          {mainEquipment && (
+            <p className="truncate">主营设备：<span className="text-ink">{mainEquipment}</span></p>
+          )}
+        </div>
+      )}
       <div className="flex items-center gap-2 mt-3 flex-wrap">
         <Badge variant="secondary">{productCount} 个产品</Badge>
         {memberLevel && memberLevel !== "FREE" && (

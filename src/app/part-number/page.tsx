@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import Pagination from "@/components/Pagination";
+import PartNumberCard from "@/components/PartNumberCard";
+import { Search } from "lucide-react";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
 export function generateMetadata(): Metadata {
   return {
-    title: "矿山设备配件件号数据库｜矿配云",
+    title: "找件号｜矿配云",
     description: "矿配云矿山设备配件件号数据库，支持按件号、品牌、设备型号和配件分类查询矿山设备配件信息及供应商。",
   };
 }
@@ -65,63 +67,66 @@ export default async function PartNumbersPage({
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const setParam = (key: string, val: string) => {
-    const sp = new URLSearchParams();
-    if (q) sp.set("q", q);
-    if (brandId) sp.set("brandId", String(brandId));
-    if (equipmentId) sp.set("equipmentId", String(equipmentId));
-    if (categoryId) sp.set("categoryId", String(categoryId));
-    sp.set(key, val);
-    if (key !== "pageSize") sp.set("page", "1");
-    return `/part-number?${sp.toString()}`;
-  };
+  const baseQuery = new URLSearchParams(
+    Object.entries({
+      q,
+      brandId: brandId ? String(brandId) : "",
+      equipmentId: equipmentId ? String(equipmentId) : "",
+      categoryId: categoryId ? String(categoryId) : "",
+    }).filter(([, v]) => v) as [string, string][]
+  );
 
-  const reset = "/part-number";
+  const selectCls =
+    "w-full border border-line rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brandGreen/40 bg-white";
 
   return (
     <div className="container py-[42px]">
-      <h1 className="text-3xl font-bold mb-2">件号数据库</h1>
-      <p className="text-muted mb-6">按件号、品牌、设备型号或配件分类查找矿山设备配件及供应商</p>
+      {/* 顶部标题 */}
+      <h1 className="text-3xl font-bold mb-2">找件号</h1>
+      <p className="text-muted mb-6">按品牌、设备型号、配件名称或 Part Number 快速查找矿山备件</p>
 
-      {/* 搜索框 */}
-      <form method="get" action="/part-number" className="bg-white border rounded p-3 mb-3 flex gap-2">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="搜索件号、配件名称、设备型号、品牌……"
-          className="flex-1 border rounded px-3 py-2 text-sm outline-none"
-        />
-        <button className="bg-amber-500 text-white px-4 rounded text-sm font-bold">搜索</button>
-      </form>
-
-      {/* 筛选器 */}
-      <form method="get" action="/part-number" className="bg-white border rounded p-3 mb-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-        <input type="hidden" name="q" value={q} />
-        <select name="brandId" defaultValue={brandId ?? ""} className="border rounded px-2 py-1.5">
-          <option value="">全部品牌</option>
-          {brands.map((b) => <option key={b.id} value={b.id}>{b.name} {b.nameEn ? `(${b.nameEn})` : ""}</option>)}
-        </select>
-        <select name="equipmentId" defaultValue={equipmentId ?? ""} className="border rounded px-2 py-1.5">
-          <option value="">全部设备</option>
-          {equipments.map((e) => <option key={e.id} value={e.id}>{e.model} {e.name ? `· ${e.name}` : ""}</option>)}
-        </select>
-        <select name="categoryId" defaultValue={categoryId ?? ""} className="border rounded px-2 py-1.5">
-          <option value="">全部分类</option>
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+      {/* 大搜索框 */}
+      <form method="get" action="/part-number" className="bg-white border border-line rounded-lg p-4 mb-4">
         <div className="flex gap-2">
-          <button className="bg-slate-900 text-white px-3 py-1.5 rounded flex-1">应用筛选</button>
-          <Link href={reset} className="border px-3 py-1.5 rounded">重置</Link>
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="请输入件号、配件名称、设备型号，例如：100256099、A2U900-511074、Hydraulic Pump、LS190"
+            className="flex-1 border border-line rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brandGreen/40"
+          />
+          <button className="inline-flex items-center gap-1.5 bg-brandGreen text-white px-5 rounded-md text-sm font-medium hover:bg-brandGreen/90 shrink-0">
+            <Search className="h-4 w-4" />搜索
+          </button>
+        </div>
+        {/* 高级筛选 */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-3 text-sm">
+          <select name="brandId" defaultValue={brandId ?? ""} className={selectCls}>
+            <option value="">全部品牌</option>
+            {brands.map((b) => <option key={b.id} value={b.id}>{b.name} {b.nameEn ? `(${b.nameEn})` : ""}</option>)}
+          </select>
+          <select name="equipmentId" defaultValue={equipmentId ?? ""} className={selectCls}>
+            <option value="">全部设备</option>
+            {equipments.map((e) => <option key={e.id} value={e.id}>{e.model} {e.name ? `· ${e.name}` : ""}</option>)}
+          </select>
+          <select name="categoryId" defaultValue={categoryId ?? ""} className={selectCls}>
+            <option value="">全部分类</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <div className="flex gap-2">
+            <button className="flex-1 bg-brandGreen text-white px-3 py-2 rounded-md font-medium hover:bg-brandGreen/90">应用筛选</button>
+            <Link href="/part-number" className="flex-1 border border-line px-3 py-2 rounded-md text-center hover:bg-gray-50">重置</Link>
+          </div>
         </div>
       </form>
 
-      <p className="text-sm text-muted mb-3">共 {total} 个相关件号</p>
+      {/* 数据统计 */}
+      <p className="text-sm text-muted mb-4">共 {total} 个相关件号</p>
 
-      {/* 列表 */}
       {partNumbers.length === 0 ? (
-        <div className="bg-white border rounded p-8 text-center">
-          <p className="mb-3">未找到匹配件号。</p>
-          <Link href="/part-number/request" className="text-amber-600 underline">提交新件号申请</Link>
+        <div className="bg-white border border-line rounded-lg p-10 text-center">
+          <p className="mb-3 font-bold text-lg">未找到匹配件号</p>
+          <p className="text-sm text-muted mb-4">没有找到您需要的配件？您可以提交新件号申请。</p>
+          <Link href="/part-number/request" className="inline-block bg-brandGreen text-white px-5 py-2 rounded-md font-medium hover:bg-brandGreen/90">提交新件号申请</Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-[14px]">
@@ -129,44 +134,24 @@ export default async function PartNumbersPage({
             const publishedSuppliers = new Set(p.products.map((pr) => pr.supplierId)).size;
             const prices = p.products.map((pr) => pr.price).filter((v): v is number => v !== null);
             return (
-              <Link key={p.id} href={`/part-number/${p.slug}`} className="bg-white border rounded p-4 hover:shadow block">
-                <div className="font-mono font-bold text-amber-600">{p.number}</div>
-                <div className="font-medium mt-1">{p.name}</div>
-                {p.nameEn && <div className="text-xs text-muted">{p.nameEn}</div>}
-                <div className="text-xs text-muted mt-2">
-                  {p.brand?.name}{p.equipment ? ` · ${p.equipment.model}` : ""}
-                </div>
-                <div className="flex items-center justify-between mt-3">
-                  <span className="text-xs text-muted">
-                    {publishedSuppliers > 0 ? `供应商 ${publishedSuppliers} 家` : "暂无公开供应商"}
-                    {prices.length > 0 && ` · ¥${Math.min(...prices)} 起`}
-                  </span>
-                  <span className="text-amber-600 text-xs">查看件号 →</span>
-                </div>
-              </Link>
+              <PartNumberCard
+                key={p.id}
+                slug={p.slug}
+                partNumber={p.number}
+                name={p.name}
+                category={p.category}
+                brandName={p.brand?.name}
+                equipmentModel={p.equipment?.model}
+                supplierCount={publishedSuppliers}
+                minPrice={prices.length > 0 ? Math.min(...prices) : null}
+              />
             );
           })}
         </div>
       )}
 
-      {/* 分页 */}
-      <div className="mt-6">
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          pageSize={pageSize}
-          baseQuery={new URLSearchParams(
-            Object.entries({ q, brandId: brandId ? String(brandId) : "", equipmentId: equipmentId ? String(equipmentId) : "", categoryId: categoryId ? String(categoryId) : "" }).filter(([, v]) => v) as [string, string][]
-          )}
-        />
-        <div className="text-xs text-muted mt-2">
-          每页
-          {[20, 50, 100].map((s) => (
-            <Link key={s} href={setParam("pageSize", String(s))} className={`ml-2 px-2 py-0.5 rounded ${pageSize === s ? "bg-amber-500 text-white" : "border"}`}>{s}</Link>
-          ))}
-        </div>
-      </div>
+      {/* 分页 + 每页条数 */}
+      <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} baseQuery={baseQuery} />
     </div>
   );
 }
