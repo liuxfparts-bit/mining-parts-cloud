@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,12 +38,23 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
   const id = parseInt(params.id);
   if (isNaN(id)) notFound();
 
+  // 权限隔离：供应商只能看到自己的报价
+  const s = await auth();
+  const uid = s?.user ? parseInt(String((s.user as any).id)) : null;
+  const me = uid
+    ? await prisma.user.findUnique({ where: { id: uid }, select: { role: true, supplierId: true } })
+    : null;
+  const isSupplier = me?.role === "SUPPLIER" && me.supplierId !== null && me.supplierId !== undefined;
+  const mySupplierId: number | null = isSupplier ? (me.supplierId as number) : null;
+
   const rfq = await prisma.rFQ.findUnique({
     where: { id },
     include: {
       partNumber: { include: { brand: true, equipment: true } },
       items: { include: { partNumber: true }, orderBy: { seq: "asc" } },
-      quotes: { include: { supplier: true } },
+      quotes: mySupplierId
+        ? { where: { supplierId: mySupplierId }, include: { supplier: true, items: true } }
+        : { include: { supplier: true, items: true } },
     },
   });
   if (!rfq) notFound();
@@ -122,10 +134,14 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
           </div>
         </div>
 
-        {/* 报价列表（兼容旧总报价；分项比价在后续阶段升级） */}
-        <h2 className="text-xl font-bold mb-4">供应商报价（{rfq.quotes.length}）</h2>
+        {/* 报价列表（供应商隔离：供应商仅见自己的报价；采购方/管理员/访客可见全部） */}
+        <h2 className="text-xl font-bold mb-4">
+          {isSupplier ? "我的报价" : "供应商报价"}（{rfq.quotes.length}）
+        </h2>
         {rfq.quotes.length === 0 ? (
-          <div className="bg-white border border-line rounded-lg p-8 text-center text-muted">暂无报价</div>
+          <div className="bg-white border border-line rounded-lg p-8 text-center text-muted">
+            {isSupplier ? "您尚未对该询价报价" : "暂无报价"}
+          </div>
         ) : (
           <div className="space-y-3">
             {rfq.quotes.map((q) => (
@@ -134,20 +150,82 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
                   <div>
                     <Link href={`/suppliers/${q.supplier.slug}`} className="font-bold hover:text-accent">
                       {q.supplier.shortName || q.supplier.name}
+                      {isSupplier && mySupplierId === q.supplier.id && (
+                        <span className="ml-2 text-xs font-normal text-blue-600">（我的报价）</span>
+                      )}
                     </Link>
                     {q.remarks && <p className="text-sm text-muted mt-1">{q.remarks}</p>}
                     <div className="flex gap-3 mt-2 text-xs text-muted flex-wrap">
+                      <span>报价 {q.quotedCount}/{rfq.items.length} 项</span>
+                      {q.totalAmount !== null && q.totalAmount !== undefined && (
+                        <span className="font-bold text-green">
+                          总价 {q.items[0]?.currency || "CNY"} {q.totalAmount.toLocaleString()}
+                        </span>
+                      )}
+                      {q.totalAmount === null && q.quotedCount > 0 && (
+                        <span className="text-amber-600">部分报价（{q.quotedCount}/{rfq.items.length} 项）</span>
+                      )}
                       {q.stockStatus && <span>库存：{q.stockStatus}</span>}
                       {q.warranty && <span>质保：{q.warranty}</span>}
                       {q.paymentTerms && <span>付款：{q.paymentTerms}</span>}
                       {q.incoterm && <span>{q.incoterm}</span>}
                     </div>
-                  </div>
-                  <div className="text-right">
-                    {q.unitPrice !== null && q.unitPrice !== undefined && (
-                      <p className="text-xl font-bold text-green">{q.currency} {q.unitPrice.toLocaleString()}</p>
+                    {/* 分项报价明细 */}
+                    {q.items.length > 0 && (
+                      <div className="mt-3 overflow-x-auto">
+                        <table className="w-full text-xs min-w-[480px]">
+                          <thead>
+                            <tr className="text-left text-muted border-b border-line">
+                              <th className="py-1 pr-2">Item</th>
+                              <th className="py-1 px-2">件号</th>
+                              <th className="py-1 px-2">配件</th>
+                              <th className="py-1 px-2">数量</th>
+                              <th className="py-1 px-2">单价</th>
+                              <th className="py-1 px-2">交期</th>
+                              <th className="py-1 px-2">质量</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {q.items.map((qi) => {
+                              const item = rfq.items.find((it) => it.id === qi.rfqItemId);
+                              return (
+                                <tr key={qi.id} className="border-b border-line/50">
+                                  <td className="py-1 pr-2">Item {item?.seq ?? "?"}</td>
+                                  <td className="py-1 px-2 font-mono">{item?.partNumberStr || item?.partNumber?.number || "—"}</td>
+                                  <td className="py-1 px-2">{item?.productName || "—"}</td>
+                                  <td className="py-1 px-2">{item?.quantity} {item?.unit}</td>
+                                  <td className="py-1 px-2 font-mono">
+                                    {qi.unitPrice != null ? `${qi.currency} ${qi.unitPrice.toLocaleString()}` : "—"}
+                                  </td>
+                                  <td className="py-1 px-2">{qi.leadTime || "—"}</td>
+                                  <td className="py-1 px-2">{qi.quality || "—"}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
-                    {q.leadTime && <p className="text-xs text-muted">{q.leadTime}</p>}
+                    {/* 报价附件 */}
+                    {(() => {
+                      if (!q.attachments) return null;
+                      let atts: string[] = [];
+                      try {
+                        atts = JSON.parse(q.attachments);
+                        if (!Array.isArray(atts)) atts = [];
+                      } catch { atts = []; }
+                      if (atts.length === 0) return null;
+                      return (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {atts.map((u) => (
+                            <a key={u} href={u} target="_blank"
+                              className="text-xs text-blue-600 border border-blue-200 bg-blue-50 rounded px-2 py-1 hover:bg-blue-100">
+                              报价附件：{u.split("/").pop()}
+                            </a>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

@@ -1,102 +1,316 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
-import { Input } from "@/components/ui/input";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Send, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Send, Loader2, X, Upload, FileText } from "lucide-react";
 
-const initialState = { error: "" };
+export type QuoteItemT = {
+  id: number;
+  seq: number;
+  brandName: string | null;
+  equipmentModel: string | null;
+  productName: string | null;
+  partNumberStr: string | null;
+  quantity: number;
+  unit: string;
+  description: string | null;
+  partNumber: { number: string; slug: string } | null;
+};
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending} className="bg-accent text-ink hover:bg-[#d49215]">
-      {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-      {pending ? "提交中..." : "提交报价"}
-    </Button>
+export type ExistingQuoteT = {
+  id: number;
+  quotedCount: number;
+  attachments: string | null;
+  items: {
+    rfqItemId: number;
+    unitPrice: number | null;
+    currency: string;
+    leadTime: string | null;
+    quality: string | null;
+    quantity: number | null;
+    remarks: string | null;
+  }[];
+} | null;
+
+type RowState = {
+  rfqItemId: number;
+  enabled: boolean;
+  unitPrice: string;
+  currency: string;
+  leadTime: string;
+  quality: string;
+  remarks: string;
+};
+
+const CURRENCIES = ["CNY", "USD", "EUR", "INR", "RUB", "ZAR"];
+const QUALITIES = ["OEM", "OEM_COMPATIBLE", "AFTERMARKET", "REPLACEMENT", "OTHER"];
+
+const QUALITY_LABEL: Record<string, string> = {
+  OEM: "OEM 原厂",
+  OEM_COMPATIBLE: "OEM 兼容",
+  AFTERMARKET: "Aftermarket 副厂",
+  REPLACEMENT: "Replacement 替换",
+  OTHER: "Other 其他",
+};
+
+const ACCEPT = ".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx";
+
+export default function QuoteForm({
+  rfqId,
+  supplierId,
+  items,
+  existing,
+}: {
+  rfqId: number;
+  supplierId: number;
+  items: QuoteItemT[];
+  existing: ExistingQuoteT;
+}) {
+  const [rows, setRows] = useState<RowState[]>(() =>
+    items.map((it) => {
+      const prev = existing?.items.find((q) => q.rfqItemId === it.id);
+      return {
+        rfqItemId: it.id,
+        enabled: !!prev && prev.unitPrice !== null && prev.unitPrice !== undefined,
+        unitPrice: prev?.unitPrice != null ? String(prev.unitPrice) : "",
+        currency: prev?.currency || "CNY",
+        leadTime: prev?.leadTime || "",
+        quality: prev?.quality || "AFTERMARKET",
+        remarks: prev?.remarks || "",
+      };
+    })
   );
-}
 
-export default function QuoteForm({ rfqId, supplierId }: { rfqId: number; supplierId: number }) {
-  const [state, formAction] = useFormState(async (prev: any, formData: FormData) => {
-    formData.append("rfqId", String(rfqId));
-    formData.append("supplierId", String(supplierId));
-    const res = await fetch("/api/quote", {
-      method: "POST",
-      body: formData,
-    });
-    if (!res.ok) return { error: "提交失败" };
-    window.location.href = `/rfq/${rfqId}`;
-    return { error: "" };
-  }, initialState);
+  const [attachments, setAttachments] = useState<string[]>(() => {
+    if (!existing?.attachments) return [];
+    try {
+      const v = JSON.parse(existing.attachments);
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  });
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function update(i: number, patch: Partial<RowState>) {
+    setRows(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  }
+
+  async function onUpload(files: FileList | null) {
+    if (!files) return;
+    setErr("");
+    const f = files[0];
+    const isDoc = !f.type.startsWith("image/");
+    if (f.size > (isDoc ? 10 * 1024 * 1024 : 5 * 1024 * 1024)) {
+      setErr(isDoc ? "文档不超过 10MB" : "图片不超过 5MB");
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      fd.append("scope", "quote");
+      const r = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+      if (r.status === 401) {
+        setErr("登录已失效，即将跳转登录…");
+        setTimeout(() => (location.href = "/login?redirect=/rfq/" + rfqId + "/quote"), 1500);
+        return;
+      }
+      const j = await r.json();
+      if (!r.ok || !j.success) throw new Error(j.message || "上传失败");
+      setAttachments([...attachments, j.url]);
+    } catch (e: any) {
+      setErr(e.message || "附件上传失败");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function submit() {
+    setErr("");
+    const enabled = rows.filter((r) => r.enabled);
+    if (enabled.length === 0) {
+      setErr("请至少对一项明细报价（勾选“是否报价”并填写单价）");
+      return;
+    }
+    for (const r of enabled) {
+      const price = parseFloat(r.unitPrice);
+      if (isNaN(price) || price <= 0) {
+        const it = items.find((x) => x.id === r.rfqItemId);
+        setErr(`Item ${it?.seq ?? ""}（${it?.partNumberStr || it?.productName || ""}）单价无效`);
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("rfqId", String(rfqId));
+      fd.append("supplierId", String(supplierId));
+      fd.append(
+        "items",
+        JSON.stringify(
+          enabled.map((r) => ({
+            rfqItemId: r.rfqItemId,
+            unitPrice: parseFloat(r.unitPrice),
+            currency: r.currency,
+            leadTime: r.leadTime || null,
+            quality: r.quality || null,
+            remarks: r.remarks || null,
+          }))
+        )
+      );
+      fd.append("attachments", JSON.stringify(attachments));
+      const res = await fetch("/api/quote", { method: "POST", body: fd, credentials: "include" });
+      if (res.status === 401) {
+        setErr("登录已失效，即将跳转登录…");
+        setTimeout(() => (location.href = "/login?redirect=/rfq/" + rfqId + "/quote"), 1500);
+        return;
+      }
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || "提交失败");
+      window.location.href = `/rfq/${rfqId}`;
+    } catch (e: any) {
+      setErr(e.message || "提交失败，请重试");
+      setBusy(false);
+    }
+  }
 
   return (
-    <form action={formAction} className="bg-white border border-line rounded-lg p-8 space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-bold mb-1">单价 (Unit Price) *</label>
-          <Input name="unitPrice" type="number" step="0.01" required placeholder="0.00" />
+    <div className="bg-white border border-line rounded-lg p-6 md:p-8">
+      {/* 附件 */}
+      <div className="mb-5">
+        <label className="block text-xs font-bold mb-2">报价附件（选填：正式 Quotation / PDF / Excel / Word / 图片）</label>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="border-2 border-dashed border-[#dce2e6] rounded-lg px-4 py-2 text-sm text-muted hover:bg-slate-50 flex items-center gap-1">
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            添加附件
+          </button>
+          <input ref={fileRef} type="file" accept={ACCEPT} className="hidden"
+            onChange={(e) => onUpload(e.target.files)} />
         </div>
-        <div>
-          <label className="block text-xs font-bold mb-1">币种 (Currency)</label>
-          <select name="currency" className="flex h-10 w-full rounded-md border border-[#dce2e6] bg-white px-3 py-2 text-sm">
-            <option value="CNY">CNY 人民币</option>
-            <option value="USD">USD 美元</option>
-            <option value="EUR">EUR 欧元</option>
-            <option value="RUB">RUB 卢布</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-bold mb-1">库存状态</label>
-          <select name="stockStatus" className="flex h-10 w-full rounded-md border border-[#dce2e6] bg-white px-3 py-2 text-sm">
-            <option value="IN_STOCK">现货</option>
-            <option value="MADE_TO_ORDER">按单生产</option>
-            <option value="OUT_OF_STOCK">无货</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-bold mb-1">交期 (Lead Time)</label>
-          <Input name="leadTime" placeholder="例如：15-20天" />
-        </div>
-        <div>
-          <label className="block text-xs font-bold mb-1">最小起订量 (MOQ)</label>
-          <Input name="moq" type="number" min="1" placeholder="1" />
-        </div>
-        <div>
-          <label className="block text-xs font-bold mb-1">质保 (Warranty)</label>
-          <Input name="warranty" placeholder="例如：12个月" />
-        </div>
-        <div>
-          <label className="block text-xs font-bold mb-1">付款条件 (Payment Terms)</label>
-          <Input name="paymentTerms" placeholder="例如：30%预付，70%见提单" />
-        </div>
-        <div>
-          <label className="block text-xs font-bold mb-1">贸易条款 (Incoterm)</label>
-          <select name="incoterm" className="flex h-10 w-full rounded-md border border-[#dce2e6] bg-white px-3 py-2 text-sm">
-            <option value="">选择</option>
-            <option value="EXW">EXW</option>
-            <option value="FOB">FOB</option>
-            <option value="CIF">CIF</option>
-            <option value="DDP">DDP</option>
-          </select>
-        </div>
-        <div className="md:col-span-2">
-          <label className="block text-xs font-bold mb-1">备注 (Remarks)</label>
-          <textarea
-            name="remarks"
-            rows={3}
-            placeholder="补充说明、替代件号、包装方式等"
-            className="flex min-h-[80px] w-full rounded-md border border-[#dce2e6] bg-white px-3 py-2 text-sm placeholder:text-muted"
-          />
-        </div>
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {attachments.map((u, i) => (
+              <div key={u} className="flex items-center gap-1 border rounded px-2 py-1 text-xs bg-slate-50">
+                <FileText className="w-3 h-3 text-muted" />
+                <a href={u} target="_blank" className="text-blue-600 hover:underline max-w-[180px] truncate">{u.split("/").pop()}</a>
+                <button type="button" onClick={() => setAttachments(attachments.filter((_, idx) => idx !== i))}
+                  className="text-red-500"><X className="w-3 h-3" /></button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {state.error && <p className="text-red-500 text-sm">{state.error}</p>}
+      {/* 逐项报价 */}
+      <div className="overflow-x-auto mb-4">
+        <table className="w-full text-sm min-w-[760px] border-collapse">
+          <thead>
+            <tr className="text-left text-xs text-muted border-b border-line">
+              <th className="py-2 pr-2">明细</th>
+              <th className="py-2 px-2">件号 / 品牌 / 型号</th>
+              <th className="py-2 px-2 text-center">数量</th>
+              <th className="py-2 px-2 text-center">报价</th>
+              <th className="py-2 px-2">单价</th>
+              <th className="py-2 px-2">币种</th>
+              <th className="py-2 px-2">交期</th>
+              <th className="py-2 px-2">质量等级</th>
+              <th className="py-2 pl-2">备注</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => {
+              const row = rows[i];
+              return (
+                <tr key={it.id} className="border-b border-line align-top">
+                  <td className="py-2 pr-2 whitespace-nowrap">
+                    <span className="text-xs font-bold bg-slate-100 rounded px-1.5 py-0.5">Item {it.seq}</span>
+                  </td>
+                  <td className="py-2 px-2">
+                    <div className="font-mono text-xs">{it.partNumberStr || it.partNumber?.number || "—"}</div>
+                    <div className="text-xs">{it.productName || ""}</div>
+                    <div className="text-xs text-muted">{[it.brandName, it.equipmentModel].filter(Boolean).join(" / ")}</div>
+                  </td>
+                  <td className="py-2 px-2 text-center whitespace-nowrap">{it.quantity} {it.unit}</td>
+                  <td className="py-2 px-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={row.enabled}
+                      onChange={(e) => update(i, { enabled: e.target.checked })}
+                      className="w-4 h-4 accent-amber-500"
+                    />
+                  </td>
+                  <td className="py-2 px-2">
+                    <Input
+                      type="number" min="0" step="0.01"
+                      disabled={!row.enabled}
+                      value={row.unitPrice}
+                      onChange={(e) => update(i, { unitPrice: e.target.value })}
+                      placeholder="0.00"
+                      className="h-9 w-24 text-sm font-mono"
+                    />
+                  </td>
+                  <td className="py-2 px-2">
+                    <select
+                      disabled={!row.enabled}
+                      value={row.currency}
+                      onChange={(e) => update(i, { currency: e.target.value })}
+                      className="h-9 w-20 rounded-md border border-[#dce2e6] bg-white px-1 text-xs">
+                      {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </td>
+                  <td className="py-2 px-2">
+                    <Input
+                      disabled={!row.enabled}
+                      value={row.leadTime}
+                      onChange={(e) => update(i, { leadTime: e.target.value })}
+                      placeholder="如 15-20天"
+                      className="h-9 w-24 text-xs"
+                    />
+                  </td>
+                  <td className="py-2 px-2">
+                    <select
+                      disabled={!row.enabled}
+                      value={row.quality}
+                      onChange={(e) => update(i, { quality: e.target.value })}
+                      className="h-9 w-36 rounded-md border border-[#dce2e6] bg-white px-1 text-xs">
+                      {QUALITIES.map((q) => <option key={q} value={q}>{QUALITY_LABEL[q]}</option>)}
+                    </select>
+                  </td>
+                  <td className="py-2 pl-2">
+                    <Input
+                      disabled={!row.enabled}
+                      value={row.remarks}
+                      onChange={(e) => update(i, { remarks: e.target.value })}
+                      placeholder="备注"
+                      className="h-9 w-28 text-xs"
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {err && <p className="text-red-500 text-sm mb-3">{err}</p>}
 
       <div className="flex justify-end gap-3 pt-4 border-t border-line">
         <Button type="button" variant="outline" onClick={() => history.back()}>取消</Button>
-        <SubmitButton />
+        <Button type="button" disabled={busy} onClick={submit}
+          className="bg-accent text-ink hover:bg-[#d49215]">
+          {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+          {existing ? "更新报价" : "提交报价"}
+        </Button>
       </div>
-    </form>
+    </div>
   );
 }
