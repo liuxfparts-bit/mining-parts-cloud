@@ -31,6 +31,7 @@ model Brand {
   equipment Equipment[]
   partNumbers PartNumber[]
   rfqs       RFQ[]
+  rfqItems   RFQItem[]
   equipmentRequests EquipmentRequest[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -111,6 +112,7 @@ model PartNumber {
   equipment     Equipment? @relation(fields: [equipmentId], references: [id])
   products      Product[]
   rfqs          RFQ[]
+  rfqItems      RFQItem[]
   favorites     Favorite[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -302,7 +304,9 @@ model RFQ {
   matchedSuppliers String?  // JSON 数组
   status         String     @default("COLLECTING") // COLLECTING / QUOTED / SELECTED / CLOSED / EXPIRED
   region         String?
+  rfqNo          String?    // 编号，如 RFQ-20260915-001
   quotes         Quote[]
+  items          RFQItem[]
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   expiresAt      DateTime?  // 询价过期时间
@@ -328,9 +332,60 @@ model Quote {
   incoterm     String?  // 贸易术语
   remarks      String?  // remarks
   attachments  String?  // JSON
+  totalAmount  Float?   // 完整报价总额（仅当对所有 Item 都有有效报价时）
+  quotedCount  Int      @default(0) // 已报价项数
   status       String   @default("PENDING") // PENDING / ACCEPTED / REJECTED / WITHDRAWN
+  items        QuoteItem[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// ========== RFQ 采购明细（一个 RFQ 含多个 Item） ==========
+model RFQItem {
+  id             Int        @id @default(autoincrement())
+  rfqId          Int
+  rfq            RFQ        @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  seq            Int        @default(1) // 序号 1..N
+  // 关联实体（可空，优先保留文本冗余）
+  brandId        Int?
+  brand          Brand?     @relation(fields: [brandId], references: [id])
+  partNumberId   Int?
+  partNumber     PartNumber? @relation(fields: [partNumberId], references: [id])
+  // 冗余文本
+  brandName      String?
+  equipmentModel String?
+  productName    String?
+  partNumberStr  String?
+  // 采购需求
+  quantity       Int        @default(1)
+  unit           String     @default("pcs")
+  description    String?
+  images         String?    // JSON 数组
+  createdAt      DateTime   @default(now())
+  quoteItems     QuoteItem[]
+
+  @@index([rfqId])
+}
+
+// ========== 报价明细（供应商对 RFQ 每个 Item 的分项报价） ==========
+model QuoteItem {
+  id          Int      @id @default(autoincrement())
+  quoteId     Int
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  rfqItemId   Int
+  rfqItem     RFQItem  @relation(fields: [rfqItemId], references: [id])
+  unitPrice   Float?
+  currency    String   @default("CNY") // CNY / USD / EUR / INR / RUB / ZAR
+  quantity    Int?
+  leadTime    String?
+  quality     String?  // OEM / OEM_COMPATIBLE / AFTERMARKET / REPLACEMENT / OTHER
+  moq         Int?
+  stockStatus String?  // IN_STOCK / MADE_TO_ORDER / OUT_OF_STOCK
+  remarks     String?
+  createdAt   DateTime @default(now())
+
+  @@index([quoteId])
+  @@index([rfqItemId])
 }
 
 model PartNumberRequest {
