@@ -7,7 +7,7 @@ import { Home, Search, FileText, Building2, User } from "lucide-react";
 const items = [
   { href: "/", label: "首页", icon: Home },
   { href: "/search", label: "搜索", icon: Search },
-  { href: "/rfq", label: "询价", icon: FileText },
+  { href: "/rfqs", label: "询价", icon: FileText },
   { href: "/suppliers", label: "企业", icon: Building2 },
   { href: "/login", label: "我的", icon: User },
 ];
