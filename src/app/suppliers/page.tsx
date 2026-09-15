@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SuppliersPage() {
   const suppliers = await prisma.supplier.findMany({
-    where: { verifiedStatus: "VERIFIED", users: { some: { status: "ACTIVE" } } },
+    where: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } },
     include: { _count: { select: { products: true } } },
     orderBy: { id: "asc" },
   });

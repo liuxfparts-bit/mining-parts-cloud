@@ -55,7 +55,8 @@ export async function POST(req: Request) {
           role: "SUPPLIER",
           company,
           phone,
-          status: "PENDING",
+          // 账号状态与认证状态分离：注册即 ACTIVE 可登录，企业是否前台展示由 Supplier.verifiedStatus 控制
+          status: "ACTIVE",
         },
       });
 

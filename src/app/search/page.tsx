@@ -69,7 +69,7 @@ export default async function SearchPage({
     prisma.supplier.findMany({
       where: {
         verifiedStatus: "VERIFIED",
-        users: { some: { status: "ACTIVE" } },
+        users: { none: { status: "DISABLED" } },
         OR: [
           { name: { contains: q } },
           { shortName: { contains: q } },

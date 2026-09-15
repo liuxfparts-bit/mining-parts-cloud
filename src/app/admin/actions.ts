@@ -61,9 +61,15 @@ export async function updateCompany(id: string, formData: FormData) {
 export async function approveCompany(id: string) {
   const session = await requireAdmin();
   const adminId = (session.user as any).id;
+  const sid = parseInt(id);
   await prisma.supplier.update({
-    where: { id: parseInt(id) },
+    where: { id: sid },
     data: { verifiedStatus: "VERIFIED", approvedAt: new Date(), approvedBy: adminId },
+  });
+  // 审核通过后启用该企业关联的账号（注册时为 PENDING，避免无法登录且被前台过滤）
+  await prisma.user.updateMany({
+    where: { supplierId: sid },
+    data: { status: "ACTIVE" },
   });
   revalidatePath("/admin/verification");
   revalidatePath("/admin/suppliers");
@@ -117,6 +123,12 @@ export async function toggleDisableCompany(id: string) {
 export async function reviewSupplier(id: number, status: "VERIFIED" | "REJECTED", reason?: string) {
   await requireAdmin();
   await prisma.supplier.update({ where: { id }, data: { verifiedStatus: status } });
+  if (status === "VERIFIED") {
+    await prisma.user.updateMany({
+      where: { supplierId: id },
+      data: { status: "ACTIVE" },
+    });
+  }
   revalidatePath("/admin/suppliers");
   revalidatePath("/");
   revalidatePath("/suppliers");

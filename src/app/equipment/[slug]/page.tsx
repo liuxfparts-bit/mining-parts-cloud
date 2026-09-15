@@ -35,7 +35,7 @@ export default async function EquipmentDetailPage({ params }: { params: { slug: 
       partNumbers: {
         include: {
           products: {
-            where: { status: "ACTIVE", supplier: { verifiedStatus: "VERIFIED", users: { some: { status: "ACTIVE" } } } },
+            where: { status: "ACTIVE", supplier: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } } },
             include: { supplier: true },
           },
           brand: true,

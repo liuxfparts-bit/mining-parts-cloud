@@ -17,7 +17,7 @@ export async function matchSuppliersForRFQ(rfqId: number) {
     const suppliers = await prisma.supplier.findMany({
       where: {
         verifiedStatus: "VERIFIED",
-        users: { some: { status: "ACTIVE" } },
+        users: { none: { status: "DISABLED" } },
         products: {
           some: {
             partNumberId: rfq.partNumberId,
@@ -48,7 +48,7 @@ export async function matchSuppliersForRFQ(rfqId: number) {
 
   if (orConditions.length > 0) {
     return prisma.supplier.findMany({
-      where: { verifiedStatus: "VERIFIED", users: { some: { status: "ACTIVE" } }, OR: orConditions },
+      where: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } }, OR: orConditions },
       take: 20,
     });
   }

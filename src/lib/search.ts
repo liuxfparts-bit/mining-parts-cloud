@@ -43,7 +43,7 @@ export async function searchAll(q: string) {
     prisma.supplier.findMany({
       where: {
         verifiedStatus: "VERIFIED",
-        users: { some: { status: "ACTIVE" } },
+        users: { none: { status: "DISABLED" } },
         OR: [
           { name: { contains: keyword } },
           { shortName: { contains: keyword } },
