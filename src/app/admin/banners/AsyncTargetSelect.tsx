@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { verifiedStatusCN } from "@/lib/verify-status";
 
 type Props = {
   type: "PRODUCT" | "COMPANY";
@@ -60,7 +61,7 @@ export default function AsyncTargetSelect({ type, targetId, initialLabel }: Prop
             >
               <div className="font-medium">{it.name}</div>
               <div className="text-xs text-gray-500">
-                {type === "PRODUCT" ? `${it.partNumber || ""} · ${it.brand || ""} ${it.equipment || ""}` : `${it.province || ""} · ${it.verifiedStatus || ""}`}
+                {type === "PRODUCT" ? `${it.partNumber || ""} · ${it.brand || ""} ${it.equipment || ""}` : `${it.province || ""} · ${verifiedStatusCN(it.verifiedStatus)}`}
               </div>
             </button>
           ))}

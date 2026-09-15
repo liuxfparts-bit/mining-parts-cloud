@@ -26,7 +26,7 @@ const typeBadgeMap: Record<string, { label: string; variant: "default" | "second
 };
 
 const stockBadgeMap: Record<string, { label: string; className: string }> = {
-  IN_STOCK: { label: "现货", className: "text-green" },
+  IN_STOCK: { label: "现货", className: "text-brandGreen" },
   LOW_STOCK: { label: "库存紧张", className: "text-accent" },
   OUT_OF_STOCK: { label: "无货", className: "text-red-500" },
   MADE_TO_ORDER: { label: "按单生产", className: "text-muted" },
@@ -70,7 +70,7 @@ export default function ProductCard({
       </Link>
       <div className="flex items-center justify-between mt-3">
         {price !== null && price !== undefined ? (
-          <span className="text-lg font-bold text-green">¥{price.toLocaleString()}</span>
+          <span className="text-lg font-bold text-brandGreen">¥{price.toLocaleString()}</span>
         ) : (
           <span className="text-sm text-muted">询价</span>
         )}

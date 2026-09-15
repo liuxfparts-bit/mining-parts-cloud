@@ -44,7 +44,7 @@ export default function SupplierCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
             <h3 className="text-sm font-bold truncate">{shortName || name}</h3>
-            {verified && <CheckCircle2 className="h-3.5 w-3.5 text-green shrink-0" />}
+            {verified && <CheckCircle2 className="h-3.5 w-3.5 text-brandGreen shrink-0" />}
           </div>
           <p className="text-xs text-muted mt-0.5">{province || "未知地区"}</p>
         </div>
@@ -58,7 +58,7 @@ export default function SupplierCard({
           <Badge variant="outline">{levelLabel[memberLevel] || memberLevel}</Badge>
         )}
         {responseRate && responseRate >= 80 && (
-          <span className="text-xs text-green">回复率 {responseRate}%</span>
+          <span className="text-xs text-brandGreen">回复率 {responseRate}%</span>
         )}
       </div>
     </Link>

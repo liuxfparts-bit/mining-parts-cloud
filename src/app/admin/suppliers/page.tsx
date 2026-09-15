@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { verifiedStatusCN } from "@/lib/verify-status";
 
 export default async function AdminSuppliersPage() {
   const suppliers = await prisma.supplier.findMany({
@@ -37,7 +38,7 @@ export default async function AdminSuppliersPage() {
                 <td className="p-3">{s._count.products}</td>
                 <td className="p-3">
                   <span className={`px-2 py-0.5 rounded text-xs ${s.verifiedStatus === "VERIFIED" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                    {s.verifiedStatus}
+                    {verifiedStatusCN(s.verifiedStatus)}
                   </span>
                 </td>
                 <td className="p-3">{MEMBER[s.memberLevel] || s.memberLevel}</td>

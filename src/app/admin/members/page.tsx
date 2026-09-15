@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { updateMemberLevel } from "../actions";
+import { verifiedStatusCN } from "@/lib/verify-status";
 
 const MEMBER: Record<string, string> = {
   FREE: "普通会员",
@@ -33,7 +34,7 @@ export default async function AdminMembers() {
                 <td className="p-3 font-medium">{s.name}</td>
                 <td className="p-3">{s.contactName || "-"}</td>
                 <td className="p-3">{MEMBER[s.memberLevel] || s.memberLevel}</td>
-                <td className="p-3">{s.verifiedStatus}</td>
+                <td className="p-3">{verifiedStatusCN(s.verifiedStatus)}</td>
                 <td className="p-3">
                   <div className="flex gap-1">
                     {["FREE", "BRONZE", "SILVER", "GOLD"].map((lv) => (

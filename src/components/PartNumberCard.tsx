@@ -40,7 +40,7 @@ export default function PartNumberCard({
       <div className="flex items-center justify-between mt-4">
         <span className="text-xs text-muted">{supplierCount} 家可供货</span>
         {minPrice !== null && minPrice !== undefined && (
-          <span className="text-sm font-bold text-green">¥{minPrice.toLocaleString()} 起</span>
+          <span className="text-sm font-bold text-brandGreen">¥{minPrice.toLocaleString()} 起</span>
         )}
       </div>
     </div>

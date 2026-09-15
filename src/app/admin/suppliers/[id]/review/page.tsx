@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import ReviewButtons from "./ReviewButtons";
+import { verifiedStatusCN } from "@/lib/verify-status";
 
 export default async function SupplierReview({ params }: { params: { id: string } }) {
   const s = await prisma.supplier.findUnique({ where: { id: parseInt(params.id) } });
@@ -21,7 +22,7 @@ export default async function SupplierReview({ params }: { params: { id: string 
           <div><span className="text-gray-500">邮箱：</span>{s.email || "-"}</div>
           <div><span className="text-gray-500">地区：</span>{s.province} {s.city || ""}</div>
           <div><span className="text-gray-500">主营：</span>{s.mainBusiness}</div>
-          <div><span className="text-gray-500">状态：</span>{s.verifiedStatus}</div>
+          <div><span className="text-gray-500">状态：</span>{verifiedStatusCN(s.verifiedStatus)}</div>
         </div>
       </div>
 

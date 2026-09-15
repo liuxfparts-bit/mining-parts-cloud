@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { reviewSupplier, updateMemberLevel } from "../../actions";
+import { verifiedStatusCN } from "@/lib/verify-status";
 
 export default async function SupplierDetail({ params }: { params: { id: string } }) {
   const supplier = await prisma.supplier.findUnique({
@@ -42,7 +43,7 @@ export default async function SupplierDetail({ params }: { params: { id: string 
           </div>
           <div className="flex gap-2">
             <span className={`px-3 py-1 rounded text-sm ${supplier.verifiedStatus === "VERIFIED" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-              {supplier.verifiedStatus || "PENDING"}
+              {verifiedStatusCN(supplier.verifiedStatus)}
             </span>
             <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm">{supplier.memberLevel || "FREE"}</span>
           </div>
@@ -78,7 +79,7 @@ export default async function SupplierDetail({ params }: { params: { id: string 
               <button className="bg-red-600 text-white px-4 py-2 rounded text-sm">✕ 驳回</button>
             </form>
           )}
-          <span className="text-xs text-gray-400 self-center">当前状态：{supplier.verifiedStatus || "PENDING"}</span>
+          <span className="text-xs text-gray-400 self-center">当前状态：{verifiedStatusCN(supplier.verifiedStatus)}</span>
         </div>
 
         <h2 className="font-bold mt-6 mb-3">修改会员等级</h2>

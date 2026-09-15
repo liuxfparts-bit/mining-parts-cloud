@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Send, Store, MessageSquare } from "lucide-react";
+import { verifiedStatusCN } from "@/lib/verify-status";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +84,7 @@ export default async function PartNumberDetailPage({
               {pn.equipment && <Badge variant="outline">适配：{pn.equipment.model}</Badge>}
               <Badge variant="secondary">{pn.category || "配件"}</Badge>
               {pn.verified ? (
-                <span className="inline-flex items-center gap-1 text-xs text-green"><CheckCircle2 size={13}/> 已验证</span>
+                <span className="inline-flex items-center gap-1 text-xs text-brandGreen"><CheckCircle2 size={13}/> 已验证</span>
               ) : (
                 <span className="text-xs text-muted">待验证</span>
               )}
@@ -136,11 +137,11 @@ export default async function PartNumberDetailPage({
                   <tr key={p.id} className="border-b">
                     <td className="p-2">{p.supplier.shortName || p.supplier.name}</td>
                     <td className="p-2">{TYPE_LABEL[p.productType] || p.productType}</td>
-                    <td className="p-2 font-bold text-green">{p.price ? `¥${p.price.toLocaleString()}` : "询价"}</td>
+                    <td className="p-2 font-bold text-brandGreen">{p.price ? `¥${p.price.toLocaleString()}` : "询价"}</td>
                     <td className="p-2">{p.stockStatus === "IN_STOCK" ? `现货 ${p.stock || ""}` : p.stockStatus}</td>
                     <td className="p-2">{p.leadTime || "-"}</td>
                     <td className="p-2">{p.warranty || "-"}</td>
-                    <td className="p-2">{p.supplier.verifiedStatus === "VERIFIED" ? <span className="text-green">✓ 已认证</span> : p.supplier.verifiedStatus}</td>
+                    <td className="p-2">{p.supplier.verifiedStatus === "VERIFIED" ? <span className="text-brandGreen">✓ 已认证</span> : verifiedStatusCN(p.supplier.verifiedStatus)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -163,14 +164,14 @@ export default async function PartNumberDetailPage({
                   <Link href={`/suppliers/${prod.supplier.slug}`} className="text-accent hover:underline">
                     {prod.supplier.shortName || prod.supplier.name}
                   </Link>
-                  {prod.supplier.verifiedStatus === "VERIFIED" && <span className="text-xs text-green">✓</span>}
+                  {prod.supplier.verifiedStatus === "VERIFIED" && <span className="text-xs text-brandGreen">✓</span>}
                 </div>
                 <div className="flex items-baseline gap-2 mt-3">
-                  {prod.price ? <span className="text-xl font-bold text-green">¥{prod.price.toLocaleString()}</span> : <span className="text-sm text-muted">询价</span>}
+                  {prod.price ? <span className="text-xl font-bold text-brandGreen">¥{prod.price.toLocaleString()}</span> : <span className="text-sm text-muted">询价</span>}
                   {prod.leadTime && <span className="text-xs text-muted">{prod.leadTime}</span>}
                 </div>
                 <div className="flex gap-2 mt-1 text-xs text-muted">
-                  {prod.stockStatus === "IN_STOCK" && <span className="text-green">现货</span>}
+                  {prod.stockStatus === "IN_STOCK" && <span className="text-brandGreen">现货</span>}
                   {prod.warranty && <span>质保 {prod.warranty}</span>}
                 </div>
                 <div className="flex gap-2 mt-3">

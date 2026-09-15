@@ -17,6 +17,7 @@ const config: Config = {
         bg: "#f5f7f9",
         accent: "#e6a21a",
         dark: "#111b24",
+        brandGreen: "#18794e",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

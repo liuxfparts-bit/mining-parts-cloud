@@ -91,7 +91,7 @@ export default function SupplierEditClient({ supplier }: { supplier: Supplier })
           <div>
             <label className="block text-sm font-medium mb-1">认证状态</label>
             <select name="verifiedStatus" className={field} defaultValue={supplier.verifiedStatus}>
-              <option>PENDING</option><option>VERIFIED</option><option>REJECTED</option>
+              <option value="PENDING">待审核</option><option value="VERIFIED">已认证</option><option value="REJECTED">已驳回</option>
             </select>
           </div>
         )}

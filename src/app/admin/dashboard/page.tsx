@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { verifiedStatusCN } from "@/lib/verify-status";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,7 @@ export default async function AdminDashboard() {
                   <td className="p-3 text-gray-500">{s.contactName || "-"}</td>
                   <td className="p-3 text-gray-400">{s.createdAt ? new Date(s.createdAt).toLocaleDateString("zh-CN") : "-"}</td>
                   <td className="p-3">
-                    <span className={`px-2 py-0.5 rounded text-xs ${s.verifiedStatus === "VERIFIED" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{s.verifiedStatus || "-"}</span>
+                    <span className={`px-2 py-0.5 rounded text-xs ${s.verifiedStatus === "VERIFIED" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{verifiedStatusCN(s.verifiedStatus)}</span>
                   </td>
                 </tr>
               ))}

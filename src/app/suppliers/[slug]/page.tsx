@@ -36,7 +36,7 @@ export default async function SupplierDetailPage({ params }: { params: { slug: s
           <div className="flex-1">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold">{s.name}</h1>
-              {s.verifiedStatus === "VERIFIED" && <CheckCircle2 className="h-5 w-5 text-green" />}
+              {s.verifiedStatus === "VERIFIED" && <CheckCircle2 className="h-5 w-5 text-brandGreen" />}
               <Badge variant="outline" className={level.className}>{level.label}</Badge>
             </div>
             {s.nameEn && <p className="text-sm text-muted mt-1">{s.nameEn}</p>}
@@ -64,7 +64,7 @@ export default async function SupplierDetailPage({ params }: { params: { slug: s
             {/* 运营数据 */}
             <div className="flex gap-6 mt-4 text-sm flex-wrap">
               <span>产品 <b>{s.products.length}</b></span>
-              {s.responseRate && <span>回复率 <b className="text-green">{s.responseRate}%</b></span>}
+              {s.responseRate && <span>回复率 <b className="text-brandGreen">{s.responseRate}%</b></span>}
               <span>浏览 <b>{s.viewCount}</b></span>
               <span>询价 <b>{s.inquiryCount}</b></span>
             </div>
@@ -111,7 +111,7 @@ export default async function SupplierDetailPage({ params }: { params: { slug: s
               )}
             </div>
             <div className="text-right">
-              {p.price !== null && <p className="font-bold text-green">¥{p.price.toLocaleString()}</p>}
+              {p.price !== null && <p className="font-bold text-brandGreen">¥{p.price.toLocaleString()}</p>}
               {p.leadTime && <p className="text-xs text-muted flex items-center gap-1 justify-end"><Clock className="h-3 w-3" />{p.leadTime}</p>}
             </div>
           </div>

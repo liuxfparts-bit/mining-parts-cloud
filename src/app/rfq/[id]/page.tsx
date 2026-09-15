@@ -185,7 +185,7 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
                       {legacyPrice != null ? (
                         <span className="text-muted">历史总价：{q.currency} {legacyPrice.toLocaleString()}</span>
                       ) : hasItems && q.totalAmount != null ? (
-                        <span className="font-bold text-green">
+                        <span className="font-bold text-brandGreen">
                           完整报价 {q.quotedCount}/{rfq.items.length} 项 · 总额 {q.items[0]?.currency || "CNY"} {q.totalAmount.toLocaleString()}
                         </span>
                       ) : hasItems && q.quotedCount > 0 ? (
@@ -277,7 +277,7 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
                     <div className="flex gap-3 mt-2 text-xs text-muted flex-wrap">
                       <span>报价 {q.quotedCount}/{rfq.items.length} 项</span>
                       {q.totalAmount !== null && q.totalAmount !== undefined && (
-                        <span className="font-bold text-green">
+                        <span className="font-bold text-brandGreen">
                           总价 {q.items[0]?.currency || "CNY"} {q.totalAmount.toLocaleString()}
                         </span>
                       )}
