@@ -5,7 +5,9 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { contactName, phone, email, password } = body;
+    const { contactName, phone, password } = body;
+    // 邮箱统一小写存储，避免大小写不一致导致后续登录/找回失败
+    const email = String(body.email || "").trim().toLowerCase();
     // 只允许 SUPPLIER 或 BUYER，忽略客户端传入的 ADMIN
     const requestedRole: string = body.role === "BUYER" ? "BUYER" : "SUPPLIER";
 

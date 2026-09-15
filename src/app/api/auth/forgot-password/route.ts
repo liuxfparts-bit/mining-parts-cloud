@@ -21,7 +21,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    // insensitive 兜底：兼容历史大小写混存的邮箱
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      orderBy: { id: "asc" },
+    });
     if (user && user.passwordHash) {
       const rawToken = crypto.randomBytes(32).toString("hex");
       const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");

@@ -24,11 +24,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "密码", type: "password" },
       },
       async authorize(credentials) {
-        const email = credentials?.email as string;
+        const email = String(credentials?.email || "").trim().toLowerCase();
         const password = credentials?.password as string;
         if (!email || !password) return null;
 
-        const user = await prisma.user.findUnique({ where: { email } });
+        // insensitive 兜底：兼容历史大小写混存的邮箱，避免“重置成功但登录失败”
+        const user = await prisma.user.findFirst({
+          where: { email: { equals: email, mode: "insensitive" } },
+          orderBy: { id: "asc" },
+        });
         if (!user || !user.passwordHash) return null;
         if (user.status !== "ACTIVE") return null;
 
