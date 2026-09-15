@@ -13,7 +13,7 @@ export default async function LoginPage({
       await signIn("credentials", {
         email: formData.get("email"),
         password: formData.get("password"),
-        redirectTo: "/",
+        redirect: false,
       });
     } catch (error) {
       if (error instanceof AuthError) {
@@ -21,6 +21,12 @@ export default async function LoginPage({
       }
       throw error;
     }
+    // 登录成功后按角色直接进入对应工作台（PC / 手机一致）
+    const s = await auth();
+    const r = (s?.user as any)?.role;
+    if (r === "ADMIN") redirect("/admin");
+    if (r === "SUPPLIER") redirect("/supplier");
+    redirect("/dashboard");
   }
 
   // 已登录则按角色跳转

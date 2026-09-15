@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Search, LogIn, Building2 } from "lucide-react";
-import { auth, signOut } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+import UserMenu from "@/components/UserMenu";
 
 const navItems = [
   { label: "首页", href: "/" },
@@ -41,32 +42,7 @@ export default async function Header() {
                 </Link>
               </>
             ) : (
-              <details className="relative">
-                <summary className="cursor-pointer list-none flex items-center gap-2 text-sm">
-                  <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center">{name[0]}</span>
-                  <span>{name}</span>
-                </summary>
-                <div className="absolute right-0 mt-2 w-44 bg-white border rounded shadow-lg py-2 text-sm">
-                  {role === "ADMIN" && (
-                    <>
-                      <Link href="/admin" className="block px-4 py-1.5 hover:bg-gray-50">管理后台大盘</Link>
-                      <Link href="/admin/companies/pending" className="block px-4 py-1.5 hover:bg-gray-50">企业入驻审核</Link>
-                    </>
-                  )}
-                  {role === "SUPPLIER" && (
-                    <>
-                      <Link href="/supplier" className="block px-4 py-1.5 hover:bg-gray-50">供应商工作台</Link>
-                      <Link href="/supplier/profile" className="block px-4 py-1.5 hover:bg-gray-50">企业资料管理</Link>
-                    </>
-                  )}
-                  {role === "BUYER" && (
-                    <Link href="/dashboard" className="block px-4 py-1.5 hover:bg-gray-50">我的询价单</Link>
-                  )}
-                  <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
-                    <button className="w-full text-left px-4 py-1.5 hover:bg-gray-50 text-red-600">退出登录</button>
-                  </form>
-                </div>
-              </details>
+              <UserMenu name={name} role={role} />
             )}
           </div>
         </div>
