@@ -4,8 +4,18 @@ import { useFormState, useFormStatus } from "react-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createRFQ } from "@/app/actions";
-import { Send, Loader2, X, Upload, Plus, Trash2 } from "lucide-react";
+import { Send, Loader2, X, Upload, Plus, Trash2, FileSpreadsheet, AlertTriangle, ChevronDown } from "lucide-react";
 import { useRef, useState } from "react";
+import * as XLSX from "xlsx";
+import {
+  loadWorkbook,
+  parseWorkbook,
+  parseSheet,
+  getHeaderCells,
+  type FieldMapping,
+  type ParsedRow,
+  type SheetMeta,
+} from "@/lib/excel";
 
 const initialState = { error: "" };
 
@@ -126,6 +136,84 @@ export default function RFQForm({ defaultPart }: { defaultPart?: string }) {
   const [state, formAction] = useFormState(createRFQ, initialState);
   const [items, setItems] = useState<RFQItemForm[]>([emptyItem(defaultPart)]);
 
+  // ===== Excel 批量导入 =====
+  const [excel, setExcel] = useState<{
+    wb: XLSX.WorkBook;
+    sheets: SheetMeta[];
+    sel: string;
+    headerRow: number;
+    mapping: FieldMapping;
+    parsed: ParsedRow[];
+    fileName: string;
+  } | null>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
+  const [excelErr, setExcelErr] = useState("");
+
+  function reparse(s: typeof excel) {
+    if (!s) return;
+    const parsed = parseSheet(s.wb, s.sel, s.headerRow, s.mapping);
+    setExcel({ ...s, parsed });
+  }
+
+  async function onExcelFile(file: File) {
+    setExcelErr("");
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = loadWorkbook(buf);
+      const meta = parseWorkbook(wb);
+      if (meta.sheets.length === 0) {
+        setExcelErr("无法读取该文件，请确认是 .xlsx / .xls / .csv 格式");
+        return;
+      }
+      const sel = meta.defaultSheet;
+      const def = meta.sheets.find((s) => s.name === sel) || meta.sheets[0];
+      const s = {
+        wb,
+        sheets: meta.sheets,
+        sel: def.name,
+        headerRow: def.headerRow,
+        mapping: def.mapping,
+        parsed: [] as ParsedRow[],
+        fileName: file.name,
+      };
+      s.parsed = parseSheet(s.wb, s.sel, s.headerRow, s.mapping);
+      setExcel(s);
+    } catch (e: any) {
+      console.error("【Excel 解析失败】:", e);
+      setExcelErr("Excel 解析失败：" + (e?.message || "文件格式不支持"));
+    }
+  }
+
+  function confirmImport() {
+    if (!excel) return;
+    const validRows = excel.parsed.filter(
+      (r) =>
+        r.partNumber !== "" ||
+        r.productName !== "" ||
+        r.brandName !== "" ||
+        r.equipmentModel !== ""
+    );
+    const newItems: RFQItemForm[] = validRows.map((r) => ({
+      brandName: r.brandName,
+      equipmentModel: r.equipmentModel,
+      productName: r.productName,
+      partNumber: r.partNumber,
+      quantity: r.quantity && r.quantity > 0 ? String(r.quantity) : "1",
+      unit: r.unit || "pcs",
+      description: r.description,
+      images: [],
+    }));
+    const merged = [...items, ...newItems].slice(0, 50);
+    setItems(merged);
+    setExcel(null);
+    if (excelInputRef.current) excelInputRef.current.value = "";
+    if (newItems.length + items.length > 50) {
+      setExcelErr("最多 50 条明细，已截断超出部分");
+    } else {
+      setExcelErr("");
+    }
+  }
+
   function update(i: number, patch: Partial<RFQItemForm>) {
     setItems(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
   }
@@ -154,7 +242,176 @@ export default function RFQForm({ defaultPart }: { defaultPart?: string }) {
 
       {/* 采购明细（多 Item） */}
       <div>
-        <h3 className="text-sm font-bold text-muted mb-3 uppercase tracking-wide">采购需求（可添加多条明细）</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-muted uppercase tracking-wide">采购需求（可添加多条明细）</h3>
+          <div>
+            <input
+              ref={excelInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onExcelFile(f);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => excelInputRef.current?.click()}
+              className="text-xs flex items-center gap-1 text-blue-600 border border-blue-200 bg-blue-50 rounded px-2.5 py-1.5 hover:bg-blue-100">
+              <FileSpreadsheet className="w-3.5 h-3.5" /> 批量导入 Excel
+            </button>
+          </div>
+        </div>
+
+        {/* Excel 导入面板 */}
+        {excel && (
+          <div className="border-2 border-blue-200 rounded-lg p-4 mb-4 bg-blue-50/40">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-bold text-blue-700">Excel 导入预览：{excel.fileName}</h4>
+              <button type="button" onClick={() => { setExcel(null); setExcelErr(""); }}
+                className="text-xs text-muted hover:text-red-500">关闭</button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <div>
+                <label className="block text-xs font-bold mb-1">Sheet</label>
+                <select
+                  value={excel.sel}
+                  onChange={(e) => {
+                    const ns = { ...excel, sel: e.target.value };
+                    const meta = excel.sheets.find((s) => s.name === e.target.value);
+                    if (meta) { ns.headerRow = meta.headerRow; ns.mapping = meta.mapping; }
+                    reparse(ns);
+                  }}
+                  className="flex h-9 w-full rounded-md border border-[#dce2e6] bg-white px-2 py-1 text-sm">
+                  {excel.sheets.map((s) => (
+                    <option key={s.name} value={s.name}>
+                      {s.name}（表头第 {s.headerRow} 行，命中 {s.confidence} 字段）
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold mb-1">表头行</label>
+                <div className="flex items-center gap-1">
+                  <button type="button"
+                    onClick={() => reparse({ ...excel, headerRow: Math.max(1, excel.headerRow - 1) })}
+                    className="border rounded px-2 h-9 bg-white">-</button>
+                  <Input
+                    type="number" min={1}
+                    value={excel.headerRow}
+                    onChange={(e) => reparse({ ...excel, headerRow: Math.max(1, parseInt(e.target.value) || 1) })}
+                    className="h-9 text-center w-16" />
+                  <button type="button"
+                    onClick={() => reparse({ ...excel, headerRow: excel.headerRow + 1 })}
+                    className="border rounded px-2 h-9 bg-white">+</button>
+                </div>
+              </div>
+              <div className="md:col-span-1">
+                <label className="block text-xs font-bold mb-1">已识别 {excel.parsed.length} 行，错误 {excel.parsed.filter((r) => r.errors.length).length} 行</label>
+                <div className="text-xs text-muted">预览可直接调整，确认后填入下方明细</div>
+              </div>
+            </div>
+
+            {/* 列映射 */}
+            <div className="mb-3">
+              <label className="block text-xs font-bold mb-1">字段映射（自动识别，可手动修正）</label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {(
+                  [
+                    ["brandName", "品牌"],
+                    ["equipmentModel", "设备型号"],
+                    ["productName", "配件名称"],
+                    ["partNumber", "件号"],
+                    ["quantity", "数量"],
+                    ["unit", "单位"],
+                    ["description", "描述"],
+                  ] as [keyof FieldMapping, string][]
+                ).map(([field, label]) => {
+                  const cols = getHeaderCells(excel.wb, excel.sel, excel.headerRow);
+                  return (
+                    <div key={field}>
+                      <label className="block text-[10px] text-muted mb-0.5">{label}</label>
+                      <select
+                        value={excel.mapping[field] === undefined ? -1 : excel.mapping[field]}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value);
+                          const mapping = { ...excel.mapping };
+                          if (v === -1) delete mapping[field];
+                          else mapping[field] = v;
+                          reparse({ ...excel, mapping });
+                        }}
+                        className="flex h-8 w-full rounded-md border border-[#dce2e6] bg-white px-1.5 text-xs">
+                        <option value={-1}>— 未识别 —</option>
+                        {cols.map((c, ci) => (
+                          <option key={ci} value={ci}>列{ci + 1}: {c}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 错误提示 */}
+            {(() => {
+              const errs = excel.parsed.flatMap((r) => r.errors.map((e) => `${r.rowNum} 行：${e}`));
+              return errs.length > 0 ? (
+                <div className="mb-3 bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-700 space-y-0.5 max-h-24 overflow-auto">
+                  <p className="font-bold flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> 以下行需要关注（可导入后手动修正）：</p>
+                  {errs.slice(0, 20).map((e, i) => <p key={i}>{e}</p>)}
+                  {errs.length > 20 && <p>…共 {errs.length} 条</p>}
+                </div>
+              ) : null;
+            })()}
+
+            {/* 预览表格 */}
+            <div className="overflow-x-auto bg-white border rounded-lg mb-3 max-h-72 overflow-y-auto">
+              <table className="w-full text-xs min-w-[560px]">
+                <thead className="sticky top-0 bg-slate-100">
+                  <tr>
+                    <th className="p-2 text-left">#</th>
+                    <th className="p-2 text-left">品牌</th>
+                    <th className="p-2 text-left">设备型号</th>
+                    <th className="p-2 text-left">配件名称</th>
+                    <th className="p-2 text-left">件号</th>
+                    <th className="p-2 text-left">数量</th>
+                    <th className="p-2 text-left">单位</th>
+                    <th className="p-2 text-left">描述</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {excel.parsed.map((r) => (
+                    <tr key={r.rowNum} className={r.errors.length ? "bg-red-50" : "border-t"}>
+                      <td className="p-2">{r.rowNum}</td>
+                      <td className="p-2">{r.brandName}</td>
+                      <td className="p-2">{r.equipmentModel}</td>
+                      <td className="p-2">{r.productName}</td>
+                      <td className="p-2 font-mono">{r.partNumber}</td>
+                      <td className="p-2">{r.quantity ?? <span className="text-red-500">—</span>}</td>
+                      <td className="p-2">{r.unit}</td>
+                      <td className="p-2 text-muted max-w-[140px] truncate">{r.description}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm"
+                onClick={() => { setExcel(null); setExcelErr(""); }}>取消</Button>
+              <Button type="button" size="sm" className="bg-accent text-ink"
+                onClick={confirmImport}>
+                确认导入 {excel.parsed.length} 条到明细
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {excelErr && <p className="text-red-500 text-xs mb-3">{excelErr}</p>}
+
         <div className="space-y-4">
           {items.map((it, i) => (
             <div key={i} className="border border-line rounded-lg p-4 relative">
