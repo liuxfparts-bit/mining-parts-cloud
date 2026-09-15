@@ -10,7 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     prisma.brand.findMany({ select: { slug: true, updatedAt: true } }),
     prisma.equipment.findMany({ where: { status: "ACTIVE" }, select: { slug: true, updatedAt: true } }),
     prisma.partNumber.findMany({ select: { slug: true, updatedAt: true } }),
-    prisma.supplier.findMany({ select: { slug: true, updatedAt: true } }),
+    prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED", users: { some: { status: "ACTIVE" } } }, select: { slug: true, updatedAt: true } }),
   ]);
 
   const staticPages: MetadataRoute.Sitemap = [

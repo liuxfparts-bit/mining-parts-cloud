@@ -67,6 +67,10 @@ export async function approveCompany(id: string) {
   });
   revalidatePath("/admin/verification");
   revalidatePath("/admin/suppliers");
+  revalidatePath("/");
+  revalidatePath("/suppliers");
+  revalidatePath("/search");
+  revalidatePath("/sitemap.xml");
   redirect("/admin/verification");
 }
 
@@ -85,10 +89,14 @@ export async function rejectCompany(id: string, reason: string) {
   });
   revalidatePath("/admin/verification");
   revalidatePath("/admin/suppliers");
+  revalidatePath("/");
+  revalidatePath("/suppliers");
+  revalidatePath("/search");
+  revalidatePath("/sitemap.xml");
   redirect("/admin/verification");
 }
 
-// 切换禁用
+// 切换禁用（沿用 verifiedStatus 标记 DISABLED，前台查询已排除）
 export async function toggleDisableCompany(id: string) {
   await requireAdmin();
   const sid = parseInt(id);
@@ -99,6 +107,10 @@ export async function toggleDisableCompany(id: string) {
     data: { verifiedStatus: cur.verifiedStatus === "DISABLED" ? "PENDING" : "DISABLED" },
   });
   revalidatePath("/admin/suppliers");
+  revalidatePath("/");
+  revalidatePath("/suppliers");
+  revalidatePath("/search");
+  revalidatePath("/sitemap.xml");
 }
 
 // ===== 兼容旧导出 =====
@@ -106,6 +118,10 @@ export async function reviewSupplier(id: number, status: "VERIFIED" | "REJECTED"
   await requireAdmin();
   await prisma.supplier.update({ where: { id }, data: { verifiedStatus: status } });
   revalidatePath("/admin/suppliers");
+  revalidatePath("/");
+  revalidatePath("/suppliers");
+  revalidatePath("/search");
+  revalidatePath("/sitemap.xml");
 }
 export async function updateMemberLevel(id: number, level: string) {
   await requireAdmin();

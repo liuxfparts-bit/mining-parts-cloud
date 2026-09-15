@@ -18,10 +18,16 @@ export default async function SupplierDetailPage({ params }: { params: { slug: s
   const s = await prisma.supplier.findUnique({
     where: { slug: params.slug },
     include: {
-      products: { include: { partNumber: { include: { equipment: true, brand: true } } }, orderBy: { createdAt: "desc" } },
+      users: { select: { status: true } },
+      products: {
+        where: { status: "ACTIVE" },
+        include: { partNumber: { include: { equipment: true, brand: true } } },
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
-  if (!s) notFound();
+  // 仅已认证且账号状态正常（无 DISABLED 账号）的厂家可公开访问
+  if (!s || s.verifiedStatus !== "VERIFIED" || s.users.some((u) => u.status === "DISABLED")) notFound();
 
   const level = levelLabel[s.memberLevel] || levelLabel.FREE;
 

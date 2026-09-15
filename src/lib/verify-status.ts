@@ -7,6 +7,8 @@ export function verifiedStatusCN(status?: string | null): string {
       return "已驳回";
     case "PENDING":
       return "待审核";
+    case "DISABLED":
+      return "已禁用";
     default:
       return status || "待审核";
   }

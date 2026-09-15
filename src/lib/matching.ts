@@ -12,10 +12,12 @@ export async function matchSuppliersForRFQ(rfqId: number) {
 
   if (!rfq) return [];
 
-  // 1. 精确匹配：通过 partNumberId 找有该件号产品的供应商
+  // 1. 精确匹配：通过 partNumberId 找有该件号产品的供应商（仅已认证且账号正常）
   if (rfq.partNumberId) {
     const suppliers = await prisma.supplier.findMany({
       where: {
+        verifiedStatus: "VERIFIED",
+        users: { some: { status: "ACTIVE" } },
         products: {
           some: {
             partNumberId: rfq.partNumberId,
@@ -46,7 +48,7 @@ export async function matchSuppliersForRFQ(rfqId: number) {
 
   if (orConditions.length > 0) {
     return prisma.supplier.findMany({
-      where: { OR: orConditions },
+      where: { verifiedStatus: "VERIFIED", users: { some: { status: "ACTIVE" } }, OR: orConditions },
       take: 20,
     });
   }

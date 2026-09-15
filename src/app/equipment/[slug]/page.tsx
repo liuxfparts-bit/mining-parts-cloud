@@ -33,7 +33,14 @@ export default async function EquipmentDetailPage({ params }: { params: { slug: 
     include: {
       brand: true,
       partNumbers: {
-        include: { products: { include: { supplier: true } }, brand: true, equipment: true },
+        include: {
+          products: {
+            where: { status: "ACTIVE", supplier: { verifiedStatus: "VERIFIED", users: { some: { status: "ACTIVE" } } } },
+            include: { supplier: true },
+          },
+          brand: true,
+          equipment: true,
+        },
         orderBy: { number: "asc" },
       },
       rfqs: { take: 3, orderBy: { createdAt: "desc" } },
