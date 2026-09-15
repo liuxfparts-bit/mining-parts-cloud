@@ -61,6 +61,39 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
 
   const st = statusMap[rfq.status] || statusMap.COLLECTING;
 
+  // ===== 分项比价：同一 RFQItem + 同一币种才排名（升序），供应商视角不可见 =====
+  type RankCell = { price: number; currency: string; rank: number | null };
+  const itemRanks: Record<number, Record<number, RankCell>> = {};
+  for (const item of rfq.items) {
+    const cells: { qId: number; price: number; currency: string }[] = [];
+    for (const q of rfq.quotes) {
+      const qi = q.items.find((x) => x.rfqItemId === item.id);
+      if (qi?.unitPrice != null) cells.push({ qId: q.id, price: qi.unitPrice, currency: qi.currency });
+    }
+    const byCur = new Map<string, { qId: number; price: number }[]>();
+    for (const c of cells) {
+      if (!byCur.has(c.currency)) byCur.set(c.currency, []);
+      byCur.get(c.currency)!.push({ qId: c.qId, price: c.price });
+    }
+    const row: Record<number, RankCell> = {};
+    for (const cur of Array.from(byCur.keys())) {
+      const arr = byCur.get(cur)!;
+      const sorted = [...arr].sort((a, b) => a.price - b.price);
+      sorted.forEach((p, idx) => {
+        row[p.qId] = { price: p.price, currency: cur, rank: idx + 1 };
+      });
+    }
+    itemRanks[item.id] = row;
+  }
+  const quotedSuppliers = rfq.quotes.filter((q) => q.items.length > 0 || q.unitPrice != null).length;
+
+  function RankBadge({ rank }: { rank: number }) {
+    if (rank === 1) return <span className="ml-1" title="价格第 1 名">🥇</span>;
+    if (rank === 2) return <span className="ml-1" title="价格第 2 名">🥈</span>;
+    if (rank === 3) return <span className="ml-1" title="价格第 3 名">🥉</span>;
+    return <span className="ml-1 text-[10px] text-muted">#{rank}</span>;
+  }
+
   return (
     <div className="container py-[42px]">
       <div className="max-w-[900px] mx-auto">
@@ -133,6 +166,92 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
             </Link>
           </div>
         </div>
+
+        {/* 报价汇总（仅采购方/管理员/访客可见，供应商已隔离） */}
+        {!isSupplier && rfq.quotes.length > 0 && (
+          <div className="bg-white border border-line rounded-lg p-5 mb-6">
+            <h2 className="text-xl font-bold mb-3">报价汇总</h2>
+            <p className="text-xs text-muted mb-3">
+              总项目 {rfq.items.length} 项 · 已报价供应商 {quotedSuppliers} 家
+            </p>
+            <div className="space-y-2">
+              {rfq.quotes.map((q) => {
+                const hasItems = q.items.length > 0;
+                const legacyPrice = !hasItems && q.unitPrice != null ? q.unitPrice : null;
+                return (
+                  <div key={q.id} className="flex justify-between items-center border border-line rounded-lg px-4 py-2.5 text-sm">
+                    <span className="font-bold">{q.supplier.shortName || q.supplier.name}</span>
+                    <span className="text-xs">
+                      {legacyPrice != null ? (
+                        <span className="text-muted">历史总价：{q.currency} {legacyPrice.toLocaleString()}</span>
+                      ) : hasItems && q.totalAmount != null ? (
+                        <span className="font-bold text-green">
+                          完整报价 {q.quotedCount}/{rfq.items.length} 项 · 总额 {q.items[0]?.currency || "CNY"} {q.totalAmount.toLocaleString()}
+                        </span>
+                      ) : hasItems && q.quotedCount > 0 ? (
+                        <span className="text-amber-600">部分报价：{q.quotedCount}/{rfq.items.length} 项</span>
+                      ) : (
+                        <span className="text-muted">未报价</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 分项比价表（仅采购方/管理员/访客可见，供应商已隔离） */}
+        {!isSupplier && rfq.quotes.length > 0 && (
+          <div className="bg-white border border-line rounded-lg p-5 mb-6 overflow-x-auto">
+            <h2 className="text-xl font-bold mb-1">分项比价</h2>
+            <p className="text-xs text-muted mb-4">
+              价格排名按同一明细、同一币种从低到高；不同币种不互相比较。最低价仅为价格第 1 名，不代表“最佳供应商”。
+            </p>
+            <table className="w-full text-sm min-w-[640px]">
+              <thead>
+                <tr className="text-left text-xs text-muted border-b border-line">
+                  <th className="py-2 pr-2">Item</th>
+                  <th className="py-2 px-2">件号</th>
+                  <th className="py-2 px-2">配件名称</th>
+                  <th className="py-2 px-2">数量</th>
+                  {rfq.quotes.map((q) => (
+                    <th key={q.id} className="py-2 px-2 whitespace-nowrap">
+                      {q.supplier.shortName || q.supplier.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rfq.items.map((item) => {
+                  const row = itemRanks[item.id] || {};
+                  return (
+                    <tr key={item.id} className="border-b border-line/50 align-top">
+                      <td className="py-2 pr-2 whitespace-nowrap">
+                        <span className="text-xs font-bold bg-slate-100 rounded px-1.5 py-0.5">Item {item.seq}</span>
+                      </td>
+                      <td className="py-2 px-2 font-mono text-xs">{item.partNumberStr || item.partNumber?.number || "—"}</td>
+                      <td className="py-2 px-2 text-xs">{item.productName || "—"}</td>
+                      <td className="py-2 px-2 whitespace-nowrap text-xs">{item.quantity} {item.unit}</td>
+                      {rfq.quotes.map((q) => {
+                        const c = row[q.id];
+                        if (!c) return <td key={q.id} className="py-2 px-2 text-xs text-muted">—</td>;
+                        return (
+                          <td key={q.id} className="py-2 px-2 whitespace-nowrap">
+                            <span className="font-mono text-xs font-bold">
+                              {c.currency} {c.price.toLocaleString()}
+                            </span>
+                            {c.rank != null && <RankBadge rank={c.rank} />}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* 报价列表（供应商隔离：供应商仅见自己的报价；采购方/管理员/访客可见全部） */}
         <h2 className="text-xl font-bold mb-4">
