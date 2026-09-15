@@ -1,6 +1,7 @@
 import { signIn, auth } from "@/lib/auth";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 
 export default async function LoginPage({
   searchParams,
@@ -21,11 +22,14 @@ export default async function LoginPage({
       }
       throw error;
     }
-    // 登录成功后按角色直接进入对应工作台（PC / 手机一致）
-    const s = await auth();
-    const r = (s?.user as any)?.role;
-    if (r === "ADMIN") redirect("/admin");
-    if (r === "SUPPLIER") redirect("/supplier");
+    // 登录成功后按角色直接进入对应工作台（PC / 手机一致）。
+    // 注意：同一请求内 auth() 读不到刚写入的 session cookie，必须从数据库确认角色。
+    const email = String(formData.get("email") || "").trim().toLowerCase();
+    const u = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+    });
+    if (u?.role === "ADMIN") redirect("/admin");
+    if (u?.role === "SUPPLIER") redirect("/supplier");
     redirect("/dashboard");
   }
 

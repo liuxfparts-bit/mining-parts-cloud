@@ -40,9 +40,12 @@ export default auth((req) => {
     if (role !== "SUPPLIER" && role !== "ADMIN") return NextResponse.redirect(new URL("/dashboard", nextUrl));
   }
 
-  // Buyer dashboard 保护
-  if (path === "/dashboard" && !isLoggedIn) {
-    return NextResponse.redirect(new URL("/login", nextUrl));
+  // Buyer dashboard 保护 + 角色纠正（双保险：登录跳转出错时也能纠正到正确工作台）
+  if (path === "/dashboard") {
+    if (!isLoggedIn) return NextResponse.redirect(new URL("/login", nextUrl));
+    if (role === "ADMIN") return NextResponse.redirect(new URL("/admin", nextUrl));
+    if (role === "SUPPLIER") return NextResponse.redirect(new URL("/supplier", nextUrl));
+    // BUYER 正常放行
   }
 
   // 已登录访问登录页：按角色跳转
