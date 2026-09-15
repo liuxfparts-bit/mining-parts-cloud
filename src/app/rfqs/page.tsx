@@ -4,6 +4,7 @@ import RFQCard from "@/components/RFQCard";
 import { Button } from "@/components/ui/button";
 import Pagination from "@/components/Pagination";
 import { Plus, Search } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -35,19 +36,24 @@ export default async function RFQListPage({
   const page = searchParams.page ? Math.max(1, parseInt(searchParams.page)) : 1;
 
   // ===== 数据库级搜索（标题 / 件号 / 品牌 / 设备 / 采购明细） =====
-  const where: any = {};
-  const and: any[] = [];
+  // 注：RFQItem 字段为 partNumberStr / productName / brandName / equipmentModel（自由文本冗余），
+  // 勿写成 partName / brand / partNumber（后者为关系字段，contains 会抛错）
+  const where: Prisma.RFQWhereInput = {};
+  const and: Prisma.RFQWhereInput[] = [];
   if (q) {
     and.push({
       OR: [
         { title: { contains: q } },
         { partNumberStr: { contains: q } },
         { brandName: { contains: q } },
+        { productName: { contains: q } },
+        { equipmentModel: { contains: q } },
         { partNumber: { number: { contains: q } } },
-        { items: { some: { partNumber: { contains: q } } } },
-        { items: { some: { partName: { contains: q } } } },
-        { items: { some: { brand: { contains: q } } } },
+        { items: { some: { partNumberStr: { contains: q } } } },
+        { items: { some: { productName: { contains: q } } } },
+        { items: { some: { brandName: { contains: q } } } },
         { items: { some: { equipmentModel: { contains: q } } } },
+        { items: { some: { partNumber: { number: { contains: q } } } } },
       ],
     });
   }
