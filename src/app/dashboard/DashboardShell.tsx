@@ -49,8 +49,8 @@ const NAV_GROUPS: { group: string; items: { href: string; label: string; icon: a
   {
     group: "报价与供应商",
     items: [
-      { href: "/dashboard/quotes", label: "收到报价", icon: BadgeDollarSign },
-      { href: "/suppliers", label: "合作供应商", icon: Handshake },
+      { href: "/dashboard/quotes", label: "收到的报价", icon: BadgeDollarSign },
+      { href: "/dashboard/suppliers", label: "合作供应商", icon: Handshake },
     ],
   },
   {
