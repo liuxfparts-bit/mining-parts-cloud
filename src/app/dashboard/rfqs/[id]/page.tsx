@@ -20,17 +20,6 @@ const statusMap: Record<string, { label: string; cls: string }> = {
 
 const PAGE_SIZES = [20, 50, 100];
 
-function parseImages(raw: string | null): string[] {
-  if (!raw) return [];
-  try {
-    const v = JSON.parse(raw);
-    if (Array.isArray(v)) return v;
-  } catch {
-    /* 兼容逗号分隔旧数据 */
-  }
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
-}
-
 export default async function BuyerRfqDetail({
   params,
   searchParams,
@@ -218,50 +207,6 @@ export default async function BuyerRfqDetail({
           {rfqBase.incoterm && <div><span className="text-gray-400 block text-xs">贸易条款</span>{rfqBase.incoterm}</div>}
           {rfqBase.expiresAt && <div><span className="text-gray-400 block text-xs">截止时间</span>{new Date(rfqBase.expiresAt).toLocaleDateString("zh-CN")}</div>}
         </div>
-      </div>
-
-      {/* 采购明细（与分项比价共用同一数据库分页） */}
-      <div className="bg-white border rounded-lg p-5 mb-4">
-        <h2 className="font-bold mb-1">采购明细（{totalItems} 项）</h2>
-        <p className="text-xs text-gray-400 mb-3">第 {page} / {totalPages} 页 · 显示第 {skip + 1}–{Math.min(skip + pageSize, totalItems)} 项</p>
-        {items.length === 0 ? (
-          <p className="text-sm text-gray-400">该询价暂无采购明细</p>
-        ) : (
-          <div className="space-y-3">
-            {items.map((it) => {
-              const imgs = parseImages(it.images);
-              return (
-                <div key={it.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className="text-xs font-bold bg-gray-100 rounded px-2 py-0.5">Item {it.seq}</span>
-                    {it.brandName && <span className="text-xs bg-blue-50 text-blue-700 rounded px-2 py-0.5">{it.brandName}</span>}
-                    {it.equipmentModel && <span className="text-xs bg-gray-100 text-gray-600 rounded px-2 py-0.5">{it.equipmentModel}</span>}
-                    {(it.partNumberStr || it.partNumber?.number) && (
-                      <span className="text-xs font-mono bg-gray-100 rounded px-2 py-0.5">
-                        {it.partNumberStr || it.partNumber?.number}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm">
-                    {it.productName && <p className="font-medium">{it.productName}</p>}
-                    <p className="text-gray-500 text-xs mt-1">数量：{it.quantity} {it.unit}</p>
-                    {it.description && <p className="text-gray-500 text-xs mt-1 leading-relaxed">{it.description}</p>}
-                  </div>
-                  {imgs.length > 0 && (
-                    <div className="grid grid-cols-3 md:grid-cols-5 gap-2 mt-3">
-                      {imgs.map((src) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img key={src} src={src} alt={`Item ${it.seq}`}
-                          className="h-20 w-full object-cover rounded border" />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <Pagination />
       </div>
 
       {/* 报价汇总（仅采购方本人可见） */}
