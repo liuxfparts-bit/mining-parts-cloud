@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import { closeMyRfq, deleteMyRfq } from "../actions";
 import { RfqDangerActions } from "./RfqDangerActions";
+import InvitationSection from "./InvitationSection";
 import { buildItemRanks, quotedSupplierCount, type ComparisonItem, type ComparisonQuote } from "@/lib/rfq-comparison";
 
 const statusMap: Record<string, { label: string; cls: string }> = {
@@ -35,7 +36,7 @@ export default async function BuyerRfqDetail({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { page?: string; pageSize?: string };
+  searchParams: { page?: string; pageSize?: string; invPage?: string; invPageSize?: string };
 }) {
   const id = parseInt(params.id);
   if (isNaN(id)) notFound();
@@ -184,6 +185,14 @@ export default async function BuyerRfqDetail({
             >
               导出报价 (Excel)
             </a>
+          )}
+          {(rfqBase.status === "COLLECTING" || rfqBase.status === "QUOTED" || rfqBase.status === "SELECTED") && (
+            <Link
+              href={`/dashboard/rfqs/${rfqBase.id}/invite`}
+              className="inline-block border border-blue-600 text-blue-600 text-sm px-4 py-2 rounded hover:bg-blue-50"
+            >
+              邀请供应商报价
+            </Link>
           )}
           <RfqDangerActions
             rfqId={rfqBase.id}
@@ -342,6 +351,12 @@ export default async function BuyerRfqDetail({
           <Pagination />
         </div>
       )}
+      {/* 询价邀请（归属校验已在页面层完成） */}
+      <InvitationSection
+        rfqId={rfqBase.id}
+        page={parseInt(searchParams.invPage || "1") || 1}
+        pageSize={parseInt(searchParams.invPageSize || "10") || 10}
+      />
     </div>
   );
 }

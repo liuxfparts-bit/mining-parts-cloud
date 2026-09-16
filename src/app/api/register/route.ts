@@ -10,6 +10,8 @@ export async function POST(req: Request) {
     const email = String(body.email || "").trim().toLowerCase();
     // 只允许 SUPPLIER 或 BUYER，忽略客户端传入的 ADMIN
     const requestedRole: string = body.role === "BUYER" ? "BUYER" : "SUPPLIER";
+    // 询价邀请 token（外部供应商经公开邀请链接注册时绑定）
+    const inviteToken = String(body.token || "").trim();
 
     if (!contactName || !phone || !email || !password) {
       return NextResponse.json({ success: false, message: "请填写完整信息" }, { status: 400 });
@@ -77,9 +79,32 @@ export async function POST(req: Request) {
         where: { id: user.id },
         data: { supplierId: supplier.id },
       });
+
+      // 外部邀请绑定：注册完成后将公开邀请关联到新供应商（不覆盖原有 supplierId 的邀请）
+      if (inviteToken) {
+        const inv = await tx.rFQInvitation.findUnique({ where: { token: inviteToken } });
+        if (inv) {
+          await tx.rFQInvitation.update({
+            where: { id: inv.id },
+            data: {
+              supplierId: supplier.id,
+              externalCompanyName: inv.externalCompanyName || company,
+              externalContactName: inv.externalContactName || contactName,
+              externalEmail: inv.externalEmail || email,
+              externalPhone: inv.externalPhone || phone,
+              viewedAt: inv.viewedAt || new Date(),
+              status: inv.status === "PENDING_VIEW" ? "VIEWED" : inv.status,
+            },
+          });
+        }
+      }
     });
 
-    return NextResponse.json({ success: true, message: "注册成功，请等待管理员审核企业" });
+    return NextResponse.json({
+      success: true,
+      message: "注册成功，请等待管理员审核企业",
+      inviteToken: inviteToken || null,
+    });
   } catch (e: any) {
     console.error("register error:", e);
     return NextResponse.json({ success: false, message: "服务器错误，请稍后重试" }, { status: 500 });

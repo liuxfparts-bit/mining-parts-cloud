@@ -210,6 +210,7 @@ model Supplier {
   products     Product[]
   quotes       Quote[]
   users        User[]
+  invitations  RFQInvitation[]
   partNumberRequests PartNumberRequest[]
   equipmentRequests  EquipmentRequest[]
   createdAt    DateTime  @default(now())
@@ -232,6 +233,7 @@ model User {
   emailVerified DateTime?
   status        String    @default("ACTIVE") // ACTIVE / DISABLED
   favorites     Favorite[]
+  notifications Notification[]
   passwordResetTokens PasswordResetToken[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -307,6 +309,7 @@ model RFQ {
   rfqNo          String?    // 编号，如 RFQ-20260915-001
   quotes         Quote[]
   items          RFQItem[]
+  invitations    RFQInvitation[]
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   expiresAt      DateTime?  // 询价过期时间
@@ -386,6 +389,53 @@ model QuoteItem {
 
   @@index([quoteId])
   @@index([rfqItemId])
+}
+
+// ========== 询价邀请（采购商邀请供应商报价） ==========
+model RFQInvitation {
+  id             Int      @id @default(autoincrement())
+  rfqId          Int
+  rfq            RFQ      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  // 注册供应商（可选；外部供应商该字段为空）
+  supplierId     Int?
+  supplier       Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  // 外部供应商信息（免登录/注册引导）
+  externalCompanyName String?
+  externalContactName String?
+  externalEmail  String?
+  externalPhone  String?
+  token          String   @unique // 唯一邀请 Token，用于外部免登录/注册引导
+  // PENDING_VIEW 待查看 / VIEWED 已查看 / ACCEPTED 已接受 / QUOTED 已报价 / REJECTED 已拒绝 / EXPIRED 已过期
+  status         String   @default("PENDING_VIEW")
+  invitedAt      DateTime @default(now())
+  viewedAt       DateTime?
+  respondedAt    DateTime?
+  lastReminderAt DateTime?
+  reminderCount  Int      @default(0)
+  rejectReason   String?  // 暂不报价原因：无法供应 / 数量不足 / 交期无法满足 / 产品不在经营范围 / 其他
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([rfqId, supplierId]) // 防止对同一注册供应商重复邀请
+  @@index([rfqId])
+  @@index([supplierId])
+  @@index([status])
+}
+
+// ========== 站内信通知 ==========
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   @default("SYSTEM") // RFQ_INVITATION / INVITATION_QUOTED / INVITATION_REJECTED / SYSTEM
+  title     String
+  content   String?
+  link      String?  // 跳转链接
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([readAt])
 }
 
 model PartNumberRequest {

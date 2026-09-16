@@ -1,14 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="py-24 text-center text-gray-400">加载中...</div>}>
+      <RegisterInner />
+    </Suspense>
+  );
+}
+
+function RegisterInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("token") || "";
+  const inviteRole = searchParams.get("role") || "";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [accountType, setAccountType] = useState<"SUPPLIER" | "BUYER">("SUPPLIER");
+  const [accountType, setAccountType] = useState<"SUPPLIER" | "BUYER">(inviteRole === "BUYER" ? "BUYER" : "SUPPLIER");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -35,14 +46,17 @@ export default function RegisterPage() {
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company, contactName, phone, email, password, role }),
+        body: JSON.stringify({ company, contactName, phone, email, password, role, token: inviteToken }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
         setError(json.message || "注册失败，请稍后重试");
       } else {
         setSuccess(true);
-        setTimeout(() => router.push("/login?registered=1"), 1500);
+        const loginUrl = inviteToken
+          ? `/login?token=${encodeURIComponent(inviteToken)}&registered=1`
+          : "/login?registered=1";
+        setTimeout(() => router.push(loginUrl), 1500);
       }
     } catch {
       setError("网络错误，请检查连接后重试");

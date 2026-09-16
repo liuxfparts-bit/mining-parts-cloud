@@ -61,11 +61,13 @@ export default function QuoteForm({
   supplierId,
   items,
   existing,
+  invitationToken,
 }: {
   rfqId: number;
   supplierId: number;
   items: QuoteItemT[];
   existing: ExistingQuoteT;
+  invitationToken?: string;
 }) {
   const [rows, setRows] = useState<RowState[]>(() =>
     items.map((it) => {
@@ -165,6 +167,7 @@ export default function QuoteForm({
         )
       );
       fd.append("attachments", JSON.stringify(attachments));
+      if (invitationToken) fd.append("invitationToken", invitationToken);
       const res = await fetch("/api/quote", { method: "POST", body: fd, credentials: "include" });
       if (res.status === 401) {
         setErr("登录已失效，即将跳转登录…");

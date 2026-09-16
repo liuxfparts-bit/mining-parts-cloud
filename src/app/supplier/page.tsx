@@ -38,6 +38,13 @@ export default async function SupplierHome() {
     take: 5,
   });
 
+  // 询价邀请统计（当前供应商收到的邀请）
+  const pendingInvitations = supplier
+    ? await prisma.rFQInvitation.count({
+        where: { supplierId: supplier.id, status: { in: ["PENDING_VIEW", "VIEWED", "ACCEPTED"] } },
+      })
+    : 0;
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
@@ -82,6 +89,11 @@ export default async function SupplierHome() {
               <div className="text-2xl font-bold mt-1">{quotedThisMonth}</div>
             </div>
             <div className="bg-white border rounded-lg p-4">
+              <div className="text-sm text-gray-500">询价邀请</div>
+              <div className="text-2xl font-bold mt-1">{pendingInvitations}</div>
+              <Link href="/supplier/invitations" className="text-xs text-blue-600 mt-1 inline-block">去处理 →</Link>
+            </div>
+            <div className="bg-white border rounded-lg p-4">
               <div className="text-sm text-gray-500">资料完整度</div>
               <div className="text-2xl font-bold mt-1">{profileComplete}%</div>
               <Link href="/supplier/profile" className="text-xs text-blue-600 mt-1 inline-block">完善 →</Link>
@@ -96,6 +108,10 @@ export default async function SupplierHome() {
                 <Link href="/supplier/products" className="block border rounded p-3 hover:bg-gray-50">
                   <div className="font-medium text-sm">产品管理</div>
                   <div className="text-xs text-gray-500 mt-0.5">共 {supplier._count.products} 个产品</div>
+                </Link>
+                <Link href="/supplier/invitations" className="block border rounded p-3 hover:bg-gray-50">
+                  <div className="font-medium text-sm">询价邀请</div>
+                  <div className="text-xs text-gray-500 mt-0.5">采购方主动邀请报价 {pendingInvitations > 0 ? `（${pendingInvitations} 条待处理）` : ""}</div>
                 </Link>
                 <Link href="/supplier/rfqs" className="block border rounded p-3 hover:bg-gray-50">
                   <div className="font-medium text-sm">询价大厅</div>

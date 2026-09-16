@@ -72,6 +72,13 @@ export default function UserMenu({
                 供应商工作台
               </Link>
               <Link
+                href="/supplier/invitations"
+                onClick={() => setOpen(false)}
+                className="block px-4 py-1.5 hover:bg-gray-50"
+              >
+                询价邀请
+              </Link>
+              <Link
                 href="/supplier/profile"
                 onClick={() => setOpen(false)}
                 className="block px-4 py-1.5 hover:bg-gray-50"

@@ -2,12 +2,15 @@ import { signIn, auth } from "@/lib/auth";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { bindInvitationToSupplier } from "@/lib/rfq-invitation";
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { error?: string; registered?: string };
+  searchParams: { error?: string; registered?: string; token?: string };
 }) {
+  const inviteToken = String(searchParams.token || "").trim();
+
   async function login(formData: FormData) {
     "use server";
     try {
@@ -28,8 +31,19 @@ export default async function LoginPage({
     const u = await prisma.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },
     });
-    if (u?.role === "ADMIN") redirect("/admin");
-    if (u?.role === "SUPPLIER") redirect("/supplier");
+    if (!u) redirect("/login?error=1");
+
+    // 外部邀请绑定：登录后自动关联当前 RFQInvitation 并跳转报价页
+    if (inviteToken) {
+      const inv = await prisma.rFQInvitation.findUnique({ where: { token: inviteToken } });
+      if (inv && u.supplierId) {
+        await bindInvitationToSupplier(inviteToken, u.supplierId);
+        redirect(`/rfq/${inv.rfqId}/quote?inv=${inviteToken}`);
+      }
+    }
+
+    if (u.role === "ADMIN") redirect("/admin");
+    if (u.role === "SUPPLIER") redirect("/supplier");
     redirect("/dashboard");
   }
 
@@ -52,6 +66,11 @@ export default async function LoginPage({
         )}
         {searchParams.registered && (
           <div className="mb-4 p-3 bg-green-50 text-green-700 rounded text-sm">注册成功，请登录</div>
+        )}
+        {inviteToken && (
+          <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded text-sm">
+            您有一条询价邀请待处理：登录后自动进入报价页面。
+          </div>
         )}
 
         <form action={login} className="space-y-4">

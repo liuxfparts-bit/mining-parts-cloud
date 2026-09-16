@@ -80,6 +80,9 @@ export async function POST(req: NextRequest) {
     attachments = [];
   }
 
+  // 邀请 token：报价成功后将该邀请标记为 QUOTED（仅校验属于本 RFQ 且绑定当前供应商/或待绑定）
+  const invitationToken = String(formData.get("invitationToken") || "").trim();
+
   try {
     // ===== 4. 校验 RFQItem 归属 =====
     const itemIds = items.map((i) => i.rfqItemId);
@@ -146,6 +149,17 @@ export async function POST(req: NextRequest) {
 
       if (rfq.status === "COLLECTING") {
         await tx.rFQ.update({ where: { id: rfqId }, data: { status: "QUOTED" } });
+      }
+
+      // 报价成功 → 邀请状态 QUOTED（token 必须属于本 RFQ 且 supplierId 为空或等于当前供应商）
+      if (invitationToken) {
+        const inv = await tx.rFQInvitation.findUnique({ where: { token: invitationToken } });
+        if (inv && inv.rfqId === rfqId && (inv.supplierId === null || inv.supplierId === supplierId)) {
+          await tx.rFQInvitation.update({
+            where: { id: inv.id },
+            data: { status: "QUOTED", respondedAt: new Date() },
+          });
+        }
       }
       return updated;
     });

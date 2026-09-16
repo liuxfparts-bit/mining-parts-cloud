@@ -7,12 +7,18 @@ import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
-export default async function QuotePage({ params }: { params: { id: string } }) {
+export default async function QuotePage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { inv?: string };
+}) {
   const id = parseInt(params.id);
   if (isNaN(id)) notFound();
 
   const s = await auth();
-  if (!s?.user) redirect(`/login?redirect=/rfq/${id}/quote`);
+  if (!s?.user) redirect(`/login?token=${encodeURIComponent(searchParams.inv || "")}&redirect=/rfq/${id}/quote`);
   const role = (s.user as any).role;
   if (role !== "SUPPLIER") {
     return (
@@ -68,6 +74,18 @@ export default async function QuotePage({ params }: { params: { id: string } }) 
 
   const existing = rfq.quotes[0] || null;
 
+  // 校验邀请 token 属于本 RFQ（防止用他人 token 提交报价），无效则忽略
+  let invitationToken: string | undefined;
+  if (searchParams.inv) {
+    const inv = await prisma.rFQInvitation.findUnique({
+      where: { token: searchParams.inv },
+      select: { rfqId: true, supplierId: true },
+    });
+    if (inv && inv.rfqId === id && (inv.supplierId === null || inv.supplierId === user.supplierId)) {
+      invitationToken = searchParams.inv;
+    }
+  }
+
   return (
     <div className="container py-[42px]">
       <div className="max-w-[900px] mx-auto">
@@ -92,7 +110,7 @@ export default async function QuotePage({ params }: { params: { id: string } }) 
         </div>
 
         <Suspense>
-          <QuoteForm rfqId={rfq.id} supplierId={user.supplierId} items={rfq.items} existing={existing} />
+          <QuoteForm rfqId={rfq.id} supplierId={user.supplierId} items={rfq.items} existing={existing} invitationToken={invitationToken} />
         </Suspense>
       </div>
     </div>
