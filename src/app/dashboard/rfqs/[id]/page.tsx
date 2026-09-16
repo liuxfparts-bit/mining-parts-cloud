@@ -209,8 +209,7 @@ export default async function BuyerRfqDetail({
 
       {/* 基本信息 */}
       <div className="bg-white border rounded-lg p-5 mb-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div><span className="text-gray-400 block text-xs">采购明细</span>{totalItems} 项</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
           <div><span className="text-gray-400 block text-xs">已收报价</span>{quotedSuppliers} 家</div>
           <div><span className="text-gray-400 block text-xs">联系人</span>{rfqBase.contactName} {rfqBase.contactPhone}</div>
           <div><span className="text-gray-400 block text-xs">发布时间</span>{new Date(rfqBase.createdAt).toLocaleDateString("zh-CN")}</div>
