@@ -3,8 +3,22 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 
 export async function createRFQ(prevState: { error?: string; success?: boolean }, formData: FormData) {
+  // 服务端身份校验：必须登录，归属写入当前登录用户（禁止前端传 buyerId/userId）
+  const session = await auth();
+  if (!session?.user) {
+    return { error: "登录已失效，请重新登录后再发布询价" };
+  }
+  const sessionUser = await prisma.user.findUnique({
+    where: { email: String((session.user as any).email).toLowerCase() },
+    select: { id: true, role: true },
+  });
+  if (!sessionUser) {
+    return { error: "登录已失效，请重新登录后再发布询价" };
+  }
+
   const title = String(formData.get("title") || "");
   const deliveryDateStr = String(formData.get("deliveryDate") || "");
   const deliveryLocation = String(formData.get("deliveryLocation") || "");
@@ -105,6 +119,8 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
       const rfq = await tx.rFQ.create({
         data: {
           title,
+          // 归属字段：RFQ 必须绑定当前登录采购商（session 服务端身份）
+          userID: sessionUser.id,
           // 兼容字段：第一条明细同步写入 RFQ 旧字段，保证旧列表/后台照常显示
           brandName: first.brandName,
           equipmentModel: first.equipmentModel,
@@ -140,5 +156,8 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
 
   revalidatePath("/rfq");
   revalidatePath("/rfqs");
-  redirect("/rfq?created=1");
+  // 发布成功后按角色回到各自询价管理页（采购商 → 后台"我的询价"，不再跳到前台公共页）
+  if (sessionUser.role === "ADMIN") redirect("/admin/rfqs");
+  if (sessionUser.role === "SUPPLIER") redirect("/supplier/rfqs");
+  redirect("/dashboard/rfqs");
 }

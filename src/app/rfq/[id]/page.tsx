@@ -38,11 +38,11 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
   const id = parseInt(params.id);
   if (isNaN(id)) notFound();
 
-  // 权限隔离：供应商只能看到自己的报价
+  // 权限隔离：供应商只能看到自己的报价；报价汇总/比价仅询价发布者或管理员可见
   const s = await auth();
   const uid = s?.user ? parseInt(String((s.user as any).id)) : null;
   const me = uid
-    ? await prisma.user.findUnique({ where: { id: uid }, select: { role: true, supplierId: true } })
+    ? await prisma.user.findUnique({ where: { id: uid }, select: { id: true, role: true, supplierId: true } })
     : null;
   const isSupplier = me?.role === "SUPPLIER" && me.supplierId !== null && me.supplierId !== undefined;
   const mySupplierId: number | null = isSupplier ? (me.supplierId as number) : null;
@@ -58,6 +58,13 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
     },
   });
   if (!rfq) notFound();
+
+  // 报价可见性（服务端权限）：发布者本人 / 管理员可见全部；供应商仅见自己的；其余用户与访客一律不可见
+  const isOwner = rfq.userID !== null && rfq.userID !== undefined && me?.id === rfq.userID;
+  const canSeeAllQuotes = isOwner || me?.role === "ADMIN";
+  if (!isSupplier && !canSeeAllQuotes) {
+    rfq.quotes = [];
+  }
 
   const st = statusMap[rfq.status] || statusMap.COLLECTING;
 
@@ -253,15 +260,21 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
           </div>
         )}
 
-        {/* 报价列表（供应商隔离：供应商仅见自己的报价；采购方/管理员/访客可见全部） */}
-        <h2 className="text-xl font-bold mb-4">
-          {isSupplier ? "我的报价" : "供应商报价"}（{rfq.quotes.length}）
-        </h2>
-        {rfq.quotes.length === 0 ? (
+        {/* 报价列表（可见性：发布者/管理员看全部；供应商看自己的；其余用户与访客隐藏） */}
+        {!isSupplier && !canSeeAllQuotes ? (
           <div className="bg-white border border-line rounded-lg p-8 text-center text-muted">
-            {isSupplier ? "您尚未对该询价报价" : "暂无报价"}
+            供应商报价仅询价发布者可见，请登录后查看。
           </div>
         ) : (
+          <>
+            <h2 className="text-xl font-bold mb-4">
+              {isSupplier ? "我的报价" : "供应商报价"}（{rfq.quotes.length}）
+            </h2>
+            {rfq.quotes.length === 0 ? (
+              <div className="bg-white border border-line rounded-lg p-8 text-center text-muted">
+                {isSupplier ? "您尚未对该询价报价" : "暂无报价"}
+              </div>
+            ) : (
           <div className="space-y-3">
             {rfq.quotes.map((q) => (
               <div key={q.id} className="bg-white border border-line rounded-lg p-5">
@@ -350,6 +363,8 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
               </div>
             ))}
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

@@ -71,5 +71,8 @@ export async function createRfq(formData: FormData) {
     },
   });
   revalidatePath("/supplier/rfqs");
-  redirect("/supplier/rfqs");
+  // 按角色回到各自询价管理页：采购商提交后不能跳到 /supplier/rfqs（会被 middleware 拦截弹回）
+  if ((session.user as any).role === "ADMIN") redirect("/admin/rfqs");
+  if ((session.user as any).role === "SUPPLIER") redirect("/supplier/rfqs");
+  redirect("/dashboard/rfqs");
 }
