@@ -60,7 +60,8 @@ export async function updateCompany(id: string, formData: FormData) {
 // 审核通过
 export async function approveCompany(id: string) {
   const session = await requireAdmin();
-  const adminId = (session.user as any).id;
+  const adminIdRaw = (session.user as any).id;
+  const adminId = Number.isNaN(Number(adminIdRaw)) ? null : Number(adminIdRaw);
   const sid = parseInt(id);
   await prisma.supplier.update({
     where: { id: sid },
@@ -83,7 +84,8 @@ export async function approveCompany(id: string) {
 // 驳回
 export async function rejectCompany(id: string, reason: string) {
   const session = await requireAdmin();
-  const adminId = (session.user as any).id;
+  const adminIdRaw = (session.user as any).id;
+  const adminId = Number.isNaN(Number(adminIdRaw)) ? null : Number(adminIdRaw);
   await prisma.supplier.update({
     where: { id: parseInt(id) },
     data: {
