@@ -21,11 +21,16 @@ export default async function BuyerRfqs() {
   if (!user) redirect("/login");
 
   // 服务端归属查询：只返回当前登录用户发布的 RFQ（以 session 为准，不信任任何前端参数）
+  // 列表只取聚合计数（采购项目数/报价数），采购明细统一在 RFQ 详情页展示
   const rfqs = await prisma.rFQ.findMany({
     where: { userID: user.id },
-    include: {
-      items: { orderBy: { seq: "asc" } },
-      quotes: { select: { id: true } },
+    select: {
+      id: true,
+      rfqNo: true,
+      title: true,
+      status: true,
+      createdAt: true,
+      _count: { select: { items: true, quotes: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -49,10 +54,13 @@ export default async function BuyerRfqs() {
       ) : (
         <div className="bg-white border rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[720px]">
+            <table className="w-full text-sm min-w-[860px]">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="p-3 text-left">询价编号 / 标题</th>
+                  <th className="p-3 text-left">RFQ编号</th>
+                  <th className="p-3 text-left">询价标题</th>
+                  <th className="p-3 text-left">采购项目数</th>
+                  <th className="p-3 text-left">报价数</th>
                   <th className="p-3 text-left">状态</th>
                   <th className="p-3 text-left">发布时间</th>
                   <th className="p-3 text-left">操作</th>
@@ -63,17 +71,18 @@ export default async function BuyerRfqs() {
                   const st = statusMap[r.status] || { label: r.status, cls: "bg-gray-100 text-gray-600" };
                   return (
                     <tr key={r.id} className="border-b hover:bg-gray-50">
-                      <td className="p-3">
-                        {r.rfqNo && <div className="text-xs font-mono text-gray-400">{r.rfqNo}</div>}
-                        <div className="font-medium">{r.title}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">
-                          {r.items.length} 个采购明细 · {r.quotes.length} 家供应商报价
-                        </div>
+                      <td className="p-3 font-mono text-xs text-gray-400 whitespace-nowrap">
+                        {r.rfqNo || `#${r.id}`}
                       </td>
+                      <td className="p-3 font-medium">{r.title}</td>
+                      <td className="p-3 text-center">{r._count.items} 项</td>
+                      <td className="p-3 text-center">{r._count.quotes} 家</td>
                       <td className="p-3">
                         <span className={`inline-block text-xs px-2 py-0.5 rounded ${st.cls}`}>{st.label}</span>
                       </td>
-                      <td className="p-3 text-gray-500">{new Date(r.createdAt).toLocaleDateString("zh-CN")}</td>
+                      <td className="p-3 text-gray-500 whitespace-nowrap">
+                        {new Date(r.createdAt).toLocaleDateString("zh-CN")}
+                      </td>
                       <td className="p-3">
                         <Link
                           href={`/dashboard/rfqs/${r.id}`}
