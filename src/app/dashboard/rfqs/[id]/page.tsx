@@ -96,13 +96,23 @@ export default async function BuyerRfqDetail({ params }: { params: { id: string 
           </h1>
           {rfq.rfqNo && <p className="text-xs font-mono text-gray-400 mt-0.5">{rfq.rfqNo}</p>}
         </div>
-        <RfqDangerActions
-          rfqId={rfq.id}
-          canClose={rfq.status === "COLLECTING" || rfq.status === "QUOTED" || rfq.status === "SELECTED"}
-          hasQuotes={rfq.quotes.length > 0}
-          closeAction={closeMyRfq.bind(null, rfq.id)}
-          deleteAction={deleteMyRfq.bind(null, rfq.id)}
-        />
+        <div className="flex items-center gap-2 flex-wrap">
+          {rfq.quotes.length > 0 && (
+            <a
+              href={`/api/rfq/${rfq.id}/export`}
+              className="inline-block bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
+            >
+              导出报价 (Excel)
+            </a>
+          )}
+          <RfqDangerActions
+            rfqId={rfq.id}
+            canClose={rfq.status === "COLLECTING" || rfq.status === "QUOTED" || rfq.status === "SELECTED"}
+            hasQuotes={rfq.quotes.length > 0}
+            closeAction={closeMyRfq.bind(null, rfq.id)}
+            deleteAction={deleteMyRfq.bind(null, rfq.id)}
+          />
+        </div>
       </div>
 
       {/* 基本信息 */}

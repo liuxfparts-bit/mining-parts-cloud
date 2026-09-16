@@ -53,8 +53,6 @@ export default async function BuyerRfqs() {
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="p-3 text-left">询价编号 / 标题</th>
-                  <th className="p-3 text-left">明细数</th>
-                  <th className="p-3 text-left">报价</th>
                   <th className="p-3 text-left">状态</th>
                   <th className="p-3 text-left">发布时间</th>
                   <th className="p-3 text-left">操作</th>
@@ -68,9 +66,10 @@ export default async function BuyerRfqs() {
                       <td className="p-3">
                         {r.rfqNo && <div className="text-xs font-mono text-gray-400">{r.rfqNo}</div>}
                         <div className="font-medium">{r.title}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {r.items.length} 个采购明细 · {r.quotes.length} 家供应商报价
+                        </div>
                       </td>
-                      <td className="p-3">{r.items.length} 项</td>
-                      <td className="p-3">{r.quotes.length} 家</td>
                       <td className="p-3">
                         <span className={`inline-block text-xs px-2 py-0.5 rounded ${st.cls}`}>{st.label}</span>
                       </td>

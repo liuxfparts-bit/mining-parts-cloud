@@ -9,6 +9,12 @@ import Pagination from "@/components/Pagination";
 export default async function BuyerProducts({ searchParams }: { searchParams: { page?: string; pageSize?: string } }) {
   const s = await auth();
   if (!s) redirect("/login");
+  // 服务端角色守卫：本页为管理端市场产品浏览页，采购商/供应商不允许访问
+  // 采购商产品管理入口已从导航移除；供应商的产品管理在 /supplier/products
+  const role = (s.user as any).role;
+  if (role === "BUYER") redirect("/dashboard");
+  if (role === "SUPPLIER") redirect("/supplier");
+  if (role !== "ADMIN") redirect("/dashboard");
   const page = Math.max(1, parseInt(searchParams.page || "1"));
   const pageSize = [20, 50, 100].includes(parseInt(searchParams.pageSize || "20")) ? parseInt(searchParams.pageSize || "20") : 20;
   const where = { status: { in: ["PUBLISHED", "ACTIVE"] } };
@@ -20,7 +26,7 @@ export default async function BuyerProducts({ searchParams }: { searchParams: { 
   return (
     <div className="p-6">
       <h1 className="text-xl font-bold mb-4">市场产品</h1>
-      <p className="text-sm text-gray-500 mb-4">您当前是采购商，可浏览以下已上架产品并发起询价。</p>
+      <p className="text-sm text-gray-500 mb-4">管理端浏览：平台已上架的全部产品。</p>
       <div className="bg-white border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b"><tr><th className="p-3 text-left">产品</th><th className="p-3 text-left">件号</th><th className="p-3 text-left">供应商</th><th className="p-3 text-left">价格</th><th className="p-3 text-left">操作</th></tr></thead>
