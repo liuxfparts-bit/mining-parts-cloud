@@ -12,7 +12,7 @@ import { ShieldCheck, Clock, CircleX, Building2 } from "lucide-react";
 export default async function BuyerCompanyPage({
   searchParams,
 }: {
-  searchParams: { submitted?: string };
+  searchParams: { submitted?: string; error?: string };
 }) {
   const s = await auth();
   if (!s) redirect("/login");
@@ -25,6 +25,7 @@ export default async function BuyerCompanyPage({
   const company = await getBuyerCompanyForUser(user.id);
   const status = company?.verifiedStatus || "UNSUBMITTED";
   const submitted = searchParams.submitted === "1";
+  const errorMsg = searchParams.error ? decodeURIComponent(searchParams.error) : null;
 
   const statusCard =
     ({
@@ -46,6 +47,12 @@ export default async function BuyerCompanyPage({
       {submitted && (
         <div className="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm">
           企业资质已提交，等待平台审核
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+          {errorMsg}
         </div>
       )}
 

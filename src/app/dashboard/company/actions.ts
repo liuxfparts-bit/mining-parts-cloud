@@ -21,7 +21,7 @@ export async function submitCompanyVerification(formData: FormData) {
   const address = String(formData.get("address") || "").trim();
 
   if (!companyName) {
-    throw new Error("请填写企业名称");
+    redirect("/dashboard/company?error=" + encodeURIComponent("请填写企业名称"));
   }
 
   const existing = user.buyerCompanyId
@@ -29,8 +29,8 @@ export async function submitCompanyVerification(formData: FormData) {
     : null;
 
   if (existing?.verifiedStatus === "VERIFIED") {
-    // 已认证企业不允许直接修改，提示联系管理员（这里 throw 会被表单捕获展示）
-    throw new Error("企业已认证，如需变更资质请联系平台管理员");
+    // 已认证企业不允许直接修改，提示联系管理员
+    redirect("/dashboard/company?error=" + encodeURIComponent("企业已认证，如需变更资质请联系平台管理员"));
   }
 
   if (existing) {

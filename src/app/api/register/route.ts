@@ -28,16 +28,35 @@ export async function POST(req: Request) {
     const passwordHash = await bcrypt.hash(password, 10);
 
     if (requestedRole === "BUYER") {
-      // 采购商：只建 User，不建 Supplier
-      await prisma.user.create({
-        data: {
-          email,
-          name: contactName,
-          phone,
-          passwordHash,
-          role: "BUYER",
-          status: "ACTIVE",
-        },
+      // 采购商：建 User + 默认企业（唯一主账号），企业认证资料后续在「企业认证」页完善
+      const buyerName = (body.company || "").trim() || `${contactName}的企业`;
+      await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email,
+            name: contactName,
+            phone,
+            passwordHash,
+            role: "BUYER",
+            status: "ACTIVE",
+            isOwner: true,
+            company: buyerName,
+          },
+        });
+        const company = await tx.buyerCompany.create({
+          data: {
+            companyName: buyerName,
+            contactName,
+            contactPhone: phone,
+            verifiedStatus: "UNSUBMITTED",
+            level: "NORMAL",
+            ownerUserId: user.id,
+          },
+        });
+        await tx.user.update({
+          where: { id: user.id },
+          data: { buyerCompanyId: company.id },
+        });
       });
       return NextResponse.json({ success: true, message: "注册成功，请登录" });
     }

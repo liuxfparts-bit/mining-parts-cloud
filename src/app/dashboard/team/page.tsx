@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getBuyerCompanyForUser } from "@/lib/buyer-company";
-import { addTeamMember, toggleMemberStatus, resetMemberPassword } from "./actions";
-import { Users, Plus, UserPlus, KeyRound, Ban, CheckCircle2 } from "lucide-react";
+import { toggleMemberStatus, resetMemberPassword } from "./actions";
+import AddMemberForm from "./AddMemberForm";
+import { Users, KeyRound, Ban, CheckCircle2 } from "lucide-react";
 
 export default async function BuyerTeamPage() {
   const s = await auth();
@@ -110,74 +111,10 @@ export default async function BuyerTeamPage() {
       {/* 添加采购员 */}
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
         <div className="flex items-center gap-2 mb-4">
-          <UserPlus className="w-4 h-4 text-slate-500" />
+          <Users className="w-4 h-4 text-slate-500" />
           <h2 className="font-semibold text-sm text-slate-700">添加采购员（子账号）</h2>
         </div>
-        <form action={addTeamMember} className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              姓名 <span className="text-red-500">*</span>
-            </label>
-            <input
-              name="name"
-              required
-              placeholder="采购员姓名"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              邮箱 <span className="text-red-500">*</span>
-            </label>
-            <input
-              name="email"
-              type="email"
-              required
-              placeholder="用于登录"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">手机号</label>
-            <input
-              name="phone"
-              placeholder="手机号"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">岗位角色</label>
-            <input
-              name="position"
-              defaultValue="采购员"
-              placeholder="如：采购经理 / 采购员"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              初始密码 <span className="text-red-500">*</span>
-            </label>
-            <input
-              name="password"
-              required
-              minLength={6}
-              placeholder="至少 6 位，子账号登录后可在「密码修改」中自行修改"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1.5 bg-blue-600 text-white rounded-lg px-5 py-2 text-sm font-medium hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4" /> 添加采购员
-            </button>
-            <p className="text-xs text-slate-400 mt-2">
-              子账号共享企业认证状态、等级权益与全部企业询价数据；仅主账号可管理团队。
-            </p>
-          </div>
-        </form>
+        <AddMemberForm />
       </div>
     </div>
   );
