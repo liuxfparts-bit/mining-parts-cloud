@@ -13,6 +13,8 @@ import {
   parseSheet,
   getHeaderCells,
   type FieldMapping,
+  type FieldMappingInfo,
+  type ExtraColumn,
   type ParsedRow,
   type SheetMeta,
 } from "@/lib/excel";
@@ -143,6 +145,9 @@ export default function RFQForm({ defaultPart }: { defaultPart?: string }) {
     sel: string;
     headerRow: number;
     mapping: FieldMapping;
+    mappingInfo: Record<string, FieldMappingInfo>;
+    extraColumns: ExtraColumn[];
+    colSamples: Record<number, string[]>;
     parsed: ParsedRow[];
     fileName: string;
   } | null>(null);
@@ -173,6 +178,9 @@ export default function RFQForm({ defaultPart }: { defaultPart?: string }) {
         sel: def.name,
         headerRow: def.headerRow,
         mapping: def.mapping,
+        mappingInfo: def.mappingInfo || {},
+        extraColumns: def.extraColumns || [],
+        colSamples: def.colSamples || {},
         parsed: [] as ParsedRow[],
         fileName: file.name,
       };
@@ -282,7 +290,13 @@ export default function RFQForm({ defaultPart }: { defaultPart?: string }) {
                   onChange={(e) => {
                     const ns = { ...excel, sel: e.target.value };
                     const meta = excel.sheets.find((s) => s.name === e.target.value);
-                    if (meta) { ns.headerRow = meta.headerRow; ns.mapping = meta.mapping; }
+                    if (meta) {
+                      ns.headerRow = meta.headerRow;
+                      ns.mapping = meta.mapping;
+                      ns.mappingInfo = meta.mappingInfo || {};
+                      ns.extraColumns = meta.extraColumns || [];
+                      ns.colSamples = meta.colSamples || {};
+                    }
                     reparse(ns);
                   }}
                   className="flex h-9 w-full rounded-md border border-[#dce2e6] bg-white px-2 py-1 text-sm">
@@ -315,10 +329,10 @@ export default function RFQForm({ defaultPart }: { defaultPart?: string }) {
               </div>
             </div>
 
-            {/* 列映射 */}
+            {/* 字段映射（智能识别 + 置信度 + 列数据预览） */}
             <div className="mb-3">
-              <label className="block text-xs font-bold mb-1">字段映射（自动识别，可手动修正）</label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <label className="block text-xs font-bold mb-2">字段映射（智能识别，可手动修正）</label>
+              <div className="space-y-1.5">
                 {(
                   [
                     ["brandName", "品牌"],
@@ -331,11 +345,27 @@ export default function RFQForm({ defaultPart }: { defaultPart?: string }) {
                   ] as [keyof FieldMapping, string][]
                 ).map(([field, label]) => {
                   const cols = getHeaderCells(excel.wb, excel.sel, excel.headerRow);
+                  const info = excel.mappingInfo?.[field];
+                  const mappedCol = excel.mapping[field];
+                  const samples = mappedCol !== undefined ? excel.colSamples?.[mappedCol] || [] : [];
+                  const conf = info?.confidence || "NONE";
+                  const confBadge =
+                    conf === "HIGH" ? (
+                      <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 whitespace-nowrap">✓ 高置信度</span>
+                    ) : conf === "MEDIUM" ? (
+                      <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 whitespace-nowrap" title={info?.reason}>⚠ 中置信度，请确认</span>
+                    ) : conf === "LOW" ? (
+                      <span className="text-[10px] text-orange-700 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5 whitespace-nowrap" title={info?.reason}>低置信度</span>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 whitespace-nowrap">未识别</span>
+                    );
                   return (
-                    <div key={field}>
-                      <label className="block text-[10px] text-muted mb-0.5">{label}</label>
+                    <div key={field}
+                      className="grid grid-cols-[80px_auto_1fr_auto] md:grid-cols-[110px_auto_200px_1fr] gap-2 items-center bg-white border border-slate-200 rounded px-2 py-1.5">
+                      <span className="text-xs font-bold text-muted">{label}</span>
+                      {confBadge}
                       <select
-                        value={excel.mapping[field] === undefined ? -1 : excel.mapping[field]}
+                        value={mappedCol === undefined ? -1 : mappedCol}
                         onChange={(e) => {
                           const v = parseInt(e.target.value);
                           const mapping = { ...excel.mapping };
@@ -343,17 +373,46 @@ export default function RFQForm({ defaultPart }: { defaultPart?: string }) {
                           else mapping[field] = v;
                           reparse({ ...excel, mapping });
                         }}
-                        className="flex h-8 w-full rounded-md border border-[#dce2e6] bg-white px-1.5 text-xs">
-                        <option value={-1}>— 未识别 —</option>
+                        className="flex h-7 w-full rounded-md border border-[#dce2e6] bg-white px-1.5 text-xs">
+                        <option value={-1}>— 不导入 —</option>
                         {cols.map((c, ci) => (
-                          <option key={ci} value={ci}>列{ci + 1}: {c}</option>
+                          <option key={ci} value={ci}>列{ci + 1}: {c || "（空）"}</option>
                         ))}
                       </select>
+                      <div className="text-[10px] text-gray-400 truncate text-right md:text-left" title={samples.join(" ｜ ")}>
+                        {samples.length > 0 ? samples.join(" ｜ ") : (mappedCol !== undefined ? "（该列无数据）" : "未映射")}
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
+
+            {/* 附加采购信息（单价/总计/货期/来源等，保留但不进入 RFQItem） */}
+            {excel.extraColumns.length > 0 && (
+              <div className="mb-3 bg-slate-50 border border-slate-200 rounded p-3">
+                <label className="block text-xs font-bold mb-1.5 text-gray-600">
+                  附加采购信息（当前版本不进入采购明细，原始数据完整保留）
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {excel.extraColumns.map((ec) => (
+                    <span key={ec.col} className="text-[11px] bg-white border border-slate-200 rounded px-2 py-1">
+                      {ec.kind === "SEQ" ? (
+                        <span className="text-gray-400">列{ec.col + 1} {ec.header}（序号，自动忽略）</span>
+                      ) : (
+                        <span>
+                          <span className="font-medium">列{ec.col + 1} {ec.header}</span>
+                          <span className="text-gray-400"> {ec.note}</span>
+                          {ec.samples.length > 0 && (
+                            <span className="text-gray-500 font-mono">：{ec.samples.join(" / ")}</span>
+                          )}
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 错误提示 */}
             {(() => {
@@ -399,9 +458,45 @@ export default function RFQForm({ defaultPart }: { defaultPart?: string }) {
               </table>
             </div>
 
+            {/* 导入前最终确认 */}
+            {(() => {
+              const mappedFields = (Object.keys(excel.mappingInfo) as (keyof FieldMapping)[])
+                .filter((f) => excel.mappingInfo[f]?.confidence !== "NONE" && excel.mappingInfo[f]?.excelCol != null)
+                .map((f) => excel.mappingInfo[f].label);
+              const unmappedFields = (Object.keys(excel.mappingInfo) as (keyof FieldMapping)[])
+                .filter((f) => excel.mappingInfo[f]?.confidence === "NONE")
+                .map((f) => excel.mappingInfo[f].label);
+              const errCount = excel.parsed.filter((r) => r.errors.length).length;
+              return (
+                <div className="mb-3 bg-white border border-slate-200 rounded p-3">
+                  <p className="text-xs font-bold mb-1.5">导入前确认</p>
+                  <p className="text-xs text-gray-700">共 <span className="font-bold">{excel.parsed.length}</span> 条采购明细（错误 {errCount} 条）</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    已自动识别：
+                    {mappedFields.length > 0 ? (
+                      <span className="text-green-700 font-medium"> ✓ {mappedFields.join("、")}</span>
+                    ) : <span className="text-gray-400"> 无</span>}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    未映射：
+                    {unmappedFields.length > 0 ? (
+                      <span className="text-amber-700"> {unmappedFields.join("、")}</span>
+                    ) : <span className="text-gray-400"> 无</span>}
+                    {unmappedFields.includes("单位") && <span className="text-gray-400">（默认 pcs）</span>}
+                  </p>
+                  {excel.extraColumns.length > 0 && (
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      附加字段：<span className="text-gray-500">{excel.extraColumns.length} 列（单价/总计/货期/来源等，不进入明细）</span>
+                    </p>
+                  )}
+                  <p className="text-[10px] text-gray-400 mt-1">确认后填入下方明细，您仍可逐条修改，最后点击「发布询价」才会正式创建 RFQ。</p>
+                </div>
+              );
+            })()}
+
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" size="sm"
-                onClick={() => { setExcel(null); setExcelErr(""); }}>取消</Button>
+                onClick={() => { setExcel(null); setExcelErr(""); }}>返回调整</Button>
               <Button type="button" size="sm" className="bg-accent text-ink"
                 onClick={confirmImport}>
                 确认导入 {excel.parsed.length} 条到明细
