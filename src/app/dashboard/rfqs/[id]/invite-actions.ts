@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createInvitationsForRFQ, remindInvitation } from "@/lib/rfq-invitation";
+import { requireVerifiedBuyer } from "@/lib/buyer-company";
 
 /** 从 session 取当前采购商 User（服务端身份，绝不信任前端 buyerId） */
 async function requireBuyerUser() {
@@ -16,13 +17,25 @@ async function requireBuyerUser() {
   return user;
 }
 
-/** 校验 RFQ 归属当前采购商 */
+/**
+ * 校验 RFQ 归属当前采购商企业（主子账号共享）：
+ * 本人发布 或 同企业成员发布 的 RFQ 均可管理。
+ */
 async function requireOwnRfq(rfqId: number, userId: number) {
   const rfq = await prisma.rFQ.findUnique({
     where: { id: rfqId },
-    select: { id: true, userID: true, title: true, status: true },
+    select: { id: true, userID: true, companyID: true, title: true, status: true },
   });
-  if (!rfq || rfq.userID !== userId) redirect("/dashboard/rfqs");
+  if (!rfq) redirect("/dashboard/rfqs");
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { buyerCompanyId: true },
+  });
+  const sameCompany =
+    rfq.companyID != null &&
+    me?.buyerCompanyId != null &&
+    rfq.companyID === me.buyerCompanyId;
+  if (rfq.userID !== userId && !sameCompany) redirect("/dashboard/rfqs");
   return rfq;
 }
 
@@ -32,6 +45,12 @@ export async function inviteSuppliersAction(formData: FormData) {
   if (isNaN(rfqId)) return { success: false, error: "参数错误" };
 
   const rfq = await requireOwnRfq(rfqId, buyer.id);
+
+  // 认证门槛：未认证采购商不允许邀请供应商
+  const gate = await requireVerifiedBuyer(buyer.id);
+  if (!gate.allowed) {
+    return { success: false, error: gate.reason || "企业认证未通过，无法邀请供应商" };
+  }
 
   // 解析供应商多选
   const supplierIds = formData

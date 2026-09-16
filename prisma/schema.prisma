@@ -228,6 +228,11 @@ model User {
   role          String    @default("BUYER") // BUYER / SUPPLIER / ADMIN
   supplierId    Int?      // 供应商用户关联 Supplier
   supplier      Supplier? @relation(fields: [supplierId], references: [id])
+  // 采购商企业（主子账号体系）
+  buyerCompanyId Int?
+  buyerCompany   BuyerCompany? @relation(fields: [buyerCompanyId], references: [id])
+  isOwner       Boolean   @default(false) // 企业唯一主账号（主采购员）
+  position      String?   // 子账号岗位角色（采购员/经理等）
   phone         String?
   company       String?   // 采购方公司名
   emailVerified DateTime?
@@ -237,6 +242,31 @@ model User {
   passwordResetTokens PasswordResetToken[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// ========== 采购商企业（认证 + 主子账号） ==========
+model BuyerCompany {
+  id             Int       @id @default(autoincrement())
+  companyName    String    // 企业名称
+  unifiedCode    String?   // 统一社会信用代码 / 营业执照号
+  licenseImage   String?   // 营业执照照片 URL
+  contactName    String?   // 联系人
+  contactPhone   String?   // 联系电话
+  region         String?   // 地区
+  address        String?   // 企业地址
+  verifiedStatus String    @default("UNSUBMITTED") // UNSUBMITTED / PENDING / VERIFIED / REJECTED
+  rejectionReason String?  // 驳回原因
+  level          String    @default("NORMAL") // NORMAL / BRONZE / SILVER / GOLD 企业等级
+  ownerUserId    Int?      // 唯一主账号（主采购员）
+  submittedAt    DateTime? // 提交认证时间
+  verifiedAt     DateTime? // 审核通过时间
+  verifiedBy     Int?      // 审核人
+  users          User[]    // 企业下所有采购员（主账号 + 子账号）
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([verifiedStatus])
+  @@index([ownerUserId])
 }
 
 // ========== 密码重置 Token ==========

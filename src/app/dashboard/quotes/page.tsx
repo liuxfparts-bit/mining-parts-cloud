@@ -3,12 +3,22 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { getCompanyUserIds } from "@/lib/buyer-company";
 
 export default async function BuyerQuotes() {
   const s = await auth();
   if (!s) redirect("/login");
-  const user = await prisma.user.findUnique({ where: { email: (s.user as any).email } });
-  const rfqs = user ? await prisma.rFQ.findMany({ where: { userID: user.id }, select: { id: true } }) : [];
+  const user = await prisma.user.findUnique({
+    where: { email: (s.user as any).email },
+    select: { id: true, buyerCompanyId: true },
+  });
+  if (!user) redirect("/login");
+  // 企业共享：本人 + 同企业主/子账号发布的 RFQ 收到的报价
+  const companyUserIds = await getCompanyUserIds(user.id);
+  const rfqs = await prisma.rFQ.findMany({
+    where: { OR: [{ userID: { in: companyUserIds } }, { companyID: user.buyerCompanyId ?? -1 }] },
+    select: { id: true },
+  });
   const rfqIds = rfqs.map((r) => r.id);
   const quotes = await prisma.quote.findMany({
     where: { rfqId: { in: rfqIds } },

@@ -45,11 +45,11 @@ export default async function BuyerRfqDetail({
   if (!s) redirect("/login");
   const user = await prisma.user.findUnique({
     where: { email: String((s.user as any).email).toLowerCase() },
-    select: { id: true },
+    select: { id: true, buyerCompanyId: true },
   });
   if (!user) redirect("/login");
 
-  // 服务端归属校验：只允许发布者本人查看/管理自己的 RFQ（防止横向越权访问他人询价）
+  // 服务端归属校验：发布者本人 或 同企业成员（主子账号共享）可查看/管理（防止横向越权访问他人询价）
   const rfqBase = await prisma.rFQ.findUnique({
     where: { id },
     select: {
@@ -59,6 +59,7 @@ export default async function BuyerRfqDetail({
       status: true,
       createdAt: true,
       userID: true,
+      companyID: true,
       contactName: true,
       contactPhone: true,
       deliveryLocation: true,
@@ -69,7 +70,9 @@ export default async function BuyerRfqDetail({
     },
   });
   if (!rfqBase) notFound();
-  if (rfqBase.userID !== user.id) notFound();
+  const sameCompany =
+    rfqBase.companyID != null && user.buyerCompanyId != null && rfqBase.companyID === user.buyerCompanyId;
+  if (rfqBase.userID !== user.id && !sameCompany) notFound();
 
   // ===== 分项比价：RFQItem 数据库级分页（分页单位是采购明细，不是 QuoteItem）=====
   const totalItems = rfqBase._count.items;

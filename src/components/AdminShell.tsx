@@ -5,7 +5,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard, Building2, Tags, Wrench, Package, Hash,
-  FileText, MessageSquare, Search, Crown, Megaphone, Menu, X,
+  FileText, MessageSquare, Search, Crown, Megaphone, Menu, X, ShieldCheck,
 } from "lucide-react";
 
 const menuSections = [
@@ -17,6 +17,7 @@ const menuSections = [
     items: [
       { href: "/admin/suppliers", label: "企业列表", icon: Building2 },
       { href: "/admin/verification", label: "待审核", icon: Building2 },
+      { href: "/admin/buyer-companies", label: "采购商认证", icon: ShieldCheck },
     ],
   },
   {

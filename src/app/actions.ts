@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireVerifiedBuyer } from "@/lib/buyer-company";
 
 export async function createRFQ(prevState: { error?: string; success?: boolean }, formData: FormData) {
   // 服务端身份校验：必须登录，归属写入当前登录用户（禁止前端传 buyerId/userId）
@@ -13,10 +14,15 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
   }
   const sessionUser = await prisma.user.findUnique({
     where: { email: String((session.user as any).email).toLowerCase() },
-    select: { id: true, role: true },
+    select: { id: true, role: true, buyerCompanyId: true },
   });
   if (!sessionUser) {
     return { error: "登录已失效，请重新登录后再发布询价" };
+  }
+  // 采购商企业认证门槛：BUYER 必须企业认证通过才可发布 RFQ（SUPPLIER/ADMIN 不拦截）
+  const gate = await requireVerifiedBuyer(sessionUser.id);
+  if (!gate.allowed) {
+    return { error: gate.reason || "企业认证未通过，无法发布询价" };
   }
 
   const title = String(formData.get("title") || "");
@@ -121,6 +127,8 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
           title,
           // 归属字段：RFQ 必须绑定当前登录采购商（session 服务端身份）
           userID: sessionUser.id,
+          // 企业归属：同企业主/子账号共享 RFQ（主子账号体系）
+          companyID: sessionUser.buyerCompanyId || null,
           // 兼容字段：第一条明细同步写入 RFQ 旧字段，保证旧列表/后台照常显示
           brandName: first.brandName,
           equipmentModel: first.equipmentModel,

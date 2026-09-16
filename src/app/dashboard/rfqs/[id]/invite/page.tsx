@@ -1,9 +1,12 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import { recommendSuppliersForRFQ } from "@/lib/rfq-invitation";
+import { requireVerifiedBuyer } from "@/lib/buyer-company";
+import { ShieldCheck } from "lucide-react";
 import InvitePanel from "./InvitePanel";
 
 const PAGE_SIZE = 10;
@@ -22,7 +25,7 @@ export default async function InvitePage({
   if (!s) redirect("/login");
   const user = await prisma.user.findUnique({
     where: { email: String((s.user as any).email).toLowerCase() },
-    select: { id: true },
+    select: { id: true, buyerCompanyId: true },
   });
   if (!user) redirect("/login");
 
@@ -34,7 +37,35 @@ export default async function InvitePage({
     },
   });
   if (!rfq) notFound();
-  if (rfq.userID !== user.id) notFound();
+  // 企业共享归属校验（本人或同企业成员）
+  const sameCompany =
+    rfq.companyID != null && user.buyerCompanyId != null && rfq.companyID === user.buyerCompanyId;
+  if (rfq.userID !== user.id && !sameCompany) notFound();
+
+  // 认证门槛：未认证采购商引导去认证，不开放邀请页
+  const gate = await requireVerifiedBuyer(user.id);
+  if (!gate.allowed) {
+    return (
+      <div className="max-w-2xl mx-auto py-16 text-center">
+        <ShieldCheck className="w-12 h-12 mx-auto text-blue-500 mb-4" />
+        <h1 className="text-lg font-bold text-slate-800">邀请供应商报价需要企业认证</h1>
+        <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
+          {gate.reason || "完善企业资质并通过认证后，即可邀请供应商针对本询价报价"}
+        </p>
+        <div className="flex justify-center gap-3 mt-6">
+          <Link
+            href="/dashboard/company"
+            className="bg-blue-600 text-white rounded-lg px-5 py-2 text-sm font-medium hover:bg-blue-700"
+          >
+            前往企业认证
+          </Link>
+          <Link href={`/dashboard/rfqs/${id}`} className="text-sm text-slate-500 hover:text-slate-700 px-5 py-2">
+            返回询价详情
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   // 1) 智能推荐（品牌 + 设备型号 + 件号 + 历史报价 → 打分排序 5~20 家）
   const recommended = await recommendSuppliersForRFQ(id);
