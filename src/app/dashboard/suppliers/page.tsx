@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { getCompanyUserIds } from "@/lib/buyer-company";
+import Pagination from "@/components/Pagination";
 import { Handshake, Phone, Mail, Eye } from "lucide-react";
 
 const PAGE_SIZES = [10, 20, 50];
@@ -256,46 +257,23 @@ export default async function BuyerSuppliers({
         </>
       )}
 
-      {/* 分页 */}
-      {totalPages > 1 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <div className="flex items-center gap-2 text-slate-500">
-            <span>
-              第 {page} / {totalPages} 页 · 共 {total} 家
-            </span>
-            <span className="hidden sm:flex items-center gap-1">
-              | 每页
-              {PAGE_SIZES.map((ps) => (
-                <a
-                  key={ps}
-                  href={`/dashboard/suppliers?q=${encodeURIComponent(q)}&status=${statusFilter}&pageSize=${ps}&page=1`}
-                  className={`px-1.5 rounded ${pageSize === ps ? "text-blue-600 font-semibold" : "text-slate-400 hover:text-slate-600"}`}
-                >
-                  {ps}
-                </a>
-              ))}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            {page > 1 && (
-              <a
-                href={`/dashboard/suppliers?q=${encodeURIComponent(q)}&status=${statusFilter}&pageSize=${pageSize}&page=${page - 1}`}
-                className="px-3 py-1.5 rounded border border-slate-200 bg-white text-slate-700"
-              >
-                上一页
-              </a>
-            )}
-            {page < totalPages && (
-              <a
-                href={`/dashboard/suppliers?q=${encodeURIComponent(q)}&status=${statusFilter}&pageSize=${pageSize}&page=${page + 1}`}
-                className="px-3 py-1.5 rounded border border-slate-200 bg-white text-slate-700"
-              >
-                下一页
-              </a>
-            )}
-          </div>
-        </div>
-      )}
+      {/* 分页（数据库级，统一组件） */}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        pageSize={pageSize}
+        pageSizes={PAGE_SIZES}
+        label="家"
+        makeHref={(p, ps) => {
+          const sp = new URLSearchParams();
+          if (q) sp.set("q", q);
+          if (statusFilter !== "ALL") sp.set("status", statusFilter);
+          sp.set("page", String(p));
+          sp.set("pageSize", String(ps));
+          return `/dashboard/suppliers?${sp.toString()}`;
+        }}
+      />
     </div>
   );
 }

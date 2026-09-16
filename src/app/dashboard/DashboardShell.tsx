@@ -43,12 +43,12 @@ const NAV_GROUPS: { group: string; items: { href: string; label: string; icon: a
     items: [
       { href: "/rfq/create", label: "发布询价", icon: FilePlus2 },
       { href: "/dashboard/rfqs", label: "我的询价", icon: FileText },
-      { href: "/dashboard/rfqs", label: "询价邀请", icon: Send },
     ],
   },
   {
     group: "报价与供应商",
     items: [
+      { href: "/dashboard/rfq-invitations", label: "询价邀请", icon: Send },
       { href: "/dashboard/quotes", label: "收到的报价", icon: BadgeDollarSign },
       { href: "/dashboard/suppliers", label: "合作供应商", icon: Handshake },
     ],
@@ -220,9 +220,6 @@ export default function DashboardShell({
                         >
                           <Icon className="w-4 h-4 shrink-0" />
                           {it.label}
-                          {it.label === "询价邀请" && (
-                            <span className="ml-auto text-[10px] text-slate-400">详情页</span>
-                          )}
                           {active && <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-60" />}
                         </Link>
                       );
