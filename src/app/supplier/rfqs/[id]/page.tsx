@@ -1,41 +1,253 @@
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
-import { createQuote } from "../../actions";
+import Link from "next/link";
+import QuoteForm, { type QuoteItemT, type ExistingQuoteT } from "@/components/QuoteForm";
+import RfqImages from "@/components/RfqImages";
+import { FileText } from "lucide-react";
 
-export default async function QuotePage({ params }: { params: { id: string } }) {
+const STATUS_CN: Record<string, { label: string; cls: string }> = {
+  COLLECTING: { label: "征集中", cls: "bg-blue-50 text-blue-700" },
+  QUOTED: { label: "已报价", cls: "bg-green-50 text-green-700" },
+  SELECTED: { label: "已选定", cls: "bg-green-50 text-green-700" },
+  CLOSED: { label: "已关闭", cls: "bg-gray-100 text-gray-600" },
+  EXPIRED: { label: "已过期", cls: "bg-red-50 text-red-600" },
+};
+
+/** 解析 RFQ/RFQItem 的 images JSON（容错：无效返回空数组） */
+function parseImageList(v: string | null): string[] {
+  if (!v) return [];
+  try {
+    const arr = JSON.parse(v);
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string" && x) : [];
+  } catch {
+    return v.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+}
+
+export default async function SupplierQuotePage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { inv?: string };
+}) {
+  const id = parseInt(params.id);
+  if (isNaN(id)) notFound();
+
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const user = await prisma.user.findUnique({ where: { email: (session.user as any).email } });
+  const user = await prisma.user.findUnique({
+    where: { email: String((session.user as any).email).toLowerCase() },
+    select: { id: true, supplierId: true },
+  });
   if (!user?.supplierId) redirect("/supplier");
+  const supplierId = user.supplierId;
 
   const rfq = await prisma.rFQ.findUnique({
-    where: { id: parseInt(params.id) },
-    include: { partNumber: true },
+    where: { id },
+    include: {
+      partNumber: true,
+      items: { include: { partNumber: true }, orderBy: { seq: "asc" } },
+      quotes: { where: { supplierId }, include: { items: true } },
+    },
   });
   if (!rfq) notFound();
 
+  // 服务端可见性校验：仅公开 或 匹配到本供应商 的询价可查看报价
+  if (rfq.visibility === "MATCHED_SUPPLIERS" && rfq.matchedSuppliers) {
+    try {
+      const matched: number[] = JSON.parse(rfq.matchedSuppliers);
+      if (Array.isArray(matched) && !matched.includes(supplierId)) notFound();
+    } catch {
+      /* 脏数据不拦截 */
+    }
+  }
+  if (rfq.visibility === "PRIVATE") notFound();
+
+  const closed = rfq.status === "CLOSED" || rfq.status === "EXPIRED";
+  const existing = (rfq.quotes[0] || null) as ExistingQuoteT;
+  const items = rfq.items as QuoteItemT[];
+  const st = STATUS_CN[rfq.status] || { label: rfq.status, cls: "bg-gray-100 text-gray-600" };
+
+  // 邀请 token 校验（属于本 RFQ 且绑定本供应商或待绑定）
+  let invitationToken: string | undefined;
+  if (searchParams.inv) {
+    const inv = await prisma.rFQInvitation.findUnique({
+      where: { token: searchParams.inv },
+      select: { rfqId: true, supplierId: true },
+    });
+    if (inv && inv.rfqId === id && (inv.supplierId === null || inv.supplierId === supplierId)) {
+      invitationToken = searchParams.inv;
+    }
+  }
+
+  const rfqImages = parseImageList(rfq.images);
+  const itemImages = rfq.items
+    .map((it) => ({ seq: it.seq, urls: parseImageList(it.images ?? null) }))
+    .filter((x) => x.urls.length > 0);
+  const attachments = parseImageList(rfq.attachments);
+
   return (
-    <div className="p-6 max-w-2xl">
-      <h1 className="text-2xl font-bold mb-2">报价：{rfq.title}</h1>
-      <p className="text-gray-500 text-sm mb-4">件号 {rfq.partNumber?.number} · 数量 {rfq.quantity} {rfq.unit}</p>
-      <form action={createQuote} className="bg-white rounded-lg border p-6 space-y-4">
-        <input type="hidden" name="rfqId" value={rfq.id} />
-        <div className="grid grid-cols-2 gap-4">
-          <div><label className="block text-sm mb-1">单价</label><input name="unitPrice" type="number" step="0.01" required className="border rounded px-3 py-2 text-sm w-full" /></div>
-          <div><label className="block text-sm mb-1">币种</label>
-            <select name="currency" className="border rounded px-3 py-2 text-sm w-full">
-              <option>USD</option><option>CNY</option><option>EUR</option>
-            </select>
-          </div>
-          <div><label className="block text-sm mb-1">交期（天）</label><input name="leadTime" className="border rounded px-3 py-2 text-sm w-full" /></div>
-          <div><label className="block text-sm mb-1">质保</label><input name="warranty" className="border rounded px-3 py-2 text-sm w-full" placeholder="如 12 个月" /></div>
+    <div className="space-y-4">
+      {/* 返回 + 标题 */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <Link href="/supplier/rfqs" className="text-sm text-slate-500 hover:text-blue-600">← 返回待处理询价</Link>
+          <h1 className="text-xl font-bold mt-1 flex items-center gap-2 flex-wrap">
+            提交报价
+            <span className={`inline-block text-xs px-2 py-0.5 rounded ${st.cls}`}>{st.label}</span>
+          </h1>
+          <p className="text-xs font-mono text-slate-400 mt-0.5">
+            {rfq.rfqNo || `#${rfq.id}`} · {rfq.title}
+          </p>
         </div>
-        <div><label className="block text-sm mb-1">备注</label><textarea name="remarks" rows={3} className="border rounded px-3 py-2 text-sm w-full" /></div>
-        <button className="bg-blue-600 text-white px-6 py-2 rounded">提交报价</button>
-      </form>
+      </div>
+
+      {/* ===== 询价基本信息 ===== */}
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
+        <h2 className="font-semibold text-sm text-slate-700 mb-3">询价基本信息</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <span className="text-xs text-slate-400 block">采购商</span>
+            <span className="text-slate-700">{rfq.contactName || "—"}</span>
+            {rfq.contactPhone && <span className="text-xs text-slate-400 block mt-0.5">{rfq.contactPhone}</span>}
+          </div>
+          <div>
+            <span className="text-xs text-slate-400 block">发布时间</span>
+            <span className="text-slate-700">{new Date(rfq.createdAt).toLocaleString("zh-CN")}</span>
+          </div>
+          <div>
+            <span className="text-xs text-slate-400 block">报价截止</span>
+            <span className="text-slate-700">
+              {rfq.expiresAt ? new Date(rfq.expiresAt).toLocaleString("zh-CN") : "长期有效"}
+            </span>
+          </div>
+          <div>
+            <span className="text-xs text-slate-400 block">采购明细</span>
+            <span className="text-slate-700">{items.length} 项</span>
+            {existing && existing.quotedCount > 0 && (
+              <span className="text-xs text-amber-600 block mt-0.5">已报价 {existing.quotedCount}/{items.length} 项</span>
+            )}
+          </div>
+          {rfq.deliveryLocation && (
+            <div>
+              <span className="text-xs text-slate-400 block">交货地点</span>
+              <span className="text-slate-700">{rfq.deliveryLocation}</span>
+            </div>
+          )}
+          {rfq.incoterm && (
+            <div>
+              <span className="text-xs text-slate-400 block">贸易条款</span>
+              <span className="text-slate-700">{rfq.incoterm}</span>
+            </div>
+          )}
+          {rfq.deliveryDate && (
+            <div>
+              <span className="text-xs text-slate-400 block">期望交期</span>
+              <span className="text-slate-700">{new Date(rfq.deliveryDate).toLocaleDateString("zh-CN")}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ===== 询价图片 / 图纸 / 附件 ===== */}
+      {(rfqImages.length > 0 || itemImages.length > 0 || attachments.length > 0) && (
+        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
+          <h2 className="font-semibold text-sm text-slate-700 mb-3">询价图片 / 图纸 / 附件</h2>
+          {rfqImages.length > 0 && (
+            <div className="mb-3">
+              <div className="text-xs text-slate-400 mb-1.5">询价图片</div>
+              <RfqImages urls={rfqImages} />
+            </div>
+          )}
+          {itemImages.map((g) => (
+            <div key={g.seq} className="mb-3">
+              <div className="text-xs text-slate-400 mb-1.5">Item {g.seq} 图片 / 图纸</div>
+              <RfqImages urls={g.urls} size="sm" />
+            </div>
+          ))}
+          {attachments.length > 0 && (
+            <div>
+              <div className="text-xs text-slate-400 mb-1.5">附件</div>
+              <div className="flex flex-wrap gap-2">
+                {attachments.map((u) => (
+                  <a
+                    key={u}
+                    href={u}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 border rounded px-2 py-1 text-xs bg-slate-50 hover:bg-slate-100"
+                  >
+                    <FileText className="w-3 h-3 text-slate-400" />
+                    <span className="max-w-[180px] truncate text-blue-600">{u.split("/").pop()}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== 采购明细 ===== */}
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 overflow-x-auto">
+        <h2 className="font-semibold text-sm text-slate-700 mb-3">采购明细（{items.length} 项）</h2>
+        <table className="w-full text-sm min-w-[680px]">
+          <thead>
+            <tr className="text-left text-xs text-slate-400 border-b border-slate-200">
+              <th className="py-2 pr-2">序号</th>
+              <th className="py-2 px-2">件号</th>
+              <th className="py-2 px-2">品牌</th>
+              <th className="py-2 px-2">设备型号</th>
+              <th className="py-2 px-2">配件名称</th>
+              <th className="py-2 px-2 text-center">数量</th>
+              <th className="py-2 px-2">单位</th>
+              <th className="py-2 pl-2">技术要求</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it) => (
+              <tr key={it.id} className="border-b border-slate-100 align-top">
+                <td className="py-2 pr-2 whitespace-nowrap">
+                  <span className="text-xs font-bold bg-slate-100 rounded px-1.5 py-0.5">{it.seq}</span>
+                </td>
+                <td className="py-2 px-2 font-mono text-xs text-slate-700 whitespace-nowrap">
+                  {it.partNumberStr || it.partNumber?.number || "—"}
+                </td>
+                <td className="py-2 px-2 text-xs text-slate-600">{it.brandName || "—"}</td>
+                <td className="py-2 px-2 text-xs text-slate-600">{it.equipmentModel || "—"}</td>
+                <td className="py-2 px-2 text-xs text-slate-700">{it.productName || "—"}</td>
+                <td className="py-2 px-2 text-center whitespace-nowrap text-xs">{it.quantity}</td>
+                <td className="py-2 px-2 text-xs text-slate-600">{it.unit || "pcs"}</td>
+                <td className="py-2 pl-2 text-xs text-slate-500 max-w-[220px]">
+                  {it.description || <span className="text-slate-300">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ===== 报价表单 ===== */}
+      {closed ? (
+        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-8 text-center text-sm text-slate-400">
+          该询价已关闭（{rfq.status}），无法继续报价。
+        </div>
+      ) : (
+        <Suspense fallback={<div className="p-8 text-center text-sm text-slate-400">加载报价表单…</div>}>
+          <QuoteForm
+            rfqId={rfq.id}
+            supplierId={supplierId}
+            items={items}
+            existing={existing}
+            invitationToken={invitationToken}
+            successRedirect="/supplier/quotes"
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

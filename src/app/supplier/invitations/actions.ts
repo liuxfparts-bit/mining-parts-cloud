@@ -40,8 +40,8 @@ export async function acceptInvitationAction(formData: FormData) {
 
   await acceptInvitation(invitationId);
   revalidatePath("/supplier/invitations");
-  // 直接带入 RFQ 信息跳转报价页
-  redirect(`/rfq/${inv.rfqId}/quote?inv=${inv.token}`);
+  // 直接带入 RFQ 信息跳转供应商后台报价页（保留统一后台布局，token 用于报价成功后回写邀请状态）
+  redirect(`/supplier/rfqs/${inv.rfqId}?inv=${inv.token}`);
 }
 
 export async function rejectInvitationAction(formData: FormData) {

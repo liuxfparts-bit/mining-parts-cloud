@@ -59,10 +59,10 @@ export default async function SupplierInvitationsPage({
   });
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">询价邀请</h1>
+          <h1 className="text-xl font-bold">询价邀请</h1>
           <p className="text-sm text-gray-500 mt-1">采购方主动邀请您报价的询价单，请及时响应</p>
         </div>
         <Link href="/supplier/rfqs" className="text-sm text-blue-600">浏览询价大厅 →</Link>
@@ -123,12 +123,18 @@ export default async function SupplierInvitationsPage({
                     )}
                   </div>
 
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 shrink-0 flex-wrap">
+                    <Link
+                      href={`/supplier/rfqs/${inv.rfq.id}`}
+                      className="border border-slate-200 text-slate-600 px-4 py-2 rounded text-sm hover:bg-slate-50"
+                    >
+                      查看询价
+                    </Link>
                     {isRejected ? (
                       <span className="text-xs text-gray-400 self-center">已拒绝</span>
                     ) : isQuoted ? (
                       <Link
-                        href={`/rfq/${inv.rfq.id}/quote`}
+                        href={`/supplier/rfqs/${inv.rfq.id}`}
                         className="bg-green-50 text-green-700 border border-green-200 px-4 py-2 rounded text-sm"
                       >
                         查看已提交报价

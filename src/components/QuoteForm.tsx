@@ -62,12 +62,15 @@ export default function QuoteForm({
   items,
   existing,
   invitationToken,
+  successRedirect,
 }: {
   rfqId: number;
   supplierId: number;
   items: QuoteItemT[];
   existing: ExistingQuoteT;
   invitationToken?: string;
+  /** 提交成功后跳转地址；缺省跳回前台 RFQ 详情（保持原有行为） */
+  successRedirect?: string;
 }) {
   const [rows, setRows] = useState<RowState[]>(() =>
     items.map((it) => {
@@ -176,7 +179,7 @@ export default function QuoteForm({
       }
       const j = await res.json();
       if (!res.ok || !j.ok) throw new Error(j.error || "提交失败");
-      window.location.href = `/rfq/${rfqId}`;
+      window.location.href = successRedirect || `/rfq/${rfqId}`;
     } catch (e: any) {
       setErr(e.message || "提交失败，请重试");
       setBusy(false);
