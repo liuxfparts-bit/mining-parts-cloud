@@ -223,7 +223,7 @@ export default function QuoteForm({
             <tr className="text-left text-xs text-muted border-b border-line">
               <th className="py-2 pr-2">明细</th>
               <th className="py-2 px-2">件号 / 品牌 / 型号</th>
-              <th className="py-2 px-2 text-center">数量</th>
+              <th className="py-2 px-2 text-center">需求数量</th>
               <th className="py-2 px-2 text-center">报价</th>
               <th className="py-2 px-2">单价</th>
               <th className="py-2 px-2">币种</th>

@@ -192,46 +192,7 @@ export default async function SupplierQuotePage({
         </div>
       )}
 
-      {/* ===== 采购明细 ===== */}
-      <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 overflow-x-auto">
-        <h2 className="font-semibold text-sm text-slate-700 mb-3">采购明细（{items.length} 项）</h2>
-        <table className="w-full text-sm min-w-[680px]">
-          <thead>
-            <tr className="text-left text-xs text-slate-400 border-b border-slate-200">
-              <th className="py-2 pr-2">序号</th>
-              <th className="py-2 px-2">件号</th>
-              <th className="py-2 px-2">品牌</th>
-              <th className="py-2 px-2">设备型号</th>
-              <th className="py-2 px-2">配件名称</th>
-              <th className="py-2 px-2 text-center">数量</th>
-              <th className="py-2 px-2">单位</th>
-              <th className="py-2 pl-2">技术要求</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((it) => (
-              <tr key={it.id} className="border-b border-slate-100 align-top">
-                <td className="py-2 pr-2 whitespace-nowrap">
-                  <span className="text-xs font-bold bg-slate-100 rounded px-1.5 py-0.5">{it.seq}</span>
-                </td>
-                <td className="py-2 px-2 font-mono text-xs text-slate-700 whitespace-nowrap">
-                  {it.partNumberStr || it.partNumber?.number || "—"}
-                </td>
-                <td className="py-2 px-2 text-xs text-slate-600">{it.brandName || "—"}</td>
-                <td className="py-2 px-2 text-xs text-slate-600">{it.equipmentModel || "—"}</td>
-                <td className="py-2 px-2 text-xs text-slate-700">{it.productName || "—"}</td>
-                <td className="py-2 px-2 text-center whitespace-nowrap text-xs">{it.quantity}</td>
-                <td className="py-2 px-2 text-xs text-slate-600">{it.unit || "pcs"}</td>
-                <td className="py-2 pl-2 text-xs text-slate-500 max-w-[220px]">
-                  {it.description || <span className="text-slate-300">—</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* ===== 报价表单 ===== */}
+      {/* ===== 报价表单（含完整采购明细，逐项填写报价） ===== */}
       {closed ? (
         <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-8 text-center text-sm text-slate-400">
           该询价已关闭（{rfq.status}），无法继续报价。
