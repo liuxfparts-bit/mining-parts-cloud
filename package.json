@@ -9,7 +9,9 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "import:part-numbers": "tsx scripts/import-part-numbers.ts",
+    "backfill:normalized": "tsx scripts/backfill-normalized-part-numbers.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
