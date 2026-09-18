@@ -1,10 +1,14 @@
 /**
  * ============================================================
- * V3.1 Stage 3.2 Equipment setup（ED10 幂等创建）
+ * V3.1 Stage 3.2B Equipment setup（ED10 幂等创建 + Sandvik Brand 精确 lookup）
  *   npm run setup:equipment -- --dry-run   只读预检
  *   npm run setup:equipment -- --apply     真正创建（仅 ED10 缺失时）
- * 只读/写库都幂等：model=ED10 存在则 REUSE，不存在才 CREATE。
- * LS190 永远 REUSE existing(id=2)，绝不新建第二条。
+ *
+ * Sandvik Brand lookup 规则（不硬编码 id）：
+ *   1) slug = "sandvik"
+ *   2) 验证 nameEn = "Sandvik" 且 name = "山特维克"
+ *   3) 不匹配/多候选/状态异常 → STOP
+ * LS190 永远 REUSE existing（model=LS190），绝不新建第二条。
  * ============================================================
  */
 import path from "path";
@@ -18,37 +22,61 @@ async function main() {
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient();
 
-  // 1) 找 Sandvik Brand（只读）
-  const brand = await prisma.brand.findFirst({ where: { name: { equals: "Sandvik", mode: "insensitive" } }, select: { id: true, name: true, nameEn: true } });
-  console.log(`[Brand] Sandvik 匹配: ${brand ? `id=${brand.id} name="${brand.name}"` : "未找到（需人工处理，不自动建 Brand）"}`);
-  if (!brand) {
-    console.log("⚠️ 生产 Brand 表无 Sandvik，停止。请人工确认 Sandvik brand_id。");
-    await prisma.$disconnect();
-    process.exit(1);
+  // 1) Sandvik Brand 精确 lookup（slug 优先 + nameEn 验证）
+  const bySlug = await prisma.brand.findUnique({ where: { slug: "sandvik" }, select: { id: true, name: true, nameEn: true, slug: true, status: true } });
+  if (!bySlug) {
+    console.log(`STOP: slug="sandvik" 未找到 Brand，请人工确认。不自动创建 Brand。`);
+    await prisma.$disconnect(); process.exit(1);
   }
+  if (bySlug.nameEn !== "Sandvik") {
+    console.log(`STOP: slug="sandvik" 找到但 nameEn="${bySlug.nameEn}" 不等于 "Sandvik"，异常，STOP。`);
+    await prisma.$disconnect(); process.exit(1);
+  }
+  if (bySlug.status !== "ACTIVE") {
+    console.log(`STOP: Sandvik Brand status=${bySlug.status} 非 ACTIVE，STOP。`);
+    await prisma.$disconnect(); process.exit(1);
+  }
+  console.log(`SANDVIK_BRAND_ID      = ${bySlug.id}`);
+  console.log(`SANDVIK_BRAND_NAME    = ${bySlug.name}`);
+  console.log(`SANDVIK_BRAND_NAME_EN = ${bySlug.nameEn}`);
+  console.log(`SANDVIK_BRAND_SLUG    = ${bySlug.slug}`);
 
-  // 2) LS190 现状（只读，REUSE）
-  const ls190 = await prisma.equipment.findFirst({ where: { model: "LS190" }, select: { id: true, model: true, name: true, brandId: true } });
-  console.log(`[Equipment] LS190: ${ls190 ? `REUSE id=${ls190.id} brandId=${ls190.brandId} name="${ls190.name}"` : "⚠️ 未找到 LS190（异常，CSV 已确认 equipment_id=2）"}`);
+  // 2) LS190 REUSE 验证
+  const ls190 = await prisma.equipment.findFirst({ where: { model: "LS190" }, select: { id: true, model: true, name: true, brandId: true, equipmentType: true } });
+  if (!ls190) {
+    console.log(`STOP: model="LS190" 不存在，不创建第二条。请人工确认。`);
+    await prisma.$disconnect(); process.exit(1);
+  }
+  if (ls190.brandId !== bySlug.id) {
+    console.log(`STOP: LS190.brandId=${ls190.brandId} ≠ Sandvik brandId=${bySlug.id}，关系异常，STOP。`);
+    await prisma.$disconnect(); process.exit(1);
+  }
+  console.log(`LS190_EQUIPMENT_ID = ${ls190.id}`);
+  console.log(`LS190_BRAND_ID     = ${ls190.brandId}`);
+  console.log(`LS190_STATUS       = REUSE_EXISTING`);
 
-  // 3) ED10 幂等检查
-  const ed10 = await prisma.equipment.findFirst({ where: { model: "ED10" }, select: { id: true, model: true, name: true } });
+  // 3) ED10 幂等
+  const ed10 = await prisma.equipment.findFirst({ where: { model: "ED10" }, select: { id: true, model: true, name: true, brandId: true, equipmentType: true } });
   if (ed10) {
-    console.log(`[Equipment] ED10: REUSE id=${ed10.id}（已存在，不新建）`);
+    console.log(`ED10_STATUS      = REUSE_EXISTING`);
+    console.log(`ED10_ID          = ${ed10.id}  brandId=${ed10.brandId}  name="${ed10.name}"`);
   } else {
-    console.log(`[Equipment] ED10: ${apply ? "将创建" : "DRY-RUN：将创建"} brandId=${brand.id} type="Underground LHD" model="ED10" name="Sandvik ED10 Underground LHD"`);
+    console.log(`ED10_STATUS      = ${apply ? "WOULD_CREATE→CREATING" : "WOULD_CREATE"}`);
+    console.log(`ED10_BRAND_ID    = ${bySlug.id}（Sandvik）`);
     if (apply) {
       const created = await prisma.equipment.create({
         data: {
+          slug: "sandvik-ed10",
           model: "ED10",
           name: "Sandvik ED10 Underground LHD",
           equipmentType: "Underground LHD",
-          brandId: brand.id,
+          brandId: bySlug.id,
+          manufacturer: "Sandvik Mining and Rock Solutions",
           status: "ACTIVE",
-        } as any,
+        },
         select: { id: true, model: true, name: true },
       });
-      console.log(`[Equipment] ED10 已创建: id=${created.id}`);
+      console.log(`ED10 已创建: id=${created.id}  model=${created.model}  name="${created.name}"`);
     }
   }
 
@@ -56,3 +84,4 @@ async function main() {
   console.log(`\n=== ${apply ? "APPLY 完成" : "DRY-RUN 完成，未写库"} ===\n`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });
+export {};

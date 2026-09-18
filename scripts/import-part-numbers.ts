@@ -116,28 +116,53 @@ async function main() {
 
   // 3) 选前 N 个（确定性）
   const selected = singleRows.slice(0, Math.min(limit, singleRows.length));
+
+  // alias intersection assertion：selected 不得与 alias 有交集
+  const selectedNormSet = new Set(selected.map((r) => norm(r.part_number || "")));
+  const leak = Array.from(selectedNormSet).filter((n) => aliasNormSet.has(n));
+  if (leak.length > 0) {
+    console.log(`STOP: alias intersection 断言失败，${leak.length} 个 selected PN 属于 25 组 FORMAT_ALIAS_REVIEW: ${leak.join(", ")}`);
+    process.exit(1);
+  }
+  console.log(`ALIAS_INTERSECTION_ASSERTION = PASS (selected ∩ alias = empty)`);
+
   console.log(`SELECTED_FOR_IMPORT = ${selected.length}`);
+
+  // relations 索引（不连库，从 CSV 读，dry-run 也能显示）
+  const relByPnDry = new Map<string, string[]>();
+  for (const r of relRows) {
+    const pnId = (r.pn_id || "").trim();
+    const model = (r.model || "").trim();
+    if (!pnId || !model) continue;
+    if (!relByPnDry.has(pnId)) relByPnDry.set(pnId, []);
+    relByPnDry.get(pnId)!.push(model);
+  }
 
   // 预览输出
   const preview: Record<string, string>[] = selected.map((r) => {
     const number = (r.part_number || "").trim();
+    const models = relByPnDry.get(r.pn_id) || [];
     return {
       partNumber: number,
       normalizedPartNumber: norm(number),
       slug: toSlug(r.slug || number),
       description: r.description || "",
       brand: resolveBrand(r.brand),
+      equipmentRelations: models.join("+") || "(无)",
       verificationStatus: "VERIFIED",
       publishStatus: "READY",
       confidence: r.confidence || "HIGH",
       modelEvidence: r.model_evidence || "EXPLICIT",
+      collisionExact: "DRY-RUN未查库",
+      collisionNormalized: "DRY-RUN未查库",
+      action: apply ? "WOULD_CREATE" : "PREVIEW",
     };
   });
   writeCsv(path.join(LOG_DIR, "stage32-import-preview.csv"),
-    ["partNumber", "normalizedPartNumber", "slug", "description", "brand", "verificationStatus", "publishStatus", "confidence", "modelEvidence"],
+    ["partNumber", "normalizedPartNumber", "slug", "description", "brand", "equipmentRelations", "verificationStatus", "publishStatus", "confidence", "modelEvidence", "collisionExact", "collisionNormalized", "action"],
     preview);
   console.log(`\n--- 选中 ${selected.length} 个 PN（预览）---`);
-  for (const p of preview) console.log(`  ${p.partNumber}  →  ${p.slug}  (${p.brand}, ${p.verificationStatus}/${p.publishStatus})`);
+  for (const p of preview) console.log(`  ${p.partNumber}  →  ${p.slug}  (${p.brand}, ${p.equipmentRelations}, ${p.verificationStatus}/${p.publishStatus})`);
 
   if (!apply) {
     console.log(`\n=== DRY-RUN 完成，未写库 ===\n`);
@@ -148,13 +173,15 @@ async function main() {
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient();
 
-  // 前置：Sandvik Brand id / ED10 / LS190 equipment id
-  const brand = await prisma.brand.findFirst({ where: { name: { equals: "Sandvik", mode: "insensitive" } }, select: { id: true } });
-  if (!brand) throw new Error("生产 Brand 表无 Sandvik，先跑 setup:equipment --apply");
+  // 前置：Sandvik Brand 精确 lookup（slug 优先 + nameEn 验证，不硬编码 id）
+  const bySlug = await prisma.brand.findUnique({ where: { slug: "sandvik" }, select: { id: true, name: true, nameEn: true, status: true } });
+  if (!bySlug || bySlug.nameEn !== "Sandvik" || bySlug.status !== "ACTIVE") {
+    throw new Error("Sandvik Brand lookup 失败（slug=sandvik 未找到或 nameEn/status 不匹配），先跑 setup:equipment --apply");
+  }
   const ed10 = await prisma.equipment.findFirst({ where: { model: "ED10" }, select: { id: true } });
   const ls190 = await prisma.equipment.findFirst({ where: { model: "LS190" }, select: { id: true } });
-  if (!ls190) throw new Error("LS190 不存在（应 REUSE id=2）");
-  console.log(`\n[APPLY] brandId=${brand.id}  ED10=${ed10 ? `id=${ed10.id}` : "不存在（跳过 ED10 关系）"}  LS190=id=${ls190.id}`);
+  if (!ls190) throw new Error("LS190 不存在（应 REUSE）");
+  console.log(`\n[APPLY] Sandvik brandId=${bySlug.id}  ED10=${ed10 ? `id=${ed10.id}` : "不存在（跳过 ED10 关系）"}  LS190=id=${ls190.id}`);
 
   // relations 索引：pn_id → [{model}]
   const relByPn = new Map<string, string[]>();
@@ -190,7 +217,7 @@ async function main() {
             slug,
             name: r.description || number,
             nameEn: r.original_description_en || r.description || "",
-            brandId: brand.id,
+            brandId: bySlug.id,
             verified: true,
             verificationStatus: "VERIFIED",
             modelEvidence: (r.model_evidence as any) || "EXPLICIT",
