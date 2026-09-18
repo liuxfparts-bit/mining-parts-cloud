@@ -195,6 +195,7 @@ async function main() {
   let exactCollisionCount = 0;
   let normalizedCollisionCount = 0;
   let slugCollisionCount = 0;
+  let collisionQueryErrorCount = 0;
   let batchSlugDuplicateCount = 0;
   try {
     existingCount = await prisma.partNumber.count();
@@ -212,21 +213,21 @@ async function main() {
       const ex = await prisma.partNumber.findUnique({ where: { number: p.partNumber }, select: { id: true } });
       p.collisionExact = ex ? "YES" : "NO";
       if (ex) exactCollisionCount++;
-    } catch { p.collisionExact = "QUERY_ERROR"; }
+    } catch { p.collisionExact = "QUERY_ERROR"; collisionQueryErrorCount++; }
     try {
       const nm = await prisma.partNumber.findFirst({ where: { normalizedPartNumber: p.normalizedPartNumber }, select: { id: true } });
       p.collisionNormalized = nm ? "YES" : "NO";
       if (nm) normalizedCollisionCount++;
-    } catch { p.collisionNormalized = "QUERY_ERROR"; }
+    } catch { p.collisionNormalized = "QUERY_ERROR"; collisionQueryErrorCount++; }
     try {
       const sl = await prisma.partNumber.findUnique({ where: { slug: p.slug }, select: { id: true } });
       p.slugCollision = sl ? "YES" : "NO";
       if (sl) slugCollisionCount++;
-    } catch { p.slugCollision = "QUERY_ERROR"; }
+    } catch { p.slugCollision = "QUERY_ERROR"; collisionQueryErrorCount++; }
     console.log(`  ${p.partNumber} | ${p.normalizedPartNumber} | ${p.slug} | cat=${p.category}(${p.categorySource}) | ${p.equipmentRelations} | ${p.verificationStatus}/${p.publishStatus} | verified=${p.verified} | modelEv=${p.modelEvidence} | conf=${p.confidence} | lastVer=${p.lastVerifiedAt} | exact=${p.collisionExact} norm=${p.collisionNormalized} slug=${p.slugCollision} | ${p.plannedAction}`);
   }
 
-  const preflightPass = exactCollisionCount === 0 && normalizedCollisionCount === 0 && slugCollisionCount === 0 && batchSlugDuplicateCount === 0 && selected.length === 10;
+  const preflightPass = exactCollisionCount === 0 && normalizedCollisionCount === 0 && slugCollisionCount === 0 && collisionQueryErrorCount === 0 && batchSlugDuplicateCount === 0 && selected.length === 10;
   console.log(`\n--- PRECHECK 汇总 ---`);
   console.log(`INPUT_RAW = ${pnRows.length}`);
   console.log(`MASTER_GROUPS = ${byNorm.size}`);
@@ -239,6 +240,7 @@ async function main() {
   console.log(`NORMALIZED_COLLISION_COUNT = ${normalizedCollisionCount}`);
   console.log(`SLUG_COLLISION_COUNT = ${slugCollisionCount}`);
   console.log(`BATCH_SLUG_DUPLICATE_COUNT = ${batchSlugDuplicateCount}`);
+  console.log(`COLLISION_QUERY_ERROR_COUNT = ${collisionQueryErrorCount}`)
   console.log(`DATABASE_WRITES = 0`);
   console.log(`PREFLIGHT_STATUS = ${preflightPass ? "PASS" : "BLOCKED"}`);
 
@@ -248,6 +250,7 @@ async function main() {
     return;
   }
 
+  if (!preflightPass) { console.error("[APPLY] PREFLIGHT_STATUS=BLOCKED，禁止进入 transaction"); await prisma.$disconnect(); process.exit(1); }
   // ===== APPLY：正式写库（PrismaClient 已在上方创建）=====
   // 前置：Sandvik Brand 精确 lookup（slug 优先 + nameEn 验证，不硬编码 id）
   const bySlug = await prisma.brand.findUnique({ where: { slug: "sandvik" }, select: { id: true, name: true, nameEn: true, status: true } });
