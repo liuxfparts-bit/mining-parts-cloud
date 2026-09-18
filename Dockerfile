@@ -21,4 +21,4 @@ COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/data ./data
 COPY --from=builder /app/next.config.js ./
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma db push --skip-generate && npm run start"]
+CMD ["npm", "run", "start"]
