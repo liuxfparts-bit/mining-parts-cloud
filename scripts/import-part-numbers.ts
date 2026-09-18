@@ -178,11 +178,12 @@ async function main() {
       lastVerifiedAt: r.last_verified_date || "NULL",
       collisionExact: "未查",
       collisionNormalized: "未查",
+      slugCollision: "未查",
       plannedAction: apply ? "WOULD_CREATE" : "PREVIEW",
     };
   });
   writeCsv(path.join(LOG_DIR, "stage32-import-preview.csv"),
-    ["partNumber", "normalizedPartNumber", "slug", "description", "category", "categorySource", "brand", "equipmentRelations", "verificationStatus", "publishStatus", "verified", "modelEvidence", "confidence", "lastVerifiedAt", "collisionExact", "collisionNormalized", "plannedAction"],
+    ["partNumber", "normalizedPartNumber", "slug", "description", "category", "categorySource", "brand", "equipmentRelations", "verificationStatus", "publishStatus", "verified", "modelEvidence", "confidence", "lastVerifiedAt", "collisionExact", "collisionNormalized", "slugCollision", "plannedAction"],
     preview);
   console.log(`\n--- 选中 ${selected.length} 个 PN（预览+preflight）---`);
 
@@ -193,11 +194,18 @@ async function main() {
   let existingCount = 0;
   let exactCollisionCount = 0;
   let normalizedCollisionCount = 0;
+  let slugCollisionCount = 0;
+  let batchSlugDuplicateCount = 0;
   try {
     existingCount = await prisma.partNumber.count();
   } catch (e: any) {
     console.log(`[警告] 无法查询 existing PartNumber count: ${(e && e.message || "").split("\n")[0]}`);
   }
+
+  // BATCH_SLUG_DUPLICATE：selected 内部是否产生重复 slug
+  const slugSeen = new Set<string>();
+  for (const bp of preview) { if (slugSeen.has(bp.slug)) { batchSlugDuplicateCount++; } else { slugSeen.add(bp.slug); } }
+  if (batchSlugDuplicateCount > 0) { console.log(`  [BLOCKED] BATCH_SLUG_DUPLICATE_COUNT=${batchSlugDuplicateCount}，selected 内部 slug 重复`); }
 
   for (const p of preview) {
     try {
@@ -210,10 +218,15 @@ async function main() {
       p.collisionNormalized = nm ? "YES" : "NO";
       if (nm) normalizedCollisionCount++;
     } catch { p.collisionNormalized = "QUERY_ERROR"; }
-    console.log(`  ${p.partNumber} | ${p.normalizedPartNumber} | ${p.slug} | cat=${p.category}(${p.categorySource}) | ${p.equipmentRelations} | ${p.verificationStatus}/${p.publishStatus} | verified=${p.verified} | modelEv=${p.modelEvidence} | conf=${p.confidence} | lastVer=${p.lastVerifiedAt} | exact=${p.collisionExact} norm=${p.collisionNormalized} | ${p.plannedAction}`);
+    try {
+      const sl = await prisma.partNumber.findUnique({ where: { slug: p.slug }, select: { id: true } });
+      p.slugCollision = sl ? "YES" : "NO";
+      if (sl) slugCollisionCount++;
+    } catch { p.slugCollision = "QUERY_ERROR"; }
+    console.log(`  ${p.partNumber} | ${p.normalizedPartNumber} | ${p.slug} | cat=${p.category}(${p.categorySource}) | ${p.equipmentRelations} | ${p.verificationStatus}/${p.publishStatus} | verified=${p.verified} | modelEv=${p.modelEvidence} | conf=${p.confidence} | lastVer=${p.lastVerifiedAt} | exact=${p.collisionExact} norm=${p.collisionNormalized} slug=${p.slugCollision} | ${p.plannedAction}`);
   }
 
-  const preflightPass = exactCollisionCount === 0 && normalizedCollisionCount === 0 && selected.length === 10;
+  const preflightPass = exactCollisionCount === 0 && normalizedCollisionCount === 0 && slugCollisionCount === 0 && batchSlugDuplicateCount === 0 && selected.length === 10;
   console.log(`\n--- PRECHECK 汇总 ---`);
   console.log(`INPUT_RAW = ${pnRows.length}`);
   console.log(`MASTER_GROUPS = ${byNorm.size}`);
@@ -224,6 +237,8 @@ async function main() {
   console.log(`EXISTING_PART_NUMBER_COUNT = ${existingCount}`);
   console.log(`EXACT_COLLISION_COUNT = ${exactCollisionCount}`);
   console.log(`NORMALIZED_COLLISION_COUNT = ${normalizedCollisionCount}`);
+  console.log(`SLUG_COLLISION_COUNT = ${slugCollisionCount}`);
+  console.log(`BATCH_SLUG_DUPLICATE_COUNT = ${batchSlugDuplicateCount}`);
   console.log(`DATABASE_WRITES = 0`);
   console.log(`PREFLIGHT_STATUS = ${preflightPass ? "PASS" : "BLOCKED"}`);
 
@@ -245,6 +260,9 @@ async function main() {
   const ed10 = await prisma.equipment.findFirst({ where: { model: "ED10" }, select: { id: true } });
   const ls190 = await prisma.equipment.findFirst({ where: { model: "LS190" }, select: { id: true } });
   if (!ls190) throw new Error("LS190 不存在（应 REUSE）");
+  const sandvikBrandId = bySlug.id;
+  const ed10Id = ed10?.id ?? null;
+  const ls190Id = ls190.id;
   console.log(`\n[APPLY] Sandvik brandId=${bySlug.id}  ED10=${ed10 ? `id=${ed10.id}` : "不存在（跳过 ED10 关系）"}  LS190=id=${ls190.id}`);
 
   // relations 索引：pn_id → [{model}]
@@ -271,8 +289,9 @@ async function main() {
         // preflight 已确认 0 collision；transaction 内若出现 collision 视为异常 → STOP+ROLLBACK 整批
         const existingExact = await tx.partNumber.findUnique({ where: { number }, select: { id: true } });
         const existingNorm = await tx.partNumber.findFirst({ where: { normalizedPartNumber: n }, select: { id: true } });
-        if (existingExact || existingNorm) {
-          throw new Error(`UNEXPECTED_COLLISION at PN=${number} normalized=${n} existing id=${existingExact?.id || existingNorm?.id} → STOP+ROLLBACK whole batch`);
+        const existingSlug = await tx.partNumber.findUnique({ where: { slug }, select: { id: true } });
+        if (existingExact || existingNorm || existingSlug) {
+          throw new Error(`TRANSACTION_COLLISION at PN=${number} slug=${slug} normalized=${n} existing id=${existingExact?.id || existingNorm?.id || existingSlug?.id} → STOP+ROLLBACK whole batch`);
         }
 
         // 写 PartNumber（证据语义：CSV 有值才传；缺失不传字段让 schema default 生效，禁止 importer 自行提升证据等级）
@@ -281,7 +300,7 @@ async function main() {
           name: r.description || number,
           category: r.category || "",
           nameEn: r.original_description_en || r.description || "",
-          brandId: bySlug.id,
+          brandId: sandvikBrandId,
           verified: true,
           verificationStatus: "VERIFIED",
           publishStatus: "READY",
@@ -301,8 +320,8 @@ async function main() {
         let relCount = 0;
         for (const m of models) {
           let eqId: number | null = null;
-          if (m === "ED10" && ed10) eqId = ed10.id;
-          else if (m === "LS190" && ls190) eqId = ls190.id;
+          if (m === "ED10" && ed10Id) eqId = ed10Id;
+          else if (m === "LS190") eqId = ls190Id;
           if (!eqId) continue;
           await tx.partNumberEquipment.create({
             data: {
