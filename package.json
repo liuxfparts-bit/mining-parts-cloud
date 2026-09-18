@@ -12,7 +12,8 @@
     "db:studio": "prisma studio",
     "import:part-numbers": "tsx scripts/import-part-numbers.ts",
     "backfill:normalized": "tsx scripts/backfill-normalized-part-numbers.ts",
-    "audit:stage25": "tsx scripts/audit-stage25.ts"
+    "audit:stage25": "tsx scripts/audit-stage25.ts",
+    "audit:stage26": "tsx scripts/audit-stage26.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
