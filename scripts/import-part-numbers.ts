@@ -1,12 +1,13 @@
 /**
  * ============================================================
- * V3.1 Stage 3.2 PN 导入器
- *   npm run import:part-numbers -- --dry-run              只读预览
- *   npm run import:part-numbers -- --dry-run --limit=10   预览前 10 个 SINGLE
- *   npm run import:part-numbers -- --apply  --limit=10    正式导入 10 个 SINGLE（transaction）
+ * V3.1 Stage 3.2C PN 导入器
+ *   npm run import:part-numbers -- --dry-run              只读预览+真实preflight
+ *   npm run import:part-numbers -- --dry-run --limit=10  预览前10个SINGLE（连库查碰撞）
+ *   npm run import:part-numbers -- --apply  --limit=10   正式导入10个SINGLE（transaction）
  *
  * 规则：
  *   - 默认 dry-run；只有 --apply 才写库
+ *   - dry-run 也连库做只读 preflight（count + exact/normalized collision）
  *   - 只导入 SINGLE_READY（1546），25 组 FORMAT_ALIAS_REVIEW 全部 HOLD
  *   - --limit 从 SINGLE 中按 partNumber 升序确定性选取前 N（dry-run/apply 选同一批）
  *   - 实时碰撞检查：EXACT/NORMALIZED 命中 existing → SKIP+LOG，不覆盖
@@ -153,30 +154,71 @@ async function main() {
       publishStatus: "READY",
       confidence: r.confidence || "HIGH",
       modelEvidence: r.model_evidence || "EXPLICIT",
-      collisionExact: "DRY-RUN未查库",
-      collisionNormalized: "DRY-RUN未查库",
+      collisionExact: "未查",
+      collisionNormalized: "未查",
       action: apply ? "WOULD_CREATE" : "PREVIEW",
     };
   });
   writeCsv(path.join(LOG_DIR, "stage32-import-preview.csv"),
     ["partNumber", "normalizedPartNumber", "slug", "description", "brand", "equipmentRelations", "verificationStatus", "publishStatus", "confidence", "modelEvidence", "collisionExact", "collisionNormalized", "action"],
     preview);
-  console.log(`\n--- 选中 ${selected.length} 个 PN（预览）---`);
-  for (const p of preview) console.log(`  ${p.partNumber}  →  ${p.slug}  (${p.brand}, ${p.equipmentRelations}, ${p.verificationStatus}/${p.publishStatus})`);
+  console.log(`\n--- 选中 ${selected.length} 个 PN（预览+preflight）---`);
+
+  // ===== Stage 3.2C: dry-run 也连库做真实 preflight collision（只读）=====
+  const { PrismaClient } = await import("@prisma/client");
+  const prisma = new PrismaClient();
+
+  let existingCount = 0;
+  let exactCollisionCount = 0;
+  let normalizedCollisionCount = 0;
+  try {
+    existingCount = await prisma.partNumber.count();
+  } catch (e: any) {
+    console.log(`[警告] 无法查询 existing PartNumber count: ${(e && e.message || "").split("\n")[0]}`);
+  }
+
+  for (const p of preview) {
+    try {
+      const ex = await prisma.partNumber.findUnique({ where: { number: p.partNumber }, select: { id: true } });
+      p.collisionExact = ex ? "YES" : "NO";
+      if (ex) exactCollisionCount++;
+    } catch { p.collisionExact = "QUERY_ERROR"; }
+    try {
+      const nm = await prisma.partNumber.findFirst({ where: { normalizedPartNumber: p.normalizedPartNumber }, select: { id: true } });
+      p.collisionNormalized = nm ? "YES" : "NO";
+      if (nm) normalizedCollisionCount++;
+    } catch { p.collisionNormalized = "QUERY_ERROR"; }
+    console.log(`  ${p.partNumber}  →  ${p.slug}  (${p.brand}, ${p.equipmentRelations}, ${p.verificationStatus}/${p.publishStatus})  exact=${p.collisionExact} normalized=${p.collisionNormalized}`);
+  }
+
+  const preflightPass = exactCollisionCount === 0 && normalizedCollisionCount === 0 && selected.length === 10;
+  console.log(`\n--- PRECHECK 汇总 ---`);
+  console.log(`INPUT_RAW = ${pnRows.length}`);
+  console.log(`MASTER_GROUPS = ${byNorm.size}`);
+  console.log(`SINGLE_READY = ${singleRows.length}`);
+  console.log(`ALIAS_HOLD = ${aliasNormSet.size}`);
+  console.log(`ALIAS_INTERSECTION_ASSERTION = PASS`);
+  console.log(`SELECTED_FOR_IMPORT = ${selected.length}`);
+  console.log(`EXISTING_PART_NUMBER_COUNT = ${existingCount}`);
+  console.log(`EXACT_COLLISION_COUNT = ${exactCollisionCount}`);
+  console.log(`NORMALIZED_COLLISION_COUNT = ${normalizedCollisionCount}`);
+  console.log(`DATABASE_WRITES = 0`);
+  console.log(`PREFLIGHT_STATUS = ${preflightPass ? "PASS" : "BLOCKED"}`);
 
   if (!apply) {
+    await prisma.$disconnect();
     console.log(`\n=== DRY-RUN 完成，未写库 ===\n`);
     return;
   }
 
-  // ===== APPLY：正式写库 =====
-  const { PrismaClient } = await import("@prisma/client");
-  const prisma = new PrismaClient();
-
+  // ===== APPLY：正式写库（PrismaClient 已在上方创建）=====
   // 前置：Sandvik Brand 精确 lookup（slug 优先 + nameEn 验证，不硬编码 id）
   const bySlug = await prisma.brand.findUnique({ where: { slug: "sandvik" }, select: { id: true, name: true, nameEn: true, status: true } });
-  if (!bySlug || bySlug.nameEn !== "Sandvik" || bySlug.status !== "ACTIVE") {
-    throw new Error("Sandvik Brand lookup 失败（slug=sandvik 未找到或 nameEn/status 不匹配），先跑 setup:equipment --apply");
+  if (!bySlug) {
+    throw new Error("Sandvik Brand lookup 失败（slug=sandvik 未找到），先跑 setup:equipment --apply");
+  }
+  if (bySlug.nameEn !== "Sandvik" || bySlug.status !== "ACTIVE") {
+    throw new Error("Sandvik Brand lookup 失败（nameEn/status 不匹配），先跑 setup:equipment --apply");
   }
   const ed10 = await prisma.equipment.findFirst({ where: { model: "ED10" }, select: { id: true } });
   const ls190 = await prisma.equipment.findFirst({ where: { model: "LS190" }, select: { id: true } });
@@ -284,3 +326,4 @@ async function main() {
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
+export {};
