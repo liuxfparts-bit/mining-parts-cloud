@@ -323,7 +323,7 @@ async function main() {
   let resumePendingImportCount = 0;
   if (resume) {
     const resumeResult = await runResumeClassification(prisma, singleRows, relByPnDry, aliasNormSet, limit, apply);
-    const resumePendingImportCount = resumeResult.pendingImportCount;
+    resumePendingImportCount = resumeResult.pendingImportCount;
     selected.length = 0;
     selected.push(...resumeResult.pendingSelected);
     preview = resumeResult.preview;
