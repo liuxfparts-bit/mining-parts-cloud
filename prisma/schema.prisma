@@ -58,6 +58,8 @@ model Equipment {
   status        String    @default("ACTIVE") // ACTIVE / INACTIVE
   partNumbers   PartNumber[]
   rfqs          RFQ[]
+  // V3.1 多对多：PN ↔ 设备型号 正式关系
+  partNumberRelations PartNumberEquipment[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -100,7 +102,7 @@ model PartNumber {
   material      String?   // 材质
   drawing       String?   // 图纸 URL
   images        String?   // JSON 数组字符串
-  verified      Boolean   @default(false) // 已验证
+  verified      Boolean   @default(false) // 兼容字段：由 verificationStatus+publishStatus 派生（VERIFIED+READY => true），V3.1 起不作唯一质量判断依据
   supplierCount Int       @default(0)  // 供应商数（缓存）
   inquiryCount  Int       @default(0)  // 询价数（缓存）
   viewCount     Int       @default(0)  // 浏览数
@@ -108,17 +110,47 @@ model PartNumber {
   seoDescription String?
   brandId       Int?
   brand         Brand?    @relation(fields: [brandId], references: [id])
+  // V3.1 兼容保留：单设备关系（旧页面仍使用）。正式多设备关系见 equipmentRelations / PartNumberEquipment
   equipmentId   Int?
   equipment     Equipment? @relation(fields: [equipmentId], references: [id])
   products      Product[]
   rfqs          RFQ[]
   rfqItems      RFQItem[]
   favorites     Favorite[]
+
+  // ===== V3.1 数据治理字段（正式验证体系） =====
+  // normalizedPartNumber：归一化件号。Stage 1 为 nullable；回填并确认无冲突后再建 unique index。新导入数据必须填写。
+  normalizedPartNumber String?
+  // verificationStatus：数据验证状态【唯一真相源】（CANDIDATE/UNVERIFIED/VERIFIED/CONFLICT/REJECTED）
+  verificationStatus  PartNumberVerificationStatus @default(UNVERIFIED)
+  // modelEvidence：型号证据级别（EXPLICIT 明确 / INFERRED 推断 / NOT_EXPLICIT 无明确）
+  modelEvidence       ModelEvidenceStatus @default(NOT_EXPLICIT)
+  // confidence：数据置信度（HIGH/MEDIUM/LOW）
+  confidence          DataConfidence @default(MEDIUM)
+  // publishStatus：发布状态（READY 公开展示 / HOLD 暂缓 / HIDDEN 隐藏）
+  publishStatus       PartNumberPublishStatus @default(HOLD)
+  // evidenceSummary：证据摘要（来源文件、核对说明等）
+  evidenceSummary     String? @db.Text
+  // sourceFiles：来源文件列表（JSON 数组字符串）
+  sourceFiles         String? @db.Text
+  // originalDescriptionEn / Cn：原始描述（保留导入原始值，不随标准化覆盖）
+  originalDescriptionEn String?
+  originalDescriptionCn String?
+  // lastVerifiedAt / verifiedById：最近验证时间与验证人（User.id）
+  lastVerifiedAt      DateTime?
+  verifiedById        Int?
+  // 多对多设备关系（正式）与验证审计
+  equipmentRelations  PartNumberEquipment[]
+  auditLogs           PartNumberAuditLog[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([number])
   @@index([categoryId])
+  @@index([normalizedPartNumber])
+  @@index([verificationStatus, publishStatus])
+  @@index([brandId])
+  @@index([equipmentId])
 }
 
 // ========== 产品（供应商实际供应的产品） ==========
@@ -526,4 +558,76 @@ model Banner {
   clicks      Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ========== V3.1 Part Number 验证体系 ==========
+
+// Part Number 数据验证状态（唯一真相源）
+enum PartNumberVerificationStatus {
+  CANDIDATE  // 候选件号（仅存在线索，未确认）
+  UNVERIFIED // 未验证
+  VERIFIED   // 已验证（数据库内证据已验证）
+  CONFLICT   // 数据冲突（同归一化件号多条冲突 / 型号关系矛盾）
+  REJECTED   // 已驳回（确认无效）
+}
+
+// 型号证据级别：PN ↔ 设备型号关系的证据强度
+enum ModelEvidenceStatus {
+  EXPLICIT     // 明确证据（原厂资料/手册/官方适配表明确对应）
+  INFERRED     // 推断（相似件号、命名规则等推断对应）
+  NOT_EXPLICIT // 无明确证据
+}
+
+// 数据置信度
+enum DataConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+// Part Number 发布状态
+enum PartNumberPublishStatus {
+  READY  // 已就绪，可公开展示（配合 VERIFIED）
+  HOLD   // 暂缓发布（默认）
+  HIDDEN // 隐藏（不公开展示）
+}
+
+// ========== PN ↔ 设备型号 多对多关系（正式） ==========
+// 一个 PartNumber 可关联多个 Equipment（设备型号）；一个 Equipment 可被多个 PartNumber 关联。
+// 与 PartNumber.equipmentId（单设备兼容字段）并存：V3.1 保留 equipmentId，PartNumberEquipment 为正式多设备关系。
+model PartNumberEquipment {
+  id                 Int      @id @default(autoincrement())
+  partNumberId       Int
+  partNumber         PartNumber @relation(fields: [partNumberId], references: [id], onDelete: Cascade)
+  equipmentModelId   Int
+  equipmentModel     Equipment @relation(fields: [equipmentModelId], references: [id], onDelete: Cascade)
+  // 该关系本身的证据级别与验证状态（独立于 PN 全局状态）
+  evidenceStatus     ModelEvidenceStatus @default(NOT_EXPLICIT)
+  verificationStatus PartNumberVerificationStatus @default(UNVERIFIED)
+  evidenceSummary    String? @db.Text  // 该关系的证据摘要
+  sourceReference    String? @db.Text  // 来源引用（文件/页面/说明）
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([partNumberId, equipmentModelId]) // 防重复关系
+  @@index([equipmentModelId])
+  @@index([verificationStatus])
+}
+
+// ========== Part Number 验证操作审计日志 ==========
+model PartNumberAuditLog {
+  id                Int      @id @default(autoincrement())
+  partNumberId      Int
+  partNumber        PartNumber @relation(fields: [partNumberId], references: [id], onDelete: Cascade)
+  action            String   // VERIFY / REVERT_TO_UNVERIFIED / MARK_CONFLICT / REJECT / HOLD / PUBLISH ...
+  oldVerification   String?  // 旧 verificationStatus
+  newVerification   String?  // 新 verificationStatus
+  oldPublishStatus  String?  // 旧 publishStatus
+  newPublishStatus  String?  // 新 publishStatus
+  reason            String?  @db.Text // 必填原因/证据说明（管理员操作时强制）
+  changedById       Int?     // 操作人 User.id
+  createdAt         DateTime @default(now())
+
+  @@index([partNumberId])
+  @@index([createdAt])
 }
