@@ -79,6 +79,7 @@ async function main() {
   console.log(`TARGET_STATUS_VALID = ${statusValid ? "PASS" : "FAIL"}`);
 
   const allPass = found === 10 && missing === 0 && relationsValid && auditValid && statusValid;
+  console.log(`ROLLBACK_RESIDUE = ${found === 0 ? "NONE" : "CHECK_ABOVE (target PN found in DB)"}`);
   console.log(`STAGE32_10_IMPORT_VERIFY = ${allPass ? "PASS" : "FAIL"}`);
 
   await prisma.$disconnect();

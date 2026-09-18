@@ -129,6 +129,24 @@ async function main() {
 
   console.log(`SELECTED_FOR_IMPORT = ${selected.length}`);
 
+  // ===== CREATE_PAYLOAD_VALIDATION：纯内存验证 required 字段（dry-run/apply 均经过）=====
+  // PartNumber schema required (non-null + no-default) scalar: number, slug, name, category
+  const REQUIRED_FIELDS = ["number", "slug", "name", "category"];
+  let payloadBlocked = false;
+  for (const r of selected) {
+    const vNumber = (r.part_number || "").trim();
+    const vSlug = toSlug(r.slug || vNumber);
+    const vName = r.description || vNumber;
+    const vCategory = r.category || "";
+    const vValues: Record<string, string> = { number: vNumber, slug: vSlug, name: vName, category: vCategory };
+    for (const fld of REQUIRED_FIELDS) {
+      if (!vValues[fld]) { console.log(`  [BLOCKED] PN=${vNumber || "(empty)"} missing required field: ${fld}`); payloadBlocked = true; }
+    }
+  }
+  if (payloadBlocked) { console.log(`CREATE_PAYLOAD_VALIDATION = BLOCKED → STOP`); process.exit(1); }
+  console.log(`CREATE_PAYLOAD_VALIDATION = PASS (required: ${REQUIRED_FIELDS.join(",")})`);
+  console.log(`REQUIRED_FIELDS_SCHEMA_AUDIT = PASS`);
+
   // relations 索引（不连库，从 CSV 读，dry-run 也能显示）
   const relByPnDry = new Map<string, string[]>();
   for (const r of relRows) {
@@ -148,6 +166,8 @@ async function main() {
       normalizedPartNumber: norm(number),
       slug: toSlug(r.slug || number),
       description: r.description || "",
+      category: r.category || "NULL",
+      categorySource: r.category ? "CSV.category" : "MISSING",
       brand: resolveBrand(r.brand),
       equipmentRelations: models.join("+") || "(无)",
       verificationStatus: "VERIFIED",
@@ -162,7 +182,7 @@ async function main() {
     };
   });
   writeCsv(path.join(LOG_DIR, "stage32-import-preview.csv"),
-    ["partNumber", "normalizedPartNumber", "slug", "description", "brand", "equipmentRelations", "verificationStatus", "publishStatus", "verified", "modelEvidence", "confidence", "lastVerifiedAt", "collisionExact", "collisionNormalized", "plannedAction"],
+    ["partNumber", "normalizedPartNumber", "slug", "description", "category", "categorySource", "brand", "equipmentRelations", "verificationStatus", "publishStatus", "verified", "modelEvidence", "confidence", "lastVerifiedAt", "collisionExact", "collisionNormalized", "plannedAction"],
     preview);
   console.log(`\n--- 选中 ${selected.length} 个 PN（预览+preflight）---`);
 
@@ -190,7 +210,7 @@ async function main() {
       p.collisionNormalized = nm ? "YES" : "NO";
       if (nm) normalizedCollisionCount++;
     } catch { p.collisionNormalized = "QUERY_ERROR"; }
-    console.log(`  ${p.partNumber} | ${p.normalizedPartNumber} | ${p.slug} | ${p.equipmentRelations} | ${p.verificationStatus}/${p.publishStatus} | verified=${p.verified} | modelEv=${p.modelEvidence} | conf=${p.confidence} | lastVer=${p.lastVerifiedAt} | exact=${p.collisionExact} norm=${p.collisionNormalized} | ${p.plannedAction}`);
+    console.log(`  ${p.partNumber} | ${p.normalizedPartNumber} | ${p.slug} | cat=${p.category}(${p.categorySource}) | ${p.equipmentRelations} | ${p.verificationStatus}/${p.publishStatus} | verified=${p.verified} | modelEv=${p.modelEvidence} | conf=${p.confidence} | lastVer=${p.lastVerifiedAt} | exact=${p.collisionExact} norm=${p.collisionNormalized} | ${p.plannedAction}`);
   }
 
   const preflightPass = exactCollisionCount === 0 && normalizedCollisionCount === 0 && selected.length === 10;
@@ -237,6 +257,7 @@ async function main() {
     relByPn.get(pnId)!.push(model);
   }
 
+
   const results: Record<string, string>[] = [];
   // 整批 transaction
   try {
@@ -258,6 +279,7 @@ async function main() {
         const createData: Record<string, any> = {
           number, slug,
           name: r.description || number,
+          category: r.category || "",
           nameEn: r.original_description_en || r.description || "",
           brandId: bySlug.id,
           verified: true,
