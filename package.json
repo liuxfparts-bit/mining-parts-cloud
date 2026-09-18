@@ -14,7 +14,8 @@
     "backfill:normalized": "tsx scripts/backfill-normalized-part-numbers.ts",
     "audit:stage25": "tsx scripts/audit-stage25.ts",
     "audit:stage26": "tsx scripts/audit-stage26.ts",
-    "audit:stage30": "tsx scripts/audit-stage30.ts"
+    "audit:stage30": "tsx scripts/audit-stage30.ts",
+    "setup:equipment": "tsx scripts/setup-equipment.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
