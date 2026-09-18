@@ -36,8 +36,7 @@ async function main() {
       where: { number: pn },
       select: {
         id: true, number: true, normalizedPartNumber: true, slug: true,
-        name: true, verificationStatus: true, publishStatus: true, verified: true,
-        confidence: true, modelEvidence: true,
+        name: true, verificationStatus: true, publishStatus: true, verified: true, modelEvidence: true, confidence: true, lastVerifiedAt: true,
         brand: { select: { id: true, name: true, nameEn: true } },
         equipmentRelations: { select: { id: true, equipmentModel: { select: { id: true, model: true } }, verificationStatus: true, evidenceStatus: true } },
         auditLogs: { select: { id: true, action: true, reason: true, newVerification: true, newPublishStatus: true } },
@@ -52,7 +51,7 @@ async function main() {
     const relModels = rec.equipmentRelations.map((r) => r.equipmentModel.model).join(",");
     const auditActions = rec.auditLogs.map((a) => a.action).join(",");
     console.log(`  [FOUND] ${pn}  id=${rec.id}  slug=${rec.slug}  norm=${rec.normalizedPartNumber}`);
-    console.log(`          brand=${rec.brand?.nameEn}(${rec.brand?.id})  status=${rec.verificationStatus}/${rec.publishStatus}  verified=${rec.verified}  conf=${rec.confidence}  evidence=${rec.modelEvidence}`);
+    console.log(`          brand=${rec.brand?.nameEn}(${rec.brand?.id})  status=${rec.verificationStatus}/${rec.publishStatus}  verified=${rec.verified}  modelEv=${rec.modelEvidence}  conf=${rec.confidence}  lastVer=${rec.lastVerifiedAt}`);
     console.log(`          relations=[${relModels}]  audit=[${auditActions}]`);
 
     // 状态校验

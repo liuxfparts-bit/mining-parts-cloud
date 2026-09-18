@@ -152,15 +152,17 @@ async function main() {
       equipmentRelations: models.join("+") || "(无)",
       verificationStatus: "VERIFIED",
       publishStatus: "READY",
-      confidence: r.confidence || "HIGH",
-      modelEvidence: r.model_evidence || "EXPLICIT",
+      verified: "true",
+      modelEvidence: r.model_evidence || "NULL",
+      confidence: r.confidence || "NULL",
+      lastVerifiedAt: r.last_verified_date || "NULL",
       collisionExact: "未查",
       collisionNormalized: "未查",
-      action: apply ? "WOULD_CREATE" : "PREVIEW",
+      plannedAction: apply ? "WOULD_CREATE" : "PREVIEW",
     };
   });
   writeCsv(path.join(LOG_DIR, "stage32-import-preview.csv"),
-    ["partNumber", "normalizedPartNumber", "slug", "description", "brand", "equipmentRelations", "verificationStatus", "publishStatus", "confidence", "modelEvidence", "collisionExact", "collisionNormalized", "action"],
+    ["partNumber", "normalizedPartNumber", "slug", "description", "brand", "equipmentRelations", "verificationStatus", "publishStatus", "verified", "modelEvidence", "confidence", "lastVerifiedAt", "collisionExact", "collisionNormalized", "plannedAction"],
     preview);
   console.log(`\n--- 选中 ${selected.length} 个 PN（预览+preflight）---`);
 
@@ -188,7 +190,7 @@ async function main() {
       p.collisionNormalized = nm ? "YES" : "NO";
       if (nm) normalizedCollisionCount++;
     } catch { p.collisionNormalized = "QUERY_ERROR"; }
-    console.log(`  ${p.partNumber}  →  ${p.slug}  (${p.brand}, ${p.equipmentRelations}, ${p.verificationStatus}/${p.publishStatus})  exact=${p.collisionExact} normalized=${p.collisionNormalized}`);
+    console.log(`  ${p.partNumber} | ${p.normalizedPartNumber} | ${p.slug} | ${p.equipmentRelations} | ${p.verificationStatus}/${p.publishStatus} | verified=${p.verified} | modelEv=${p.modelEvidence} | conf=${p.confidence} | lastVer=${p.lastVerifiedAt} | exact=${p.collisionExact} norm=${p.collisionNormalized} | ${p.plannedAction}`);
   }
 
   const preflightPass = exactCollisionCount === 0 && normalizedCollisionCount === 0 && selected.length === 10;
@@ -252,28 +254,25 @@ async function main() {
           throw new Error(`UNEXPECTED_COLLISION at PN=${number} normalized=${n} existing id=${existingExact?.id || existingNorm?.id} → STOP+ROLLBACK whole batch`);
         }
 
-        // 写 PartNumber
-        const created = await tx.partNumber.create({
-          data: {
-            number,
-            slug,
-            name: r.description || number,
-            nameEn: r.original_description_en || r.description || "",
-            brandId: bySlug.id,
-            verified: true,
-            verificationStatus: "VERIFIED",
-            modelEvidence: (r.model_evidence as any) || "EXPLICIT",
-            confidence: (r.confidence as any) || "HIGH",
-            publishStatus: "READY",
-            evidenceSummary: r.evidence_summary || "Imported from KuangPeiYun verified PN dataset V3.0",
-            sourceFiles: r.source_files || "",
-            originalDescriptionEn: r.original_description_en || "",
-            originalDescriptionCn: r.original_description_cn || "",
-            normalizedPartNumber: n,
-            lastVerifiedAt: r.last_verified_date ? new Date(r.last_verified_date) : new Date(),
-          } as any,
-          select: { id: true },
-        });
+        // 写 PartNumber（证据语义：CSV 有值才传；缺失不传字段让 schema default 生效，禁止 importer 自行提升证据等级）
+        const createData: Record<string, any> = {
+          number, slug,
+          name: r.description || number,
+          nameEn: r.original_description_en || r.description || "",
+          brandId: bySlug.id,
+          verified: true,
+          verificationStatus: "VERIFIED",
+          publishStatus: "READY",
+          evidenceSummary: r.evidence_summary || "Imported from KuangPeiYun verified PN dataset V3.0",
+          sourceFiles: r.source_files || "",
+          originalDescriptionEn: r.original_description_en || "",
+          originalDescriptionCn: r.original_description_cn || "",
+          normalizedPartNumber: n,
+        };
+        if (r.model_evidence) createData.modelEvidence = r.model_evidence as any;
+        if (r.confidence) createData.confidence = r.confidence as any;
+        if (r.last_verified_date) createData.lastVerifiedAt = new Date(r.last_verified_date);
+        const created = await tx.partNumber.create({ data: createData as any, select: { id: true } });
 
         // PartNumberEquipment 多对多关系
         const models = relByPn.get(r.pn_id) || [];
