@@ -244,12 +244,12 @@ async function main() {
         const n = norm(number);
         const slug = toSlug(r.slug || number);
 
-        // 实时碰撞检查
+        // 实时碰撞检查（transaction-time recheck）
+        // preflight 已确认 0 collision；transaction 内若出现 collision 视为异常 → STOP+ROLLBACK 整批
         const existingExact = await tx.partNumber.findUnique({ where: { number }, select: { id: true } });
         const existingNorm = await tx.partNumber.findFirst({ where: { normalizedPartNumber: n }, select: { id: true } });
         if (existingExact || existingNorm) {
-          results.push({ partNumber: number, normalizedPartNumber: n, action: "SKIP", partNumberId: "", equipmentRelationsCreated: "0", status: "SKIP_COLLISION", reason: `existing id=${existingExact?.id || existingNorm?.id}` });
-          continue;
+          throw new Error(`UNEXPECTED_COLLISION at PN=${number} normalized=${n} existing id=${existingExact?.id || existingNorm?.id} → STOP+ROLLBACK whole batch`);
         }
 
         // 写 PartNumber

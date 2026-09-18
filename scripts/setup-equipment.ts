@@ -77,6 +77,23 @@ async function main() {
         select: { id: true, model: true, name: true },
       });
       console.log(`ED10 已创建: id=${created.id}  model=${created.model}  name="${created.name}"`);
+      // 反查验证
+      const verify = await prisma.equipment.findFirst({
+        where: { model: "ED10" },
+        select: { id: true, model: true, name: true, brandId: true, equipmentType: true, brand: { select: { id: true, name: true, nameEn: true } } },
+      });
+      if (!verify || verify.brandId !== bySlug.id) {
+        console.log(`STOP: ED10 反查验证失败`);
+        await prisma.$disconnect(); process.exit(1);
+      }
+      console.log(`ED10_STATUS = CREATED`);
+      console.log(`ED10_EQUIPMENT_ID = ${verify.id}`);
+      console.log(`ED10_MODEL = ${verify.model}`);
+      console.log(`ED10_BRAND_ID = ${verify.brandId}`);
+      console.log(`ED10_BRAND_NAME = ${verify.brand?.name}`);
+      console.log(`ED10_BRAND_NAME_EN = ${verify.brand?.nameEn}`);
+      console.log(`ED10_EQUIPMENT_TYPE = ${verify.equipmentType}`);
+      console.log(`EQUIPMENT_SETUP_STATUS = PASS`);
     }
   }
 
