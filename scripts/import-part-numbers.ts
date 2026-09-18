@@ -91,7 +91,7 @@ async function runResumeClassification(
   aliasNormSet: Set<string>,
   limit: number,
   apply: boolean
-): Promise<{ pendingSelected: Record<string, string>[]; preview: Record<string, string>[] }> {
+): Promise<{ pendingSelected: Record<string, string>[]; preview: Record<string, string>[]; pendingImportCount: number }> {
   console.log("\n=== RESUME CLASSIFICATION（Stage 3.3A）===\n");
 
   let alreadyImportedCount = 0;
@@ -210,7 +210,7 @@ async function runResumeClassification(
   writeCsv(path.join(LOG_DIR, "stage33-pending-preview.csv"),
     ["partNumber", "normalizedPartNumber", "slug", "description", "category", "categorySource", "brand", "equipmentRelations", "verificationStatus", "publishStatus", "verified", "modelEvidence", "confidence", "lastVerifiedAt", "resumeStatus", "collisionExact", "collisionNormalized", "slugCollision", "plannedAction"],
     pendingPreview);
-  return { pendingSelected, preview: pendingPreview };
+  return { pendingSelected, preview: pendingPreview, pendingImportCount: pendingImportCount };
 }
 async function main() {
   console.log(`\n=== V3.1 PN 导入（${apply ? "APPLY 写库" : "DRY-RUN 只读"}）===\n`);
@@ -320,8 +320,10 @@ async function main() {
   // ===== Stage 3.2C: dry-run 也连库做真实 preflight collision（只读）=====
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient();
+  let resumePendingImportCount = 0;
   if (resume) {
     const resumeResult = await runResumeClassification(prisma, singleRows, relByPnDry, aliasNormSet, limit, apply);
+    const resumePendingImportCount = resumeResult.pendingImportCount;
     selected.length = 0;
     selected.push(...resumeResult.pendingSelected);
     preview = resumeResult.preview;
@@ -365,7 +367,8 @@ async function main() {
     console.log(`  ${p.partNumber} | ${p.normalizedPartNumber} | ${p.slug} | cat=${p.category}(${p.categorySource}) | ${p.equipmentRelations} | ${p.verificationStatus}/${p.publishStatus} | verified=${p.verified} | modelEv=${p.modelEvidence} | conf=${p.confidence} | lastVer=${p.lastVerifiedAt} | exact=${p.collisionExact} norm=${p.collisionNormalized} slug=${p.slugCollision} | ${p.plannedAction}`);
   }
 
-  const preflightPass = exactCollisionCount === 0 && normalizedCollisionCount === 0 && slugCollisionCount === 0 && collisionQueryErrorCount === 0 && batchSlugDuplicateCount === 0 && selected.length === 10;
+  const expectedSelectedCount = resume ? Math.min(limit, resumePendingImportCount) : 10;
+  const preflightPass = exactCollisionCount === 0 && normalizedCollisionCount === 0 && slugCollisionCount === 0 && collisionQueryErrorCount === 0 && batchSlugDuplicateCount === 0 && selected.length === expectedSelectedCount;
   console.log(`\n--- PRECHECK 汇总 ---`);
   console.log(`INPUT_RAW = ${pnRows.length}`);
   console.log(`MASTER_GROUPS = ${byNorm.size}`);
@@ -380,6 +383,10 @@ async function main() {
   console.log(`BATCH_SLUG_DUPLICATE_COUNT = ${batchSlugDuplicateCount}`);
   console.log(`COLLISION_QUERY_ERROR_COUNT = ${collisionQueryErrorCount}`)
   console.log(`DATABASE_WRITES = 0`);
+  console.log("REQUESTED_LIMIT = " + (resume ? limit : 10));
+  console.log("EXPECTED_SELECTED_COUNT = " + expectedSelectedCount);
+  console.log("ACTUAL_SELECTED_COUNT = " + selected.length);
+  console.log("SELECTED_COUNT_ASSERTION = " + (selected.length === expectedSelectedCount ? "PASS" : "FAIL"));
   console.log(`PREFLIGHT_STATUS = ${preflightPass ? "PASS" : "BLOCKED"}`);
 
   if (!apply) {
