@@ -115,7 +115,8 @@ async function main() {
   const seenPnId = new Map<string, number>();
   const seenNumber = new Map<string, number>();
 
-  for (const [idx, r] of pnRows.entries()) {
+  for (let idx = 0; idx < pnRows.length; idx++) {
+    const r = pnRows[idx];
     const rowNo = idx + 2;
     const pnId = r.pn_id || "";
     const number = (r.part_number || "").trim();
@@ -149,8 +150,8 @@ async function main() {
   // normalized collision（CSV 内不同原始件号归一化相同）→ alias 候选报告
   const aliasCandidates: Record<string, string>[] = [];
   const normCollisionSet = new Set<string>();
-  for (const [n, items] of byNorm.entries()) {
-    const distinct = [...new Set(items.map((i) => i.number))];
+  for (const [n, items] of Array.from(byNorm.entries())) {
+    const distinct = Array.from(new Set(items.map((i) => i.number)));
     if (distinct.length > 1) {
       normCollisionSet.add(n);
       // AUTO_SAFE：仅当某一写法证据明确更强（HIGH+EXPLICIT 且另一写法非 HIGH）
@@ -181,7 +182,7 @@ async function main() {
   let slugDupTotal = 0;
   let slugDupInsideAlias = 0;
   let slugIndependent = 0;
-  for (const [slug, items] of bySlug.entries()) {
+  for (const [slug, items] of Array.from(bySlug.entries())) {
     if (items.length < 2) continue;
     slugDupTotal++;
     const allSameNorm = items.every((i) => i.normalized === items[0].normalized);
@@ -206,7 +207,7 @@ async function main() {
     ev.push(r.model_evidence || "");
     relByPnModel.set(key, ev);
   }
-  for (const [key, evs] of relByPnModel.entries()) {
+  for (const [key, evs] of Array.from(relByPnModel.entries())) {
     if (evs.includes("EXPLICIT") && evs.includes("INFERRED")) { contradictoryRelations++; conflictIssues.push({ row: "-", type: "MODEL_RELATION_CONFLICT", value: key, detail: `同一 PN+model 同时存在 EXPLICIT 与 INFERRED` }); }
   }
 

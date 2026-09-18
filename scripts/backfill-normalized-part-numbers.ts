@@ -34,7 +34,7 @@ async function main() {
       if (!byNorm.has(n)) byNorm.set(n, []);
       byNorm.get(n)!.push(p.id);
     }
-    const dups = [...byNorm.entries()].filter(([, ids]) => ids.length > 1);
+    const dups = Array.from(byNorm.entries()).filter(([, ids]) => ids.length > 1);
     console.log(`可回填（normalized 可计算）: ${normalizable}`);
     console.log(`已回填: ${alreadyFilled}`);
     console.log(`无效（无法归一化）: ${invalid}`);
