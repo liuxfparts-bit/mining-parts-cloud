@@ -135,7 +135,7 @@ async function main() {
     try { await prisma.partNumberEquipment.count(); partNumberEquipmentExists = "YES"; }
     catch { partNumberEquipmentExists = "NO"; }
     try { await prisma.partNumberAuditLog.count(); partNumberAuditLogExists = "YES"; }
-    catch { partNumberAuditLog = "NO"; }
+    catch { partNumberAuditLogExists = "NO"; }
 
     await prisma.$disconnect();
   } catch (e: any) {
@@ -148,7 +148,7 @@ async function main() {
   const existingCollisions: Record<string, string>[] = [];
 
   for (const [n, members] of Array.from(byNorm.entries())) {
-    const distinct = [...new Set(members.map((m) => m.number))];
+    const distinct = Array.from(new Set(members.map((m) => m.number)));
     const matchExisting = existingByNorm.get(n);
     if (distinct.length === 1 && !matchExisting) {
       singleCount++;
