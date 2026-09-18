@@ -157,7 +157,7 @@ async function runResumeClassification(
       }
     } catch (e: any) {
       resumeStatus = "RESUME_QUERY_ERROR"; resumeQueryErrorCount++;
-      reason = (e && e.message || "").split("`n")[0];
+      reason = (e && e.message || "").split("\n")[0];
     }
     classificationRecords.push({
       partNumber: number, normalizedPartNumber: n, slug, resumeStatus, matchedPartNumberId: matchedId,
@@ -172,7 +172,7 @@ async function runResumeClassification(
     ["partNumber", "normalizedPartNumber", "slug", "resumeStatus", "matchedPartNumberId", "equipmentExpected", "statusMatch", "categoryMatch", "equipmentMatch", "auditMatch", "reason"],
     classificationRecords);
 
-  console.log("`n--- RESUME CLASSIFICATION 汇总 ---");
+  console.log("\n--- RESUME CLASSIFICATION 汇总 ---");
   console.log("SINGLE_READY = " + singleRows.length);
   console.log("ALREADY_IMPORTED_VERIFIED = " + alreadyImportedCount);
   console.log("PENDING_IMPORT = " + pendingImportCount);
@@ -182,7 +182,7 @@ async function runResumeClassification(
   const resumePreflightPass = resumeQueryErrorCount === 0 && existingConflictCount === 0;
   console.log("RESUME_PREFLIGHT_STATUS = " + (resumePreflightPass ? "PASS" : "BLOCKED"));
   if (!resumePreflightPass) { console.error("[RESUME] RESUME_PREFLIGHT_STATUS=BLOCKED"); await prisma.$disconnect(); process.exit(1); }
-  if (apply) { console.error("[RESUME] Stage 3.3A resume mode does not allow --apply. Wait for Stage 3.3B."); await prisma.$disconnect(); process.exit(1); }
+  // Stage 3.3B: resume --apply 已开放，通过 main 中 preflightPass gate 后进入 transaction
 
   pendingRows.sort((a, b) => (a.part_number || "").localeCompare(b.part_number || ""));
   const pendingSelected = pendingRows.slice(0, Math.min(limit, pendingRows.length));
@@ -327,7 +327,7 @@ async function main() {
     selected.length = 0;
     selected.push(...resumeResult.pendingSelected);
     preview = resumeResult.preview;
-    console.log("`n--- RESUME: selected replaced with " + selected.length + " pending PN, continuing preflight ---`n");
+    console.log("\n--- RESUME: selected replaced with " + selected.length + " pending PN, continuing preflight ---\n");
   }
 
 
@@ -425,6 +425,7 @@ async function main() {
 
 
   const results: Record<string, string>[] = [];
+  let totalRelationsCreated = 0;
   // 整批 transaction
   try {
     await prisma.$transaction(async (tx) => {
@@ -481,6 +482,7 @@ async function main() {
             } as any,
           });
           relCount++;
+          totalRelationsCreated++;
         }
 
         // AuditLog
@@ -506,11 +508,20 @@ async function main() {
     throw e;
   }
 
-  writeCsv(path.join(LOG_DIR, "stage32-import-result.csv"),
+  const resultLogFile = resume ? "stage33-import-result.csv" : "stage32-import-result.csv";
+  writeCsv(path.join(LOG_DIR, resultLogFile),
     ["partNumber", "normalizedPartNumber", "action", "partNumberId", "equipmentRelationsCreated", "status", "reason"],
     results);
   await prisma.$disconnect();
-  console.log(`\n=== APPLY 完成，写入 ${results.filter((r) => r.status === "OK").length} 条，SKIP ${results.filter((r) => r.status !== "OK").length} 条 ===\n`);
+  const createdCount = results.filter((r) => r.status === "OK").length;
+  console.log("APPLY_SELECTED = " + selected.length);
+  console.log("CREATED_PART_NUMBERS = " + createdCount);
+  console.log("CREATED_EQUIPMENT_RELATIONS = " + totalRelationsCreated);
+  console.log("CREATED_AUDIT_LOGS = " + createdCount);
+  console.log("TRANSACTION_STATUS = COMMITTED");
+  console.log("DATABASE_WRITES = " + createdCount + " (PartNumber create count; relations+audit additional)");
+  console.log("RESULT_LOG = " + resultLogFile);
+  console.log("\n=== APPLY 完成，写入 " + createdCount + " 条 PartNumber，" + totalRelationsCreated + " 条 Equipment relations，" + createdCount + " 条 AuditLog ===\n");
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

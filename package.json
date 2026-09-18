@@ -17,7 +17,8 @@
     "audit:stage30": "tsx scripts/audit-stage30.ts",
     "setup:equipment": "tsx scripts/setup-equipment.ts",
     "diagnose:brand-equipment": "tsx scripts/diagnose-brand-equipment.ts",
-    "verify:stage32-import": "tsx scripts/verify-stage32-import.ts"
+    "verify:stage32-import": "tsx scripts/verify-stage32-import.ts",
+    "verify:stage33-batch": "tsx scripts/verify-stage33-batch.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
