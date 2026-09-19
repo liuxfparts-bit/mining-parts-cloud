@@ -17,6 +17,7 @@
     "audit:stage30": "tsx scripts/audit-stage30.ts",
     "audit:ed10-ls190": "tsx scripts/audit-ed10-ls190.ts",
     "audit:equipment-compat": "tsx scripts/audit-equipment-relation-compat.ts",
+    "audit:supplier-product-status": "tsx scripts/audit-supplier-product-status.ts",
     "setup:equipment": "tsx scripts/setup-equipment.ts",
     "diagnose:brand-equipment": "tsx scripts/diagnose-brand-equipment.ts",
     "verify:stage32-import": "tsx scripts/verify-stage32-import.ts",
