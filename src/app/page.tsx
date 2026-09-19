@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
 import { ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export default async function HomePage() {
     prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumbers: true } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
       where: { publishStatus: "READY" },
-      include: { brand: true, equipment: { include: { brand: true } }, products: { where: { status: "PUBLISHED" }, include: { supplier: true } } },
+      include: { brand: true, equipment: { include: { brand: true } }, products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } } },
       take: 6, orderBy: { id: "asc" },
     }),
     prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } }, include: { _count: { select: { products: true } } }, take: 8, orderBy: { id: "asc" } }),

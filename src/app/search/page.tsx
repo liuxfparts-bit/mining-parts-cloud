@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Search, Package, Wrench, Building2, Tag } from "lucide-react";
+import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export default async function SearchPage({
       include: {
         brand: true,
         equipment: { include: { brand: true } },
-        products: { include: { supplier: true } },
+        products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } },
       },
       take: 15,
     }),

@@ -5,6 +5,7 @@ import SupplierFilter from "@/components/SupplierFilter";
 import Pagination from "@/components/Pagination";
 import type { Prisma } from "@prisma/client";
 import type { Metadata } from "next";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/public-product";
 
 export const dynamic = "force-dynamic";
 
@@ -51,16 +52,16 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Se
   if (name) {
     conditions.push({ OR: [{ name: { contains: name } }, { shortName: { contains: name } }] });
   }
-  // 品牌：厂家存在 ACTIVE 产品且其标准件号关联品牌匹配
+  // 品牌：厂家存在公开产品且其标准件号关联品牌匹配
   if (brand) {
     conditions.push({
-      products: { some: { status: "ACTIVE", partNumber: { brand: { name: { contains: brand } } } } },
+      products: { some: { AND: [PUBLIC_PRODUCT_WHERE, { partNumber: { brand: { name: { contains: brand } } } }] } },
     });
   }
-  // 配件名称：厂家存在 ACTIVE 产品且件号名称匹配
+  // 配件名称：厂家存在公开产品且件号名称匹配
   if (part) {
     conditions.push({
-      products: { some: { status: "ACTIVE", partNumber: { name: { contains: part } } } },
+      products: { some: { AND: [PUBLIC_PRODUCT_WHERE, { partNumber: { name: { contains: part } } }] } },
     });
   }
   // 件号：标准件号或供应商自定义 OEM 件号匹配
@@ -68,10 +69,14 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Se
     conditions.push({
       products: {
         some: {
-          status: "ACTIVE",
-          OR: [
-            { partNumber: { number: { contains: partNumber } } },
-            { oemNumber: { contains: partNumber } },
+          AND: [
+            PUBLIC_PRODUCT_WHERE,
+            {
+              OR: [
+                { partNumber: { number: { contains: partNumber } } },
+                { oemNumber: { contains: partNumber } },
+              ],
+            },
           ],
         },
       },

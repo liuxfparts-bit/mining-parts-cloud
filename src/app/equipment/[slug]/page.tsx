@@ -7,6 +7,7 @@ import SupplierCard from "@/components/SupplierCard";
 import RFQCard from "@/components/RFQCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export default async function EquipmentDetailPage({ params }: { params: { slug: 
           partNumber: {
             include: {
               products: {
-                where: { status: "ACTIVE", supplier: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } } },
+                where: PUBLIC_PRODUCT_WHERE_NESTED,
                 include: { supplier: true },
               },
               brand: true,

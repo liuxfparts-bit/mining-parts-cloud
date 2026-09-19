@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CheckCircle2, MapPin, Phone, Mail, Globe, MessageCircle, Clock, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function SupplierDetailPage({ params }: { params: { slug: s
     include: {
       users: { select: { status: true } },
       products: {
-        where: { status: "ACTIVE" },
+        where: PUBLIC_PRODUCT_WHERE_NESTED,
         include: { partNumber: { include: { equipment: true, brand: true } } },
         orderBy: { createdAt: "desc" },
       },

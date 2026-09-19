@@ -4,6 +4,7 @@ import Pagination from "@/components/Pagination";
 import EquipmentCard from "@/components/EquipmentCard";
 import { Search } from "lucide-react";
 import type { Metadata } from "next";
+import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export default async function EquipmentPage({
             partNumber: {
               select: {
                 products: {
-                  where: { status: "PUBLISHED", supplier: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } } },
+                  where: PUBLIC_PRODUCT_WHERE_NESTED,
                   select: { supplierId: true },
                 },
               },

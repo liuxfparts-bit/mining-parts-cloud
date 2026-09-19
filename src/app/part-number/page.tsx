@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
 import Pagination from "@/components/Pagination";
 import PartNumberCard from "@/components/PartNumberCard";
 import { Search } from "lucide-react";
@@ -55,7 +56,7 @@ export default async function PartNumbersPage({
       include: {
         brand: true,
         equipment: { include: { brand: true } },
-        products: { where: { status: "PUBLISHED" }, include: { supplier: true } },
+        products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } },
       },
       orderBy: { number: "asc" },
       skip: (page - 1) * pageSize,

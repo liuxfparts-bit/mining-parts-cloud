@@ -2,13 +2,14 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
 
 export default async function MobileHome() {
   const [equipment, partNumbers] = await Promise.all([
     prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumbers: true } } }, take: 20, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
       where: { publishStatus: "READY" },
-      include: { brand: true, products: { where: { status: "PUBLISHED" } } },
+      include: { brand: true, products: { where: PUBLIC_PRODUCT_WHERE_NESTED } },
       take: 10, orderBy: { id: "asc" },
     }),
   ]);

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Send, Store, HelpCircle, CalendarCheck } from "lucide-react";
 import { verifiedStatusCN } from "@/lib/verify-status";
+import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,7 @@ export default async function PartNumberDetailPage({
       equipment: { include: { brand: true } },
       equipmentRelations: { include: { equipmentModel: true } },
       products: {
-        where: { status: "PUBLISHED", supplier: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } } },
+        where: PUBLIC_PRODUCT_WHERE_NESTED,
         include: { supplier: true },
         orderBy: { price: "asc" },
       },
