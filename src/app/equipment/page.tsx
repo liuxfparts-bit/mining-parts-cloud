@@ -49,8 +49,22 @@ export default async function EquipmentPage({
       where,
       include: {
         brand: true,
-        _count: { select: { partNumbers: true } },
-        partNumbers: { select: { products: { select: { supplierId: true } } } },
+        // V3.1: Part Number Source of Truth = PartNumberEquipment（非 legacy equipmentId）
+        // 过滤 publishStatus=READY；@@unique([partNumberId, equipmentModelId]) 保证 relation count == distinct PN
+        partNumberRelations: {
+          where: { partNumber: { publishStatus: "READY" } },
+          select: {
+            equipmentModelId: true,
+            partNumber: {
+              select: {
+                products: {
+                  where: { status: "PUBLISHED", supplier: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } } },
+                  select: { supplierId: true },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: { id: "asc" },
       skip: (page - 1) * pageSize,
@@ -150,7 +164,10 @@ export default async function EquipmentPage({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[14px]">
           {equipment.map((e) => {
-            const supplierCount = new Set(e.partNumbers.flatMap((pn) => pn.products.map((p) => p.supplierId))).size;
+            // partCount = relation rows（@@unique 保证 == distinct READY PartNumber）
+            const partCount = e.partNumberRelations.length;
+            // supplierCount = distinct supplierId across READY PN → PUBLISHED Product → verified supplier
+            const supplierCount = new Set(e.partNumberRelations.flatMap((r) => r.partNumber.products.map((p) => p.supplierId))).size;
             return (
               <EquipmentCard
                 key={e.id}
@@ -159,7 +176,7 @@ export default async function EquipmentPage({
                 model={e.model}
                 equipmentType={e.equipmentType}
                 description={e.name}
-                partCount={e._count.partNumbers}
+                partCount={partCount}
                 supplierCount={supplierCount}
                 imageUrl={e.imageUrl}
               />

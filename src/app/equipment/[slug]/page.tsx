@@ -17,13 +17,13 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const eq = await prisma.equipment.findUnique({
     where: { slug: params.slug },
-    include: { brand: true, _count: { select: { partNumbers: true } } },
+    include: { brand: true, _count: { select: { partNumberRelations: { where: { partNumber: { publishStatus: "READY" } } } } } },
   });
   if (!eq || eq.status !== "ACTIVE") return { title: "Equipment Not Found" };
 
   return {
     title: `${eq.brand.name} ${eq.model} ${eq.name} | Mining Parts Cloud`,
-    description: `${eq._count.partNumbers} spare parts for ${eq.brand.name} ${eq.model} (${eq.equipmentType}). Find suppliers, prices and submit RFQs.`,
+    description: `${eq._count.partNumberRelations} spare parts for ${eq.brand.name} ${eq.model} (${eq.equipmentType}). Find suppliers, prices and submit RFQs.`,
   };
 }
 
@@ -32,25 +32,34 @@ export default async function EquipmentDetailPage({ params }: { params: { slug: 
     where: { slug: params.slug },
     include: {
       brand: true,
-      partNumbers: {
+      // V3.1: Part Number Source of Truth = PartNumberEquipment（非 legacy equipmentId）
+      // 过滤 publishStatus=READY；按 partNumber.number asc deterministic 排序
+      partNumberRelations: {
+        where: { partNumber: { publishStatus: "READY" } },
         include: {
-          products: {
-            where: { status: "ACTIVE", supplier: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } } },
-            include: { supplier: true },
+          partNumber: {
+            include: {
+              products: {
+                where: { status: "ACTIVE", supplier: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } } },
+                include: { supplier: true },
+              },
+              brand: true,
+            },
           },
-          brand: true,
-          equipment: true,
         },
-        orderBy: { number: "asc" },
+        orderBy: { partNumber: { number: "asc" } },
       },
       rfqs: { take: 3, orderBy: { createdAt: "desc" } },
     },
   });
   if (!equipment || equipment.status !== "ACTIVE") notFound();
 
-  // 汇总供应商
+  // 统一从 PartNumberEquipment 提取 PartNumber，全页共用同一 source
+  const partNumbers = equipment.partNumberRelations.map((r) => r.partNumber);
+
+  // 汇总供应商（基于 READY PartNumber → PUBLISHED Product → verified supplier）
   const supplierMap = new Map<number, { name: string; slug: string; productCount: number; verified: boolean; province: string | null }>();
-  for (const pn of equipment.partNumbers) {
+  for (const pn of partNumbers) {
     for (const prod of pn.products) {
       const s = prod.supplier;
       const existing = supplierMap.get(s.id);
@@ -108,9 +117,9 @@ export default async function EquipmentDetailPage({ params }: { params: { slug: 
       </div>
 
       {/* 相关件号 */}
-      <h2 className="text-2xl font-bold mb-4">相关件号（{equipment.partNumbers.length}）</h2>
+      <h2 className="text-2xl font-bold mb-4">相关件号（{partNumbers.length}）</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-[14px] mb-10">
-        {equipment.partNumbers.map((p) => {
+        {partNumbers.map((p) => {
           const prices = p.products.map((pr) => pr.price).filter((v): v is number => v !== null);
           return (
             <PartNumberCard
@@ -120,7 +129,7 @@ export default async function EquipmentDetailPage({ params }: { params: { slug: 
               name={p.name}
               category={p.category}
               brandName={p.brand?.name}
-              equipmentModel={p.equipment?.model}
+              equipmentModel={equipment.model}
               supplierCount={p.products.length}
               minPrice={prices.length > 0 ? Math.min(...prices) : null}
             />
