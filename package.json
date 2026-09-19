@@ -24,7 +24,8 @@
     "verify:stage32-import": "tsx scripts/verify-stage32-import.ts",
     "verify:stage33-batch": "tsx scripts/verify-stage33-batch.ts",
     "verify:stage33": "tsx scripts/verify-stage33-generic.ts",
-    "batch:stage33": "tsx scripts/run-stage33-safe-batch.ts"
+    "batch:stage33": "tsx scripts/run-stage33-safe-batch.ts",
+    "pilot:pn-cross-reference": "tsx scripts/pilot-create-pn-cross-reference.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
