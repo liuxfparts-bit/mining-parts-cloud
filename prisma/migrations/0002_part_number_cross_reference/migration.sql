@@ -48,6 +48,9 @@ ALTER TABLE "PartNumberCrossReference" ADD CONSTRAINT "PartNumberCrossReference_
 -- AddForeignKey (target → PartNumber, cascade delete)
 ALTER TABLE "PartNumberCrossReference" ADD CONSTRAINT "PartNumberCrossReference_targetPartNumberId_fkey" FOREIGN KEY ("targetPartNumberId") REFERENCES "PartNumber"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- AddForeignKey (verifiedBy → User, set null on delete: 验证人删除后保留关系记录，verifiedById 置 NULL)
+ALTER TABLE "PartNumberCrossReference" ADD CONSTRAINT "PartNumberCrossReference_verifiedById_fkey" FOREIGN KEY ("verifiedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
 -- Integrity CHECK 1: prevent self-reference (A → A)
 ALTER TABLE "PartNumberCrossReference" ADD CONSTRAINT "PartNumberCrossReference_no_self_reference" CHECK ("sourcePartNumberId" <> "targetPartNumberId");
 

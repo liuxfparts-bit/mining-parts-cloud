@@ -275,6 +275,8 @@ model User {
   favorites     Favorite[]
   notifications Notification[]
   passwordResetTokens PasswordResetToken[]
+  // V3.6 Cross Reference 验证人反向关系
+  verifiedCrossReferences PartNumberCrossReference[] @relation("CrossReferenceVerifiedBy")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -675,6 +677,7 @@ model PartNumberCrossReference {
   sourceReference    String?                          @db.Text // 来源引用（文件/页面/技术资料）
   verifiedAt         DateTime?
   verifiedById       Int?                             // 验证人 User.id
+  verifiedBy         User?                            @relation("CrossReferenceVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
   createdAt          DateTime                         @default(now())
   updatedAt          DateTime                         @updatedAt
 
