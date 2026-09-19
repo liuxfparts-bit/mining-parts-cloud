@@ -142,6 +142,9 @@ model PartNumber {
   // 多对多设备关系（正式）与验证审计
   equipmentRelations  PartNumberEquipment[]
   auditLogs           PartNumberAuditLog[]
+  // ===== V3.6 Cross Reference（件号交叉引用，双向 self-relation） =====
+  crossReferencesAsSource PartNumberCrossReference[] @relation("CrossReferenceSource")
+  crossReferencesAsTarget PartNumberCrossReference[] @relation("CrossReferenceTarget")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -630,4 +633,54 @@ model PartNumberAuditLog {
 
   @@index([partNumberId])
   @@index([createdAt])
+}
+
+// ========== V3.6 Part Number Cross Reference ==========
+
+// Cross Reference 关系类型
+enum PartNumberCrossReferenceType {
+  SAME_PART       // 完全相同件（同一物理件，不同命名/编号体系，如 114-8516LFL ↔ G5-8516）
+  CROSS_REFERENCE // 交叉引用（可互换/替代，非完全相同）
+  POSSIBLE_MATCH  // 候选匹配（低置信度，待验证，不自动触发商机）
+  SUPERSEDES      // 有向：source 替代 target（新件替代旧件）
+}
+
+// Cross Reference 验证状态（关系级，与 PartNumber 自身验证状态分离）
+enum CrossReferenceVerificationStatus {
+  CANDIDATE // 候选（系统/用户建议，未验证，不自动触发商机）
+  VERIFIED  // 已验证（Admin 审核通过 + 证据充分，可自动匹配）
+  REJECTED  // 已驳回（确认不匹配，保留历史不物理删除）
+}
+
+// ========== PN ↔ PN Cross Reference（正式 self-relation） ==========
+// 对称关系（SAME_PART / CROSS_REFERENCE / POSSIBLE_MATCH）：
+//   数据库只存一条，canonical ordering: sourcePartNumberId < targetPartNumberId
+//   查询层双向解释：WHERE sourcePartNumberId = X OR targetPartNumberId = X
+// 有向关系（SUPERSEDES）：
+//   source = 替代者（新件），target = 被替代者（旧件），不 canonicalize
+// Integrity:
+//   CHECK sourcePartNumberId != targetPartNumberId（防 self-reference）
+//   CHECK 对称类型时 sourcePartNumberId < targetPartNumberId（canonical）
+//   @@unique([sourcePartNumberId, targetPartNumberId, relationType])（防重复）
+model PartNumberCrossReference {
+  id                 Int                              @id @default(autoincrement())
+  sourcePartNumberId Int
+  sourcePartNumber   PartNumber                       @relation("CrossReferenceSource", fields: [sourcePartNumberId], references: [id], onDelete: Cascade)
+  targetPartNumberId Int
+  targetPartNumber   PartNumber                       @relation("CrossReferenceTarget", fields: [targetPartNumberId], references: [id], onDelete: Cascade)
+  relationType       PartNumberCrossReferenceType
+  verificationStatus CrossReferenceVerificationStatus @default(CANDIDATE)
+  confidence         DataConfidence                   @default(MEDIUM)
+  evidenceSummary    String?                          @db.Text // 证据摘要（来源文件、核对说明、驳回原因等）
+  sourceReference    String?                          @db.Text // 来源引用（文件/页面/技术资料）
+  verifiedAt         DateTime?
+  verifiedById       Int?                             // 验证人 User.id
+  createdAt          DateTime                         @default(now())
+  updatedAt          DateTime                         @updatedAt
+
+  @@unique([sourcePartNumberId, targetPartNumberId, relationType])
+  @@index([sourcePartNumberId])
+  @@index([targetPartNumberId])
+  @@index([relationType])
+  @@index([verificationStatus])
 }
