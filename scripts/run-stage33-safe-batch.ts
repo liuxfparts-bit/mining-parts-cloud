@@ -22,6 +22,13 @@ const ROOT = path.resolve(__dirname, "..");
 const LOG_DIR = path.join(ROOT, "logs");
 const RUN_LOG_DIR = path.join(LOG_DIR, "stage33-runs");
 const LOCK_PATH = path.join(LOG_DIR, "stage33-safe-batch.lock");
+// 模块级 lock 句柄：process.on('exit') 确保即使 try 内 process.exit() 也能释放 lock
+// （Node.js 在 process.exit() 时不执行 finally，必须用 exit 事件兜底）
+let moduleLockFd: number = -1;
+process.on("exit", () => {
+  try { if (moduleLockFd >= 0) fs.closeSync(moduleLockFd); } catch { /* ignore */ }
+  try { if (fs.existsSync(LOCK_PATH)) fs.unlinkSync(LOCK_PATH); } catch { /* ignore */ }
+});
 const PENDING_PREVIEW_CSV = path.join(LOG_DIR, "stage33-pending-preview.csv");
 const RESULT_MANIFEST_CSV = path.join(LOG_DIR, "stage33-import-result.csv");
 
@@ -131,9 +138,9 @@ async function main() {
 
   // STEP 0b: Single-run lock (atomic create)
   fs.mkdirSync(LOG_DIR, { recursive: true });
-  let lockFd: number = -1;
+  moduleLockFd = -1;
   try {
-    lockFd = fs.openSync(LOCK_PATH, "wx");
+    moduleLockFd = fs.openSync(LOCK_PATH, "wx");
     fs.writeFileSync(LOCK_PATH, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString(), limit: requestedLimit }, null, 2), "utf8");
     console.log(`BATCH_LOCK_ACQUIRED = PASS (pid=${process.pid})`);
   } catch (e: any) {
@@ -475,9 +482,9 @@ async function main() {
 
   } finally {
     // Release lock
-    if (lockFd >= 0) {
+    if (moduleLockFd >= 0) {
       try {
-        fs.closeSync(lockFd);
+        fs.closeSync(moduleLockFd);
       } catch { /* ignore */ }
     }
     try {
