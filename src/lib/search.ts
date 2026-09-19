@@ -13,6 +13,7 @@ export async function searchAll(q: string) {
   const [partNumbers, equipment, brands, suppliers] = await Promise.all([
     prisma.partNumber.findMany({
       where: {
+        publishStatus: "READY",
         OR: [
           { number: { contains: keyword } },
           { name: { contains: keyword } },
@@ -58,10 +59,10 @@ export async function searchAll(q: string) {
   return { partNumbers, equipment, brands, suppliers };
 }
 
-/** 按件号搜索（核心搜索路径） */
+/** 按件号搜索（核心搜索路径）— V3.1: 只返回 publishStatus=READY */
 export async function searchByPartNumber(q: string) {
   return prisma.partNumber.findMany({
-    where: { number: { contains: q.trim() } },
+    where: { publishStatus: "READY", number: { contains: q.trim() } },
     include: { brand: true, equipment: { include: { brand: true } }, products: { include: { supplier: true } } },
     take: 20,
   });

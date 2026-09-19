@@ -16,6 +16,7 @@ export default async function HomePage() {
     prisma.brand.findMany({ include: { _count: { select: { equipment: true, partNumbers: true } } }, take: 12, orderBy: { name: "asc" } }),
     prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumbers: true } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
+      where: { publishStatus: "READY" },
       include: { brand: true, equipment: { include: { brand: true } }, products: { where: { status: "PUBLISHED" }, include: { supplier: true } } },
       take: 6, orderBy: { id: "asc" },
     }),

@@ -7,6 +7,7 @@ export default async function MobileHome() {
   const [equipment, partNumbers] = await Promise.all([
     prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumbers: true } } }, take: 20, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
+      where: { publishStatus: "READY" },
       include: { brand: true, products: { where: { status: "PUBLISHED" } } },
       take: 10, orderBy: { id: "asc" },
     }),

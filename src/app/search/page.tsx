@@ -35,6 +35,7 @@ export default async function SearchPage({
   const [partNumbers, equipment, brands, suppliers] = await Promise.all([
     prisma.partNumber.findMany({
       where: {
+        publishStatus: "READY",
         OR: [
           { number: { contains: q } },
           { name: { contains: q } },

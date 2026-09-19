@@ -26,7 +26,8 @@ export default async function PartNumbersPage({
   const pageSize = searchParams.pageSize ? Math.min(100, Math.max(10, parseInt(searchParams.pageSize))) : 20;
   const page = searchParams.page ? Math.max(1, parseInt(searchParams.page)) : 1;
 
-  const where: any = {};
+  // V3.1: 公开找件号列表只显示 publishStatus=READY；HOLD/REJECTED 不公开
+  const where: any = { publishStatus: "READY" };
   const and: any[] = [];
 
   if (q) {

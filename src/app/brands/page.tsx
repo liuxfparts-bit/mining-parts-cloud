@@ -21,7 +21,7 @@ export default async function BrandsPage() {
   try {
     const [eqGroups, pnGroups] = await Promise.all([
       prisma.equipment.groupBy({ by: ["brandId"], _count: true }),
-      prisma.partNumber.groupBy({ by: ["brandId"], _count: true }),
+      prisma.partNumber.groupBy({ by: ["brandId"], where: { publishStatus: "READY" }, _count: true }),
     ]);
     for (const g of eqGroups) if (g.brandId) countsMap[g.brandId] = { equipment: g._count, partNumbers: 0 };
     for (const g of pnGroups) {
