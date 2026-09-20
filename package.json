@@ -26,7 +26,8 @@
     "verify:stage33": "tsx scripts/verify-stage33-generic.ts",
     "batch:stage33": "tsx scripts/run-stage33-safe-batch.ts",
     "pilot:pn-cross-reference": "tsx scripts/pilot-create-pn-cross-reference.ts",
-    "p1e:fixture": "tsx scripts/p1e-cross-reference-fixture.ts"
+    "p1e:fixture": "tsx scripts/p1e-cross-reference-fixture.ts",
+    "p1e:candidate-audit": "tsx scripts/p1e-candidate-audit.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
