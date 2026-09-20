@@ -5,7 +5,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard, Building2, Tags, Wrench, Package, Hash,
-  FileText, MessageSquare, Search, Crown, Megaphone, Menu, X, ShieldCheck,
+  FileText, MessageSquare, Search, Crown, Megaphone, Menu, X, ShieldCheck, GitBranch,
 } from "lucide-react";
 
 const menuSections = [
@@ -27,6 +27,7 @@ const menuSections = [
       { href: "/admin/equipment", label: "设备", icon: Wrench },
       { href: "/admin/products", label: "配件/产品", icon: Package },
       { href: "/admin/part-numbers", label: "件号", icon: Hash },
+      { href: "/admin/part-numbers/cross-references", label: "件号交叉引用", icon: GitBranch },
     ],
   },
   {
