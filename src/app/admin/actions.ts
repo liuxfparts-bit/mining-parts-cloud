@@ -385,3 +385,78 @@ export async function toggleFeaturedProduct(id: number) {
   revalidatePath("/admin/products");
   revalidatePath("/");
 }
+
+// ========== V3.6 Cross Reference 审核动作（VERIFY / REJECT） ==========
+// 状态机：只有 CANDIDATE 允许 -> VERIFIED 或 -> REJECTED
+// VERIFIED / REJECTED 为终态，第一版不实现撤销
+// 并发安全：updateMany with where verificationStatus=CANDIDATE，根据 count 判断
+// NO AUTO-ELEVATION：只更新 PartNumberCrossReference，不更新 PartNumber/Equipment/Product 等
+
+export async function verifyCrossReference(id: number) {
+  const session = await requireAdmin();
+  const adminIdRaw = (session.user as any).id;
+  const adminId = Number.isNaN(Number(adminIdRaw)) ? null : Number(adminIdRaw);
+
+  // 并发安全：只有 CANDIDATE 状态才能转换为 VERIFIED
+  const result = await prisma.partNumberCrossReference.updateMany({
+    where: { id, verificationStatus: "CANDIDATE" },
+    data: {
+      verificationStatus: "VERIFIED",
+      verifiedAt: new Date(),
+      verifiedById: adminId,
+      rejectionReason: null,
+      rejectedAt: null,
+    },
+  });
+
+  if (result.count === 0) {
+    // 没有行被更新：区分 NOT_FOUND / ALREADY_VERIFIED / INVALID_STATE_TRANSITION
+    const current = await prisma.partNumberCrossReference.findUnique({ where: { id } });
+    if (!current) throw new Error("Cross Reference 不存在");
+    if (current.verificationStatus === "VERIFIED") {
+      // NO-OP：已经是 VERIFIED，静默成功（不重复更新时间/审核人）
+    } else {
+      throw new Error("INVALID_STATE_TRANSITION: 只有 CANDIDATE 状态才能验证，当前状态为 " + current.verificationStatus);
+    }
+  }
+
+  revalidatePath("/admin/part-numbers/cross-references");
+  revalidatePath(`/admin/part-numbers/cross-references/${id}`);
+  redirect(`/admin/part-numbers/cross-references/${id}`);
+}
+
+export async function rejectCrossReference(id: number, formData: FormData) {
+  await requireAdmin();
+
+  // 驳回原因必填，trim 后 2-2000 字符
+  const reason = (formData.get("rejectionReason") as string)?.trim() || "";
+  if (reason.length < 2 || reason.length > 2000) {
+    throw new Error("驳回原因必填，长度需在 2-2000 字符之间");
+  }
+
+  // 并发安全：只有 CANDIDATE 状态才能转换为 REJECTED
+  const result = await prisma.partNumberCrossReference.updateMany({
+    where: { id, verificationStatus: "CANDIDATE" },
+    data: {
+      verificationStatus: "REJECTED",
+      rejectionReason: reason,
+      rejectedAt: new Date(),
+      verifiedAt: null,
+      verifiedById: null,
+    },
+  });
+
+  if (result.count === 0) {
+    const current = await prisma.partNumberCrossReference.findUnique({ where: { id } });
+    if (!current) throw new Error("Cross Reference 不存在");
+    if (current.verificationStatus === "REJECTED") {
+      // NO-OP：已经是 REJECTED，静默成功（不覆盖原 rejectionReason / rejectedAt）
+    } else {
+      throw new Error("INVALID_STATE_TRANSITION: 只有 CANDIDATE 状态才能驳回，当前状态为 " + current.verificationStatus);
+    }
+  }
+
+  revalidatePath("/admin/part-numbers/cross-references");
+  revalidatePath(`/admin/part-numbers/cross-references/${id}`);
+  redirect(`/admin/part-numbers/cross-references/${id}`);
+}

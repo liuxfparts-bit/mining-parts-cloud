@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import CrossReferenceReviewActions from "@/components/admin/CrossReferenceReviewActions";
 
 const RELATION_TYPE_META: Record<string, { label: string; badgeClass: string; tooltip: string }> = {
   SAME_PART: {
@@ -129,7 +130,7 @@ export default async function CrossReferenceDetail({ params }: { params: { id: s
 
       <div className="flex justify-between items-center mt-4 mb-6">
         <h1 className="text-2xl font-bold">Cross Reference 详情 #{cr.id}</h1>
-        <span className="text-xs text-gray-500">只读 · 本阶段无写操作</span>
+        <span className="text-xs text-gray-500">Admin 审核 · VERIFY / REJECT</span>
       </div>
 
       {/* 两个 Part Number 卡片 */}
@@ -199,6 +200,15 @@ export default async function CrossReferenceDetail({ params }: { params: { id: s
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 审核操作区域（CANDIDATE 可操作；VERIFIED/REJECTED 显示终态） */}
+      <div className="mt-6">
+        <CrossReferenceReviewActions
+          crId={cr.id}
+          relationType={cr.relationType}
+          verificationStatus={cr.verificationStatus}
+        />
       </div>
 
       <div className="mt-6 text-xs text-gray-400">
