@@ -25,7 +25,11 @@
  * - cleanup 只删除明确 TEST_FIXTURE_ID 且 sourceReference 匹配的记录
  */
 
-import { prisma } from "../src/lib/prisma";
+import { PrismaClient } from "@prisma/client";
+
+// 独立 CLI 脚本使用自己的 PrismaClient 实例，不依赖 Next.js application singleton (src/lib/prisma)
+// 这样脚本可以在 Docker production runner image 中运行（runner 阶段不复制 src/）
+const prisma = new PrismaClient();
 
 const TEST_MARKER_VERIFY = "P1-E TEST FIXTURE VERIFY — DO NOT USE AS BUSINESS DATA";
 const TEST_MARKER_REJECT = "P1-E TEST FIXTURE REJECT — DO NOT USE AS BUSINESS DATA";
