@@ -673,11 +673,13 @@ model PartNumberCrossReference {
   relationType       PartNumberCrossReferenceType
   verificationStatus CrossReferenceVerificationStatus @default(CANDIDATE)
   confidence         DataConfidence                   @default(MEDIUM)
-  evidenceSummary    String?                          @db.Text // 证据摘要（来源文件、核对说明、驳回原因等）
+  evidenceSummary    String?                          @db.Text // 证据摘要（来源文件、核对说明）
   sourceReference    String?                          @db.Text // 来源引用（文件/页面/技术资料）
   verifiedAt         DateTime?
   verifiedById       Int?                             // 验证人 User.id
   verifiedBy         User?                            @relation("CrossReferenceVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  rejectionReason    String?                          @db.Text // 驳回原因（REJECTED 时必填）
+  rejectedAt         DateTime?                        // 驳回时间
   createdAt          DateTime                         @default(now())
   updatedAt          DateTime                         @updatedAt
 
