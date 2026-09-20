@@ -98,27 +98,45 @@ async function findCandidatePartNumbers() {
     process.exit(1);
   }
 
-  // 选择前两个，确保 sourceId < targetId（canonical ordering for POSSIBLE_MATCH）
-  const first = candidates[0];
-  const second = candidates[1];
-  const sourceId = Math.min(first.id, second.id);
-  const targetId = Math.max(first.id, second.id);
-  const source = candidates.find((c) => c.id === sourceId)!;
-  const target = candidates.find((c) => c.id === targetId)!;
-
-  // 确认两 PN 之间没有现有 CrossReference
-  const existing = await prisma.partNumberCrossReference.findFirst({
-    where: {
-      OR: [
-        { sourcePartNumberId: sourceId, targetPartNumberId: targetId },
-        { sourcePartNumberId: targetId, targetPartNumberId: sourceId },
-      ],
-    },
+  // 查询所有现有 CrossReference pair，用于在内存中过滤已占用 pair
+  // 这样 Fixture A 创建后，Fixture B 会自动跳过已占用的 pair
+  const allCRs = await prisma.partNumberCrossReference.findMany({
+    select: { sourcePartNumberId: true, targetPartNumberId: true },
   });
-  if (existing) {
-    console.error(`FAIL: CrossReference already exists between id=${sourceId} and id=${targetId} (cr id=${existing.id})`);
+  const occupiedPairs = new Set<string>();
+  allCRs.forEach((cr) => {
+    const a = Math.min(cr.sourcePartNumberId, cr.targetPartNumberId);
+    const b = Math.max(cr.sourcePartNumberId, cr.targetPartNumberId);
+    occupiedPairs.add(`${a}-${b}`);
+  });
+
+  // 遍历候选列表，找到第一对没有被任何 CrossReference 占用的 pair
+  // 确保 sourceId < targetId（canonical ordering for POSSIBLE_MATCH）
+  let selected: { source: any; target: any } | null = null;
+  for (let i = 0; i < candidates.length && !selected; i++) {
+    for (let j = i + 1; j < candidates.length && !selected; j++) {
+      const a = candidates[i];
+      const b = candidates[j];
+      const sourceId = Math.min(a.id, b.id);
+      const targetId = Math.max(a.id, b.id);
+      const key = `${sourceId}-${targetId}`;
+      if (!occupiedPairs.has(key)) {
+        selected = {
+          source: candidates.find((c) => c.id === sourceId)!,
+          target: candidates.find((c) => c.id === targetId)!,
+        };
+      }
+    }
+  }
+
+  if (!selected) {
+    console.error("FAIL: Could not find an unoccupied PN pair among candidates");
     process.exit(1);
   }
+
+  const { source, target } = selected;
+  const sourceId = source.id;
+  const targetId = target.id;
 
   console.log(`\nSelected fixture pair:`);
   console.log(`  SOURCE: id=${source.id} number=${source.number}`);
