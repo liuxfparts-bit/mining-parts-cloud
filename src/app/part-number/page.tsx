@@ -39,13 +39,13 @@ export default async function PartNumbersPage({
         { nameEn: { contains: q } },
         { brand: { name: { contains: q } } },
         { brand: { nameEn: { contains: q } } },
-        { equipment: { model: { contains: q } } },
-        { equipment: { name: { contains: q } } },
+        { equipmentRelations: { some: { equipmentModel: { model: { contains: q } } } } },
+        { equipmentRelations: { some: { equipmentModel: { name: { contains: q } } } } },
       ],
     });
   }
   if (brandId) and.push({ brandId });
-  if (equipmentId) and.push({ equipmentId });
+  if (equipmentId) and.push({ equipmentRelations: { some: { equipmentModelId: equipmentId } } });
   if (categoryId) and.push({ categoryId });
   if (and.length) where.AND = and;
 
@@ -55,7 +55,7 @@ export default async function PartNumbersPage({
       where,
       include: {
         brand: true,
-        equipment: { include: { brand: true } },
+        equipmentRelations: { include: { equipmentModel: { include: { brand: true } } } },
         products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } },
       },
       orderBy: { number: "asc" },
@@ -143,7 +143,7 @@ export default async function PartNumbersPage({
                 name={p.name}
                 category={p.category}
                 brandName={p.brand?.name}
-                equipmentModel={p.equipment?.model}
+                equipmentModel={p.equipmentRelations.map((r) => r.equipmentModel.model).join(" / ") || undefined}
                 supplierCount={publishedSuppliers}
                 minPrice={prices.length > 0 ? Math.min(...prices) : null}
               />
