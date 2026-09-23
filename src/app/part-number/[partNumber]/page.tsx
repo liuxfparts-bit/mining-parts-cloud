@@ -62,7 +62,6 @@ export default async function PartNumberDetailPage({
     where: { slug: params.partNumber },
     include: {
       brand: true,
-      equipment: { include: { brand: true } },
       equipmentRelations: { include: { equipmentModel: true } },
       products: {
         where: PUBLIC_PRODUCT_WHERE_NESTED,
@@ -79,10 +78,10 @@ export default async function PartNumberDetailPage({
 
   const supplierCount = new Set(pn.products.map((p) => p.supplierId)).size;
 
-  // 适用设备：优先 PartNumberEquipment（source of truth），兼容旧 equipmentId
-  const equipmentList = pn.equipmentRelations.length > 0
-    ? pn.equipmentRelations.map((r) => r.equipmentModel)
-    : (pn.equipment ? [pn.equipment] : []);
+  // V3.1: PartNumberEquipment 是适用设备的唯一正式来源
+  const equipmentList = pn.equipmentRelations.map(
+    (r) => r.equipmentModel
+  );
 
   const { primary: displayName, secondary: displayNameEn } = displayPartName(pn.name, pn.nameEn);
 
@@ -93,9 +92,9 @@ export default async function PartNumberDetailPage({
       id: { not: pn.id },
       publishStatus: "READY",
       OR: [
-        relatedEquipIds.length > 0
-          ? { equipmentRelations: { some: { equipmentModelId: { in: relatedEquipIds } } } }
-          : { equipmentId: pn.equipmentId || -1 },
+        ...(relatedEquipIds.length > 0
+          ? [{ equipmentRelations: { some: { equipmentModelId: { in: relatedEquipIds } } } }]
+          : []),
         { AND: [{ brandId: pn.brandId || -1 }, { category: pn.category }] },
       ],
     },
