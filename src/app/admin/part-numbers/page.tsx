@@ -14,13 +14,13 @@ export default async function AdminPartNumbersPage({ searchParams }: { searchPar
       { number: { contains: q, mode: "insensitive" as const } },
       { name: { contains: q, mode: "insensitive" as const } },
       { brand: { name: { contains: q, mode: "insensitive" as const } } },
-      { equipment: { model: { contains: q, mode: "insensitive" as const } } },
+      { equipmentRelations: { some: { equipmentModel: { model: { contains: q, mode: "insensitive" as const } } } } },
     ],
   } : {};
 
   const [items, total, brands, equipments] = await Promise.all([
     prisma.partNumber.findMany({
-      where, include: { brand: true, equipment: true, _count: { select: { products: true } } },
+      where, include: { brand: true, equipmentRelations: { include: { equipmentModel: true } }, _count: { select: { products: true } } },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize, take: pageSize,
     }),
@@ -68,7 +68,7 @@ export default async function AdminPartNumbersPage({ searchParams }: { searchPar
                 <td className="p-3 font-mono font-medium"><a href={`/admin/part-numbers/${p.id}`} className="text-blue-600 hover:underline">{p.number}</a></td>
                 <td className="p-3">{p.name}</td>
                 <td className="p-3">{p.brand?.name || "-"}</td>
-                <td className="p-3">{p.equipment?.model || "-"}</td>
+                <td className="p-3">{p.equipmentRelations.map((r) => r.equipmentModel.model).join(" / ") || "-"}</td>
                 <td className="p-3">{p._count.products}</td>
                 <td className="p-3">
                   <form action={async () => { "use server"; await reviewPartNumber(p.id, !p.verified); }}>
