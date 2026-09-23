@@ -12,51 +12,55 @@ async function requireAdmin() {
   }
 }
 
-export async function approvePartNumberRequest(id: number) {
+export async function approvePartNumberRequest(id: number, categoryId?: number | null) {
   await requireAdmin();
   const req = await prisma.partNumberRequest.findUnique({ where: { id } });
   if (!req) throw new Error("申请不存在");
   if (req.status !== "PENDING") throw new Error("该申请已处理");
 
-  // 找品牌
   let brandId: number | null = null;
   if (req.brandName) {
     const brand = await prisma.brand.findFirst({ where: { name: req.brandName } });
     if (brand) brandId = brand.id;
   }
 
-  // 找设备
   let equipmentId: number | null = null;
   if (req.equipmentModel && brandId) {
     const eq = await prisma.equipment.findFirst({ where: { brandId, model: req.equipmentModel } });
     if (eq) equipmentId = eq.id;
   }
 
-  // 生成唯一 slug
   let slug = toSlug(req.partNumber);
   if (!slug) slug = `pn-${req.id}`;
   const existing = await prisma.partNumber.findUnique({ where: { slug } });
   if (existing) slug = `${slug}-${req.id}`;
 
-  await prisma.$transaction([
-    prisma.partNumber.create({
+  await prisma.$transaction(async (tx) => {
+    const partNumber = await tx.partNumber.create({
       data: {
         number: req.partNumber,
         slug,
         name: req.partName,
-        category: req.categoryId ? "" : "其他",
-        categoryId: req.categoryId,
+        category: (categoryId ?? req.categoryId) ? "" : "其他",
+        categoryId: categoryId ?? req.categoryId,
         brandId,
         equipmentId,
         description: req.description,
         images: req.images,
       },
-    }),
-    prisma.partNumberRequest.update({
+    });
+
+    if (equipmentId) {
+      await tx.partNumberEquipment.create({
+        data: { partNumberId: partNumber.id, equipmentModelId: equipmentId },
+      });
+    }
+
+    await tx.partNumberRequest.update({
       where: { id: req.id },
       data: { status: "APPROVED" },
-    }),
-  ]);
+    });
+  });
 
   revalidatePath("/admin/part-numbers/requests");
   revalidatePath("/part-number");

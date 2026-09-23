@@ -10,8 +10,14 @@ export default async function AdminPartNumberRequestsPage() {
   if (!session?.user || (session.user as any).role !== "ADMIN") redirect("/login");
 
   const requests = await prisma.partNumberRequest.findMany({
-    include: { supplier: true },
+    include: { supplier: true, category: true },
     orderBy: { createdAt: "desc" },
+  });
+
+  const parents = await prisma.category.findMany({
+    where: { parentId: null },
+    orderBy: { sortOrder: "asc" },
+    include: { children: { orderBy: { sortOrder: "asc" } } },
   });
 
   return (
@@ -48,8 +54,22 @@ export default async function AdminPartNumberRequestsPage() {
               <td className="p-2 text-xs text-muted">{r.createdAt.toLocaleDateString()}</td>
               <td className="p-2">
                 {r.status === "PENDING" && (
-                  <form action={async () => { "use server"; await approvePartNumberRequest(r.id); }} className="inline">
-                    <button className="bg-green-600 text-white px-2 py-1 rounded text-xs mr-1">通过</button>
+                  <form action={async (fd: FormData) => {
+                    "use server";
+                    const value = fd.get("categoryId") as string;
+                    const categoryId = value ? Number(value) : null;
+                    await approvePartNumberRequest(r.id, categoryId);
+                  }} className="inline-flex items-center gap-1 mr-1">
+                    <select name="categoryId" defaultValue={r.categoryId || ""} className="border rounded text-xs px-1 py-1">
+                      <option value="">未分类</option>
+                      {parents.map((p) => (
+                        <optgroup key={p.id} label={p.name}>
+                          <option value={p.id}>{p.name}</option>
+                          {p.children.map((c) => <option key={c.id} value={c.id}>└ {c.name}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                    <button className="bg-green-600 text-white px-2 py-1 rounded text-xs">通过</button>
                   </form>
                 )}
                 {r.status === "PENDING" && (
@@ -60,6 +80,9 @@ export default async function AdminPartNumberRequestsPage() {
                     <input name="reason" placeholder="驳回原因" className="border rounded text-xs px-2 py-1" />
                     <button className="bg-red-600 text-white px-2 py-1 rounded text-xs ml-1">驳回</button>
                   </form>
+                )}
+                {r.status === "APPROVED" && (
+                  <a href={`/supplier/products/new?partNumber=${encodeURIComponent(r.partNumber)}`} className="text-blue-600 text-xs" target="_blank" rel="noreferrer">发布产品</a>
                 )}
               </td>
             </tr>

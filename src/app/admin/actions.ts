@@ -260,7 +260,20 @@ export async function createPartNumber(formData: FormData) {
   const number = (formData.get("number") as string).trim().toUpperCase();
   const name = (formData.get("name") as string).trim();
   const brandId = parseInt(formData.get("brandId") as string) || null;
-  await prisma.partNumber.create({ data: { number, name, slug: number.toLowerCase(), brandId, category: "其他" } });
+  const equipmentId = parseInt(formData.get("equipmentId") as string) || null;
+
+  await prisma.$transaction(async (tx) => {
+    const partNumber = await tx.partNumber.create({
+      data: { number, name, slug: number.toLowerCase(), brandId, equipmentId, category: "其他" },
+    });
+
+    if (equipmentId) {
+      await tx.partNumberEquipment.create({
+        data: { partNumberId: partNumber.id, equipmentModelId: equipmentId },
+      });
+    }
+  });
+
   revalidatePath("/admin/part-numbers");
 }
 
@@ -346,38 +359,6 @@ export async function updatePartNumber(id: number, formData: FormData) {
   });
   revalidatePath("/admin/part-numbers");
   redirect("/admin/part-numbers");
-}
-
-export async function approvePartNumberRequest(formData: FormData) {
-  await requireAdmin();
-  const id = parseInt(formData.get("id") as string);
-  const categoryId = formData.get("categoryId") ? parseInt(formData.get("categoryId") as string) : null;
-  const req = await prisma.partNumberRequest.findUnique({ where: { id } });
-  if (!req) redirect("/admin/part-number-requests");
-  const existing = await prisma.partNumber.findUnique({ where: { number: req.partNumber } });
-  if (!existing) {
-    await prisma.partNumber.create({
-      data: {
-        number: req.partNumber,
-        name: req.partName,
-        slug: req.partNumber.toLowerCase(),
-        category: "其他",
-        categoryId: categoryId || req.categoryId,
-      },
-    });
-  }
-  await prisma.partNumberRequest.update({ where: { id }, data: { status: "APPROVED", categoryId: categoryId || req.categoryId } });
-  revalidatePath("/admin/part-number-requests");
-  redirect("/admin/part-number-requests");
-}
-
-export async function rejectPartNumberRequest(formData: FormData) {
-  await requireAdmin();
-  const id = parseInt(formData.get("id") as string);
-  const reason = (formData.get("reason") as string) || "不符合要求";
-  await prisma.partNumberRequest.update({ where: { id }, data: { status: "REJECTED", reviewReason: reason } });
-  revalidatePath("/admin/part-number-requests");
-  redirect("/admin/part-number-requests");
 }
 
 export async function toggleFeaturedProduct(id: number) {
