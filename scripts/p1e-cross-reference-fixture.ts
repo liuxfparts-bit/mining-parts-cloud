@@ -110,7 +110,6 @@ async function findTestPNs() {
       publishStatus: true,
       verified: true,
       brandId: true,
-      equipmentId: true,
       confidence: true,
       modelEvidence: true,
       createdAt: true,
@@ -194,7 +193,6 @@ async function createTestFixtures(isApply: boolean) {
           modelEvidence: "NOT_EXPLICIT",
           confidence: "LOW",
           brandId: null,
-          equipmentId: null,
           evidenceSummary: TEST_EVIDENCE,
           sourceFiles: null,
         },
@@ -389,7 +387,7 @@ async function audit() {
   testPNs.forEach((pn) => {
     console.log(
       `  id=${pn.id} number=${pn.number} publish=${pn.publishStatus} verify=${pn.verificationStatus} ` +
-        `verified=${pn.verified} brandId=${pn.brandId} equipmentId=${pn.equipmentId} confidence=${pn.confidence}`
+        `verified=${pn.verified} brandId=${pn.brandId} confidence=${pn.confidence}`
     );
   });
 

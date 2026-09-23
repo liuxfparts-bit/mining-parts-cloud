@@ -21,7 +21,7 @@ export async function searchAll(q: string) {
           { category: { contains: keyword } },
         ],
       },
-      include: { brand: true, equipment: { include: { brand: true } }, products: { include: { supplier: true } } },
+      include: { brand: true, equipmentRelations: { include: { equipmentModel: { include: { brand: true } } } }, products: { include: { supplier: true } } },
       take: 15,
     }),
     prisma.equipment.findMany({
@@ -34,7 +34,7 @@ export async function searchAll(q: string) {
           { brand: { name: { contains: keyword } } },
         ],
       },
-      include: { brand: true, _count: { select: { partNumbers: true } } },
+      include: { brand: true, _count: { select: { partNumberRelations: true } } },
       take: 10,
     }),
     prisma.brand.findMany({
@@ -63,7 +63,7 @@ export async function searchAll(q: string) {
 export async function searchByPartNumber(q: string) {
   return prisma.partNumber.findMany({
     where: { publishStatus: "READY", number: { contains: q.trim() } },
-    include: { brand: true, equipment: { include: { brand: true } }, products: { include: { supplier: true } } },
+    include: { brand: true, equipmentRelations: { include: { equipmentModel: { include: { brand: true } } } }, products: { include: { supplier: true } } },
     take: 20,
   });
 }

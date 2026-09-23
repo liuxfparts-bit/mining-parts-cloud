@@ -56,7 +56,6 @@ model Equipment {
   imageUrl      String?   // 设备图片
   brochure      String?   // 手册 PDF URL
   status        String    @default("ACTIVE") // ACTIVE / INACTIVE
-  partNumbers   PartNumber[]
   rfqs          RFQ[]
   // V3.1 多对多：PN ↔ 设备型号 正式关系
   partNumberRelations PartNumberEquipment[]
@@ -110,9 +109,6 @@ model PartNumber {
   seoDescription String?
   brandId       Int?
   brand         Brand?    @relation(fields: [brandId], references: [id])
-  // V3.1 兼容保留：单设备关系（旧页面仍使用）。正式多设备关系见 equipmentRelations / PartNumberEquipment
-  equipmentId   Int?
-  equipment     Equipment? @relation(fields: [equipmentId], references: [id])
   products      Product[]
   rfqs          RFQ[]
   rfqItems      RFQItem[]
@@ -153,7 +149,6 @@ model PartNumber {
   @@index([normalizedPartNumber])
   @@index([verificationStatus, publishStatus])
   @@index([brandId])
-  @@index([equipmentId])
 }
 
 // ========== 产品（供应商实际供应的产品） ==========

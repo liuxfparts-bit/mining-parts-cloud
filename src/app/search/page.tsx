@@ -61,7 +61,7 @@ export default async function SearchPage({
           { brand: { name: { contains: q } } },
         ],
       },
-      include: { brand: true, _count: { select: { partNumbers: true } } },
+      include: { brand: true, _count: { select: { partNumberRelations: true } } },
       take: 10,
     }),
     prisma.brand.findMany({
@@ -125,7 +125,7 @@ export default async function SearchPage({
                   <Link href={`/equipment/${e.slug}`} className="font-bold hover:text-accent">
                     {e.brand.name} {e.model}
                   </Link>
-                  <p className="text-sm text-muted">{e.equipmentType} · {e._count.partNumbers} 个件号</p>
+                  <p className="text-sm text-muted">{e.equipmentType} · {e._count.partNumberRelations} 个件号</p>
                 </div>
                 <Link href={`/equipment/${e.slug}`} className="text-sm text-accent hover:underline ml-4">查看 →</Link>
               </div>

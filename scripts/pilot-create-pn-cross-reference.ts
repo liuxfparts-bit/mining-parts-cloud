@@ -77,7 +77,6 @@ const EXPECTED_G5_FIELDS = {
   modelEvidence: "NOT_EXPLICIT",
   confidence: "MEDIUM",
   brandId: null,
-  equipmentId: null,
 };
 
 // ===== 参数解析 =====
@@ -121,7 +120,7 @@ async function main() {
       select: {
         id: true, number: true, normalizedPartNumber: true, slug: true,
         name: true, category: true, verificationStatus: true, publishStatus: true,
-        verified: true, modelEvidence: true, confidence: true, brandId: true, equipmentId: true,
+        verified: true, modelEvidence: true, confidence: true, brandId: true, 
       },
     });
     console.log(`  G5_8516_EXISTS = ${g5Exact ? `YES (id=${g5Exact.id})` : "NO"}`);
@@ -272,7 +271,6 @@ async function main() {
       console.log(`    modelEvidence = NOT_EXPLICIT (schema default, NOT auto-elevated)`);
       console.log(`    confidence = MEDIUM (schema default, NOT auto-elevated from 114-8516LFL HIGH)`);
       console.log(`    brandId = null (NOT auto-set Sandvik)`);
-      console.log(`    equipmentId = null (NOT auto-set ED10/LS190)`);
       console.log(`    equipmentRelations = [] (NOT auto-created)`);
 
       console.log(`\n  WOULD_CREATE_CROSS_REFERENCE = YES`);
@@ -323,7 +321,7 @@ async function main() {
           // 以下全部使用 schema default，不显式设置：
           // verificationStatus = UNVERIFIED, publishStatus = HOLD, verified = false
           // modelEvidence = NOT_EXPLICIT, confidence = MEDIUM, oemStatus = AFTERMARKET
-          // brandId = null, equipmentId = null
+          // brandId = null
         },
         select: { id: true },
       });
@@ -363,7 +361,7 @@ async function main() {
 
     const g5Verify = await prisma.partNumber.findUnique({
       where: { number: PILOT.newPartNumber },
-      select: { id: true, verificationStatus: true, publishStatus: true, verified: true, modelEvidence: true, confidence: true, brandId: true, equipmentId: true },
+      select: { id: true, verificationStatus: true, publishStatus: true, verified: true, modelEvidence: true, confidence: true, brandId: true },
     });
 
     let verifyPass = true;
@@ -373,7 +371,6 @@ async function main() {
     if (g5Verify?.modelEvidence !== "NOT_EXPLICIT") { console.log(`  FAIL: modelEvidence should be NOT_EXPLICIT, got ${g5Verify?.modelEvidence}`); verifyPass = false; }
     if (g5Verify?.confidence !== "MEDIUM") { console.log(`  FAIL: confidence should be MEDIUM, got ${g5Verify?.confidence}`); verifyPass = false; }
     if (g5Verify?.brandId !== null) { console.log(`  FAIL: brandId should be null, got ${g5Verify?.brandId}`); verifyPass = false; }
-    if (g5Verify?.equipmentId !== null) { console.log(`  FAIL: equipmentId should be null, got ${g5Verify?.equipmentId}`); verifyPass = false; }
 
     const crVerify = await prisma.partNumberCrossReference.findFirst({
       where: {

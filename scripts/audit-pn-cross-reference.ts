@@ -24,7 +24,6 @@ async function main() {
       where: { number: "114-8516LFL" },
       include: {
         brand: true,
-        equipment: true,
         equipmentRelations: { include: { equipmentModel: true } },
         _count: { select: { products: true, rfqs: true, rfqItems: true, auditLogs: true } },
       },
@@ -50,7 +49,6 @@ async function main() {
       console.log(`PUBLISH_STATUS = ${pn.publishStatus}`);
       console.log(`LAST_VERIFIED_AT = ${pn.lastVerifiedAt ? pn.lastVerifiedAt.toISOString() : "(null)"}`);
       console.log(`EQUIPMENT_RELATIONS = ${pn.equipmentRelations.map((r) => r.equipmentModel.model).join(", ") || "(none)"}`);
-      console.log(`LEGACY_EQUIPMENT_ID = ${pn.equipmentId ?? "(null)"} (${pn.equipment?.model ?? "none"})`);
       console.log(`PRODUCT_COUNT = ${pn._count.products}`);
       console.log(`RFQ_COUNT = ${pn._count.rfqs}`);
       console.log(`RFQ_ITEM_COUNT = ${pn._count.rfqItems}`);

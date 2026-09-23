@@ -20,7 +20,7 @@ export default async function AdminEquipmentPage({ searchParams }: { searchParam
   if (status) where.status = status;
 
   const [items, total, brands, types] = await Promise.all([
-    prisma.equipment.findMany({ where, include: { brand: true, _count: { select: { partNumbers: true } } }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+    prisma.equipment.findMany({ where, include: { brand: true, _count: { select: { partNumberRelations: true } } }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
     prisma.equipment.count({ where }),
     prisma.brand.findMany({ orderBy: { name: "asc" } }),
     prisma.equipment.findMany({ distinct: ["equipmentType"], select: { equipmentType: true }, orderBy: { equipmentType: "asc" } }),
@@ -66,7 +66,7 @@ export default async function AdminEquipmentPage({ searchParams }: { searchParam
                   <td className="p-3">{e.name}</td>
                   <td className="p-3">{e.equipmentType}</td>
                   <td className="p-3"><span className={`text-xs px-2 py-0.5 rounded ${e.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>{e.status === "ACTIVE" ? "启用" : "下架"}</span></td>
-                  <td className="p-3">{e._count.partNumbers}</td>
+                  <td className="p-3">{e._count.partNumberRelations}</td>
                   <td className="p-3">
                     <div className="flex gap-2">
                       <a href={`/equipment/${e.slug}`} target="_blank" className="text-xs text-gray-600">查看</a>

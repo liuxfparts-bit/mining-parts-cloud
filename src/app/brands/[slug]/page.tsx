@@ -9,7 +9,7 @@ export default async function BrandDetailPage({ params }: { params: { slug: stri
   const brand = await prisma.brand.findUnique({
     where: { slug: params.slug },
     include: {
-      equipment: { where: { status: "ACTIVE" }, include: { _count: { select: { partNumbers: true } } } },
+      equipment: { where: { status: "ACTIVE" }, include: { _count: { select: { partNumberRelations: true } } } },
       partNumbers: { include: { brand: true, equipmentRelations: { include: { equipmentModel: true } } }, take: 20 },
     },
   });
@@ -23,7 +23,7 @@ export default async function BrandDetailPage({ params }: { params: { slug: stri
       <h2 className="text-xl font-bold mb-4">设备型号（{brand.equipment.length}）</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[14px] mb-10">
         {brand.equipment.map((e) => (
-          <EquipmentCard key={e.id} slug={e.slug} brandName={brand.name} model={e.model} equipmentType={e.equipmentType} description={e.description} partCount={e._count.partNumbers} />
+          <EquipmentCard key={e.id} slug={e.slug} brandName={brand.name} model={e.model} equipmentType={e.equipmentType} description={e.description} partCount={e._count.partNumberRelations} />
         ))}
       </div>
 

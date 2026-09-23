@@ -9,7 +9,6 @@
  *   3. 区分 ALL 与 publishStatus=READY
  *   4. 样本 PN 列表
  *   5. 特定 PN 设备关系（016-15015 / 016-63028 / 106-03455 / 4697280）
- *   6. legacy PartNumber.equipmentId 统计
  * ============================================================
  */
 async function main() {
@@ -161,25 +160,6 @@ async function main() {
         console.log(`PN_${num.replace(/-/g, "_").replace(/\./g, "_")}_EQUIPMENT = NOT_FOUND`);
       }
     }
-
-    // ===== 6. legacy PartNumber.equipmentId 统计 =====
-    console.log(`\n--- [6] legacy PartNumber.equipmentId 统计 ---`);
-    const ls190Legacy = await prisma.partNumber.count({ where: { equipmentId: ls190Id } });
-    const ed10Legacy = await prisma.partNumber.count({ where: { equipmentId: ed10Id } });
-    const totalLegacy = await prisma.partNumber.count({ where: { equipmentId: { not: null } } });
-
-    console.log(`LS190_LEGACY_EQUIPMENT_ID_COUNT = ${ls190Legacy}`);
-    console.log(`ED10_LEGACY_EQUIPMENT_ID_COUNT = ${ed10Legacy}`);
-    console.log(`TOTAL_PN_WITH_LEGACY_EQUIPMENT_ID = ${totalLegacy}`);
-
-    // legacy LS190 的 PN 样本
-    const ls190LegacyPns = await prisma.partNumber.findMany({
-      where: { equipmentId: ls190Id },
-      select: { number: true, publishStatus: true },
-      orderBy: { number: "asc" },
-      take: 20,
-    });
-    console.log(`LS190_LEGACY_PN_SAMPLE = ${ls190LegacyPns.map((p) => `${p.number}(${p.publishStatus})`).join(", ")}`);
 
     // ===== 7. PartNumber 总数 =====
     console.log(`\n--- [7] PartNumber 总数 ---`);

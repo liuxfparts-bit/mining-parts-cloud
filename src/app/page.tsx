@@ -15,7 +15,7 @@ export default async function HomePage() {
 
   const [brands, equipment, partNumbers, suppliers, recentRFQs, homeBanners, brandsWithEquipment, categories] = await Promise.all([
     prisma.brand.findMany({ include: { _count: { select: { equipment: true, partNumbers: true } } }, take: 12, orderBy: { name: "asc" } }),
-    prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumbers: true } } }, take: 8, orderBy: { id: "asc" } }),
+    prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumberRelations: true } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
       where: { publishStatus: "READY" },
       include: { brand: true, equipmentRelations: { include: { equipmentModel: { include: { brand: true } } } }, products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } } },
@@ -135,7 +135,7 @@ export default async function HomePage() {
                 <span className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded">{e.brand.name}</span>
                 <div className="font-bold mt-2">{e.model}</div>
                 <div className="text-xs text-gray-500">{e.equipmentType}</div>
-                <div className="text-xs text-gray-400 mt-1">{e._count.partNumbers} 个相关件号</div>
+                <div className="text-xs text-gray-400 mt-1">{e._count.partNumberRelations} 个相关件号</div>
               </Link>
             ))}
           </div>

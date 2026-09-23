@@ -6,7 +6,7 @@ import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
 
 export default async function MobileHome() {
   const [equipment, partNumbers] = await Promise.all([
-    prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumbers: true } } }, take: 20, orderBy: { id: "asc" } }),
+    prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumberRelations: true } } }, take: 20, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
       where: { publishStatus: "READY" },
       include: { brand: true, products: { where: PUBLIC_PRODUCT_WHERE_NESTED } },
@@ -71,7 +71,7 @@ export default async function MobileHome() {
                 <span className="inline-block bg-blue-50 text-blue-700 text-xs px-1.5 py-0.5 rounded">{e.brand.name}</span>
                 <div className="font-bold mt-1">{e.model}</div>
                 <div className="text-xs text-gray-500">{e.equipmentType}</div>
-                <div className="text-xs text-gray-400 mt-1">{e._count.partNumbers} 个件号</div>
+                <div className="text-xs text-gray-400 mt-1">{e._count.partNumberRelations} 个件号</div>
               </div>
             </Link>
           ))}

@@ -206,9 +206,12 @@ async function main() {
           seoTitle: `${pn} ${name} - ${brand}配件 | 矿配云`,
           seoDescription: `${brand}设备件号${pn}（${name}/${nameEn}），适配${equipKey}，多家供应商报价。`,
           brandId: brands[brand]?.id || null,
-          equipmentId: equipKey ? equipment[equipKey]?.id || null : null,
         },
       });
+      const equipmentModelId = equipKey ? equipment[equipKey]?.id : null;
+      if (equipmentModelId) {
+        await prisma.partNumberEquipment.create({ data: { partNumberId: partCache[pn].id, equipmentModelId } });
+      }
     }
     const stockQty = Math.floor(Math.random() * 50) + 5;
     await prisma.product.create({
@@ -396,7 +399,7 @@ async function main() {
       const existing = await prisma.partNumber.findUnique({ where: { number: pnNumber } });
       if (existing) continue;
 
-      await prisma.partNumber.create({
+      const createdPartNumber = await prisma.partNumber.create({
         data: {
           number: pnNumber,
           slug: slug(pnNumber),
@@ -408,9 +411,9 @@ async function main() {
           seoTitle: `${pnNumber} ${partName} for ${eq.brand.name} ${eq.model} | 矿配云`,
           seoDescription: `${pnNumber} ${partNameEn} replacement parts for ${eq.brand.name} ${eq.model} mining equipment from verified suppliers.`,
           brandId: eq.brandId,
-          equipmentId: eq.id,
         },
       });
+      await prisma.partNumberEquipment.create({ data: { partNumberId: createdPartNumber.id, equipmentModelId: eq.id } });
 
       // 为每个件号随机选 1-3 个供应商生成产品
       const numSuppliers = Math.min(3, allSuppliers.length);
