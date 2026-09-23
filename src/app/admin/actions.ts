@@ -290,8 +290,11 @@ export async function updateEquipment(id: number, formData: FormData) {
 
 export async function deleteEquipment(id: number) {
   await requireAdmin();
-  const used = await prisma.partNumber.count({ where: { equipmentId: id } });
-  if (used > 0) {
+  const [legacyUsed, relationUsed] = await Promise.all([
+    prisma.partNumber.count({ where: { equipmentId: id } }),
+    prisma.partNumberEquipment.count({ where: { equipmentModelId: id } }),
+  ]);
+  if (legacyUsed > 0 || relationUsed > 0) {
     await prisma.equipment.update({ where: { id }, data: { status: "OFFLINE" } });
   } else {
     await prisma.equipment.delete({ where: { id } });
