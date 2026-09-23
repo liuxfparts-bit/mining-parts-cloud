@@ -22,7 +22,7 @@ export default async function SupplierDetailPage({ params }: { params: { slug: s
       users: { select: { status: true } },
       products: {
         where: PUBLIC_PRODUCT_WHERE_NESTED,
-        include: { partNumber: { include: { equipment: true, brand: true } } },
+        include: { partNumber: { include: { equipmentRelations: { include: { equipmentModel: true } }, brand: true } } },
         orderBy: { createdAt: "desc" },
       },
     },
@@ -113,8 +113,8 @@ export default async function SupplierDetailPage({ params }: { params: { slug: s
                 {p.partNumber.number}
               </Link>
               <p className="text-sm text-muted">{p.name}</p>
-              {p.partNumber.equipment && (
-                <p className="text-xs text-muted mt-0.5">适配：{p.partNumber.brand?.name} {p.partNumber.equipment.model}</p>
+              {p.partNumber.equipmentRelations.length > 0 && (
+                <p className="text-xs text-muted mt-0.5">适配：{p.partNumber.brand?.name} {p.partNumber.equipmentRelations.map((r) => r.equipmentModel.model).join(" / ")}</p>
               )}
             </div>
             <div className="text-right">

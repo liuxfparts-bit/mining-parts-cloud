@@ -46,7 +46,7 @@ export default async function SearchPage({
       },
       include: {
         brand: true,
-        equipment: { include: { brand: true } },
+        equipmentRelations: { include: { equipmentModel: { include: { brand: true } } } },
         products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } },
       },
       take: 15,
@@ -104,7 +104,7 @@ export default async function SearchPage({
                   <Link href={`/part-number/${p.slug}`} className="font-mono font-bold text-accent hover:underline">
                     {p.number}
                   </Link>
-                  <p className="text-sm text-muted">{p.name} {p.equipment && `· ${p.brand?.name} ${p.equipment.model}`}</p>
+                  <p className="text-sm text-muted">{p.name} {p.equipmentRelations.length > 0 && `· ${p.brand?.name} ${p.equipmentRelations.map((r) => r.equipmentModel.model).join(" / ")}`}</p>
                 </div>
                 <Link href={`/part-number/${p.slug}`} className="text-sm text-accent hover:underline ml-4">查看 →</Link>
               </div>

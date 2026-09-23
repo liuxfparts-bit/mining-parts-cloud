@@ -18,7 +18,7 @@ export default async function HomePage() {
     prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumbers: true } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.partNumber.findMany({
       where: { publishStatus: "READY" },
-      include: { brand: true, equipment: { include: { brand: true } }, products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } } },
+      include: { brand: true, equipmentRelations: { include: { equipmentModel: { include: { brand: true } } } }, products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } } },
       take: 6, orderBy: { id: "asc" },
     }),
     prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } }, include: { _count: { select: { products: true } } }, take: 8, orderBy: { id: "asc" } }),
@@ -157,7 +157,7 @@ export default async function HomePage() {
                   <div className="mt-1">{p.name}</div>
                   <div className="flex gap-2 mt-2 text-xs">
                     {p.brand && <span className="bg-gray-100 px-2 py-0.5 rounded">{p.brand.name}</span>}
-                    {p.equipment && <span className="bg-gray-100 px-2 py-0.5 rounded">{p.equipment.model}</span>}
+                    {p.equipmentRelations.length > 0 && <span className="bg-gray-100 px-2 py-0.5 rounded">{p.equipmentRelations.map((r) => r.equipmentModel.model).join(" / ")}</span>}
                   </div>
                   <div className="flex justify-between items-center mt-3">
                     <span className="text-xs text-gray-500">{supplierCount > 0 ? `${supplierCount} 家供应商` : "暂无供应商"}</span>

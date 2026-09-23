@@ -10,7 +10,7 @@ export default async function BrandDetailPage({ params }: { params: { slug: stri
     where: { slug: params.slug },
     include: {
       equipment: { where: { status: "ACTIVE" }, include: { _count: { select: { partNumbers: true } } } },
-      partNumbers: { include: { brand: true, equipment: true }, take: 20 },
+      partNumbers: { include: { brand: true, equipmentRelations: { include: { equipmentModel: true } } }, take: 20 },
     },
   });
   if (!brand) notFound();
@@ -35,7 +35,7 @@ export default async function BrandDetailPage({ params }: { params: { slug: stri
               <Link href={`/part-number/${p.slug}`} className="font-mono font-bold text-accent hover:underline">{p.number}</Link>
               <p className="text-sm text-muted">{p.name}</p>
             </div>
-            {p.equipment && <span className="text-xs text-muted">{p.equipment.model}</span>}
+            {p.equipmentRelations.length > 0 && <span className="text-xs text-muted">{p.equipmentRelations.map((r) => r.equipmentModel.model).join(" / ")}</span>}
           </div>
         ))}
       </div>
