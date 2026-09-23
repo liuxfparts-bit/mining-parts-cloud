@@ -264,7 +264,7 @@ export async function createPartNumber(formData: FormData) {
 
   await prisma.$transaction(async (tx) => {
     const partNumber = await tx.partNumber.create({
-      data: { number, name, slug: number.toLowerCase(), brandId, equipmentId, category: "其他" },
+      data: { number, name, slug: number.toLowerCase(), brandId, category: "其他" },
     });
 
     if (equipmentId) {

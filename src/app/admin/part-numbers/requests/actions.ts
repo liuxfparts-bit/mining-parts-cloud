@@ -44,7 +44,6 @@ export async function approvePartNumberRequest(id: number, categoryId?: number |
         category: (categoryId ?? req.categoryId) ? "" : "其他",
         categoryId: categoryId ?? req.categoryId,
         brandId,
-        equipmentId,
         description: req.description,
         images: req.images,
       },
