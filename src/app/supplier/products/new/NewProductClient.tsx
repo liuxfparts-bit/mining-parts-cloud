@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-type PN = { id: number; number: string; name: string; brand?: { name: string } | null; equipment?: { model: string } | null; category?: string | null };
+type PN = { id: number; number: string; name: string; brand?: { name: string } | null; equipmentRelations?: { equipmentModel: { model: string } }[]; category?: string | null };
 
 export default function NewProductClient({ maxImages, memberLevel, preselect }: { maxImages: number; memberLevel: string; preselect?: PN | null }) {
   const router = useRouter();
@@ -102,7 +102,7 @@ export default function NewProductClient({ maxImages, memberLevel, preselect }: 
                     <td className="p-2 font-mono">{p.number}</td>
                     <td className="p-2">{p.name}</td>
                     <td className="p-2">{p.brand?.name}</td>
-                    <td className="p-2">{p.equipment?.model}</td>
+                    <td className="p-2">{p.equipmentRelations?.map((r) => r.equipmentModel.model).join(" / ")}</td>
                     <td className="p-2"><button onClick={() => choose(p)} className="text-blue-600">选择</button></td>
                   </tr>
                 ))}
@@ -126,7 +126,7 @@ export default function NewProductClient({ maxImages, memberLevel, preselect }: 
           <div className="bg-gray-50 p-4 rounded text-sm">
             <div className="font-mono font-bold text-lg">{selected.number}</div>
             <div>{selected.name}</div>
-            <div className="text-gray-500 mt-1">品牌：{selected.brand?.name} 设备：{selected.equipment?.model} 分类：{selected.category}</div>
+            <div className="text-gray-500 mt-1">品牌：{selected.brand?.name} 设备：{selected.equipmentRelations?.map((r) => r.equipmentModel.model).join(" / ")} 分类：{selected.category}</div>
             <p className="text-xs text-gray-400 mt-2">以上为平台件号基础信息，供应商无需重复填写。</p>
           </div>
 

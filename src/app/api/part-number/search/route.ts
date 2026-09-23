@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   if (!q) return NextResponse.json({ items: [] });
   const items = await prisma.partNumber.findMany({
     where: { publishStatus: "READY", number: { contains: q, mode: "insensitive" } },
-    include: { brand: true, equipment: true },
+    include: { brand: true, equipmentRelations: { include: { equipmentModel: true } } },
     take: 20,
   });
   return NextResponse.json({ items });

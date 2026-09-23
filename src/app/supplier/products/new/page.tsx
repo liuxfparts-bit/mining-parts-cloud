@@ -18,7 +18,7 @@ export default async function NewProduct({ searchParams }: { searchParams: { par
   if (searchParams.partNumber) {
     preselect = await prisma.partNumber.findUnique({
       where: { slug: searchParams.partNumber.toLowerCase() },
-      include: { brand: true, equipment: true },
+      include: { brand: true, equipmentRelations: { include: { equipmentModel: true } } },
     });
   }
   const maxImages = MAX_IMG[supplier.memberLevel] || 1;

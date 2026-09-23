@@ -50,7 +50,7 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
   const rfq = await prisma.rFQ.findUnique({
     where: { id },
     include: {
-      partNumber: { include: { brand: true, equipment: true } },
+      partNumber: { include: { brand: true, equipmentRelations: { include: { equipmentModel: true } } } },
       items: { include: { partNumber: true }, orderBy: { seq: "asc" } },
       quotes: mySupplierId
         ? { where: { supplierId: mySupplierId }, include: { supplier: true, items: true } }

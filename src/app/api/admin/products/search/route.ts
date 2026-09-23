@@ -14,8 +14,8 @@ export async function GET(req: Request) {
         { partNumber: { number: { contains: q, mode: "insensitive" as const } } },
       ],
     },
-    include: { partNumber: { include: { brand: true, equipment: true } } },
+    include: { partNumber: { include: { brand: true, equipmentRelations: { include: { equipmentModel: true } } } } },
     take: 20,
   });
-  return NextResponse.json(products.map((p) => ({ id: p.id, name: p.name, partNumber: p.partNumber?.number, brand: p.partNumber?.brand?.name, equipment: p.partNumber?.equipment?.model })));
+  return NextResponse.json(products.map((p) => ({ id: p.id, name: p.name, partNumber: p.partNumber?.number, brand: p.partNumber?.brand?.name, equipment: p.partNumber?.equipmentRelations.map((r) => r.equipmentModel.model).join(" / ") || undefined })));
 }
