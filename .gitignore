@@ -44,3 +44,15 @@ nginx/ssl/
 
 # V3.1 导入预检日志（不入库）
 logs/
+
+# P1-8: production/runtime data
+uploads/
+.env.*
+!.env.example
+!.env.staging.example
+*.swp
+
+# Database backups
+backup*.sql
+backup*.dump
+*.dump
