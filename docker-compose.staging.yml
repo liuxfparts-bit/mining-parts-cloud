@@ -1,0 +1,48 @@
+services:
+  postgres-staging:
+    image: postgres:16-alpine
+    container_name: mining-parts-staging-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mining_staging
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD}
+      POSTGRES_DB: mining_parts_staging
+    volumes:
+      - staging_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U mining_staging -d mining_parts_staging
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - staging_network
+
+  app-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mining-parts-staging-app
+    restart: unless-stopped
+    depends_on:
+      postgres-staging:
+        condition: service_healthy
+    env_file:
+      - .env.staging
+    environment:
+      DATABASE_URL: postgresql://mining_staging:${STAGING_DB_PASSWORD}@postgres-staging:5432/mining_parts_staging
+      NODE_ENV: production
+      NEXT_PUBLIC_SITE_MODE: staging
+    ports:
+      - "127.0.0.1:3100:3000"
+    networks:
+      - staging_network
+
+volumes:
+  staging_pgdata:
+    name: mining-parts-staging-pgdata
+
+networks:
+  staging_network:
+    name: mining-parts-staging-network
