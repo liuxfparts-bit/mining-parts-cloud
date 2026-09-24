@@ -1,4 +1,4 @@
-﻿-- CreateEnum
+-- CreateEnum
 CREATE TYPE "PartNumberVerificationStatus" AS ENUM ('CANDIDATE', 'UNVERIFIED', 'VERIFIED', 'CONFLICT', 'REJECTED');
 
 -- CreateEnum

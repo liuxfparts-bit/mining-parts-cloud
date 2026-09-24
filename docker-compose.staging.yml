@@ -1,3 +1,5 @@
+name: mining-parts-staging
+
 services:
   postgres-staging:
     image: postgres:16-alpine
