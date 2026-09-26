@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
 import { auth } from "@/lib/auth";
+import { canSupplierAccessRfq } from "@/lib/rfq-supplier-access";
 import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -40,6 +41,7 @@ export default async function SupplierQuotePage({
 
   const session = await auth();
   if (!session?.user) redirect("/login");
+  if ((session.user as any).role !== "SUPPLIER") notFound();
   const user = await prisma.user.findUnique({
     where: { email: String((session.user as any).email).toLowerCase() },
     select: { id: true, supplierId: true },
@@ -57,16 +59,7 @@ export default async function SupplierQuotePage({
   });
   if (!rfq) notFound();
 
-  // 服务端可见性校验：仅公开 或 匹配到本供应商 的询价可查看报价
-  if (rfq.visibility === "MATCHED_SUPPLIERS" && rfq.matchedSuppliers) {
-    try {
-      const matched: number[] = JSON.parse(rfq.matchedSuppliers);
-      if (Array.isArray(matched) && !matched.includes(supplierId)) notFound();
-    } catch {
-      /* 脏数据不拦截 */
-    }
-  }
-  if (rfq.visibility === "PRIVATE") notFound();
+  if (!canSupplierAccessRfq(rfq, supplierId)) notFound();
 
   const closed = rfq.status === "CLOSED" || rfq.status === "EXPIRED";
   const existing = (rfq.quotes[0] || null) as ExistingQuoteT;
