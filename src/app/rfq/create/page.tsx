@@ -9,7 +9,6 @@ export default function NewRFQPage({
     brandName?: string;
     equipmentModel?: string;
     productName?: string;
-    supplierId?: string;
   };
 }) {
   return (

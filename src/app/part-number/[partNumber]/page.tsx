@@ -355,7 +355,7 @@ export default async function PartNumberDetailPage({
                 <div className="flex gap-2 mt-3">
                   <Link href={`/suppliers/${prod.supplier.slug}`} className="flex-1 text-center border rounded py-1.5 text-sm hover:bg-gray-50">查看供应商</Link>
                   <Link
-                    href={`${rfqCreateHref}&supplierId=${prod.supplierId}`}
+                    href={rfqCreateHref}
                     className="flex-1 text-center bg-accent text-ink rounded py-1.5 text-sm hover:bg-[#d49215] font-medium"
                   >
                     立即询价
