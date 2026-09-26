@@ -146,6 +146,7 @@ async function main() {
       number: COLLISION_NUMBER,
       slug: COLLISION_SLUG,
       name: "__P2_1C_COLLISION__",
+      category: "P2-1C temporary test fixture",
       normalizedPartNumber: NORMALIZED,
       verificationStatus: "VERIFIED",
       publishStatus: "READY",
