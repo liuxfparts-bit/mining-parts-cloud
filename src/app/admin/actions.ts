@@ -142,10 +142,63 @@ export async function updateMemberLevel(id: number, level: string) {
   await prisma.supplier.update({ where: { id }, data: { memberLevel: level } });
   revalidatePath(`/admin/suppliers/${id}`);
 }
-export async function reviewPartNumber(id: number, verified: boolean) {
-  await requireAdmin();
-  await prisma.partNumber.update({ where: { id }, data: { verified } });
+
+export async function reviewPartNumberStatus(id: number, formData: FormData) {
+  const session = await requireAdmin();
+  const requestedVerification = ((formData.get("verificationStatus") as string) || "").trim();
+  const requestedPublish = ((formData.get("publishStatus") as string) || "HOLD").trim();
+  const reason = ((formData.get("reason") as string) || "").trim();
+
+  const allowedVerification = ["VERIFIED", "UNVERIFIED", "CONFLICT", "REJECTED"];
+  if (!allowedVerification.includes(requestedVerification)) {
+    throw new Error("无效的 Part Number 审核状态");
+  }
+  if (reason.length < 2 || reason.length > 2000) {
+    throw new Error("审核备注/证据说明必填，长度需在 2-2000 字符之间");
+  }
+
+  const publishStatus = requestedVerification === "VERIFIED" && requestedPublish === "READY" ? "READY" : "HOLD";
+  const adminIdRaw = (session.user as any).id;
+  const adminId = Number.isNaN(Number(adminIdRaw)) ? null : Number(adminIdRaw);
+
+  const current = await prisma.partNumber.findUnique({ where: { id } });
+  if (!current) throw new Error("Part Number 不存在");
+
+  const action =
+    requestedVerification === "VERIFIED" ? "VERIFY" :
+    requestedVerification === "CONFLICT" ? "MARK_CONFLICT" :
+    requestedVerification === "REJECTED" ? "REJECT" :
+    "REVERT_TO_UNVERIFIED";
+
+  await prisma.$transaction(async (tx) => {
+    await tx.partNumber.update({
+      where: { id },
+      data: {
+        verificationStatus: requestedVerification as any,
+        publishStatus: publishStatus as any,
+        verified: requestedVerification === "VERIFIED" && publishStatus === "READY",
+        lastVerifiedAt: requestedVerification === "VERIFIED" ? new Date() : null,
+        verifiedById: requestedVerification === "VERIFIED" ? adminId : null,
+      },
+    });
+
+    await tx.partNumberAuditLog.create({
+      data: {
+        partNumberId: id,
+        action,
+        oldVerification: current.verificationStatus,
+        newVerification: requestedVerification,
+        oldPublishStatus: current.publishStatus,
+        newPublishStatus: publishStatus,
+        reason,
+        changedById: adminId,
+      },
+    });
+  });
+
   revalidatePath("/admin/part-numbers");
+  revalidatePath(`/admin/part-numbers/${id}`);
+  redirect(`/admin/part-numbers/${id}`);
 }
 export async function setProductStatus(id: number, status: string) {
   await requireAdmin();
