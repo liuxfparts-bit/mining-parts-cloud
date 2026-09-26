@@ -17,6 +17,9 @@ export type TrustedSupplierCapabilityResult = {
  *
  * No Product means no capability evidence. Brand/equipment similarity and supplierCount
  * are intentionally not used as inference signals.
+ *
+ * Matching fails closed when normalized matching is ambiguous: an exact number match is
+ * preferred, otherwise exactly one normalized Part Number must exist.
  */
 export async function findTrustedSupplierIdsForPartNumber(
   input: string | null | undefined
@@ -49,23 +52,38 @@ export async function findTrustedSupplierIdsForPartNumber(
         select: { supplierId: true },
       },
     },
-    take: 10,
   });
 
   if (candidates.length === 0) {
     return { partNumberId: null, supplierIds: [] };
   }
 
-  candidates.sort((a, b) => {
-    const score = (item: typeof a) => {
-      if (item.number.toUpperCase() === upper) return 0;
-      if (normalized && item.normalizedPartNumber === normalized) return 1;
-      return 2;
-    };
-    return score(a) - score(b) || a.number.localeCompare(b.number);
-  });
+  const exactMatches = candidates.filter(
+    (candidate) => candidate.number.toUpperCase() === upper
+  );
 
-  const match = candidates[0];
+  let match: (typeof candidates)[number] | null = null;
+
+  if (exactMatches.length === 1) {
+    match = exactMatches[0];
+  } else if (exactMatches.length > 1) {
+    return { partNumberId: null, supplierIds: [] };
+  } else if (normalized) {
+    const normalizedMatches = candidates.filter(
+      (candidate) => candidate.normalizedPartNumber?.toUpperCase() === normalized.toUpperCase()
+    );
+
+    if (normalizedMatches.length !== 1) {
+      return { partNumberId: null, supplierIds: [] };
+    }
+
+    match = normalizedMatches[0];
+  }
+
+  if (!match) {
+    return { partNumberId: null, supplierIds: [] };
+  }
+
   return {
     partNumberId: match.id,
     supplierIds: Array.from(new Set(match.products.map((product) => product.supplierId))),
