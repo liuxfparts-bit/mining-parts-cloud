@@ -86,6 +86,22 @@ export default async function PartNumberDetailPage({
 
   const { primary: displayName, secondary: displayNameEn } = displayPartName(pn.name, pn.nameEn);
 
+  // P2-1B-3: RFQ prefill uses reviewed Part Number master data.
+  // Equipment is only prefilled from a VERIFIED PN -> Equipment relation.
+  const verifiedEquipmentRelation = pn.equipmentRelations.find(
+    (relation) => relation.verificationStatus === "VERIFIED"
+  );
+
+  const rfqParams = new URLSearchParams();
+  rfqParams.set("partNumber", pn.number);
+  if (pn.brand?.name) rfqParams.set("brandName", pn.brand.name);
+  if (verifiedEquipmentRelation?.equipmentModel.model) {
+    rfqParams.set("equipmentModel", verifiedEquipmentRelation.equipmentModel.model);
+  }
+  if (displayName) rfqParams.set("productName", displayName);
+
+  const rfqCreateHref = `/rfq/create?${rfqParams.toString()}`;
+
   // 相关件号：优先同设备（PartNumberEquipment），其次同品牌+同分类；deterministic；排除自己和非 READY
   const relatedEquipIds = equipmentList.map((e) => e.id);
   const relatedParts = await prisma.partNumber.findMany({
@@ -257,9 +273,9 @@ export default async function PartNumberDetailPage({
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-xl font-bold">可供货产品（{pn.products.length}）</h2>
         {pn.products.length > 0 && (
-          <Link href={`/rfq/create?partNumber=${encodeURIComponent(pn.number)}`}>
+          <Link href={rfqCreateHref}>
             <Button className="bg-accent text-ink hover:bg-[#d49215] flex items-center gap-1 text-sm">
-              <Send size={14} /> 询价全部供应商
+              <Send size={14} /> 发布询价
             </Button>
           </Link>
         )}
@@ -272,7 +288,7 @@ export default async function PartNumberDetailPage({
           <p className="text-sm text-muted mb-5">
             如果您正在采购 <span className="font-mono font-medium text-ink">{pn.number}</span>，可以发布询价，由相关供应商报价。
           </p>
-          <Link href={`/rfq/create?partNumber=${encodeURIComponent(pn.number)}`}>
+          <Link href={rfqCreateHref}>
             <Button className="bg-accent text-ink hover:bg-[#d49215] flex items-center gap-2 mx-auto">
               <Send size={16} /> 发布询价找货
             </Button>
@@ -339,7 +355,7 @@ export default async function PartNumberDetailPage({
                 <div className="flex gap-2 mt-3">
                   <Link href={`/suppliers/${prod.supplier.slug}`} className="flex-1 text-center border rounded py-1.5 text-sm hover:bg-gray-50">查看供应商</Link>
                   <Link
-                    href={`/rfq/create?partNumber=${encodeURIComponent(pn.number)}&supplierId=${prod.supplierId}`}
+                    href={`${rfqCreateHref}&supplierId=${prod.supplierId}`}
                     className="flex-1 text-center bg-accent text-ink rounded py-1.5 text-sm hover:bg-[#d49215] font-medium"
                   >
                     立即询价
