@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { canSupplierAccessRfq } from "@/lib/rfq-supplier-access";
 
 export async function POST(req: NextRequest) {
   // ===== 1. Session 鉴权：绝不信任 URL/表单传入的 supplierId =====
@@ -32,18 +33,11 @@ export async function POST(req: NextRequest) {
   // ===== 2. RFQ 可见性校验 =====
   const rfq = await prisma.rFQ.findUnique({ where: { id: rfqId } });
   if (!rfq) return NextResponse.json({ error: "询价单不存在" }, { status: 404 });
+  if (!canSupplierAccessRfq(rfq, supplierId)) {
+    return NextResponse.json({ error: "无权访问该询价或提交报价", code: "FORBIDDEN" }, { status: 403 });
+  }
   if (rfq.status === "CLOSED" || rfq.status === "EXPIRED") {
     return NextResponse.json({ error: "该询价已关闭，无法报价" }, { status: 400 });
-  }
-  if (rfq.visibility === "MATCHED_SUPPLIERS" && rfq.matchedSuppliers) {
-    try {
-      const matched: number[] = JSON.parse(rfq.matchedSuppliers);
-      if (Array.isArray(matched) && !matched.includes(supplierId)) {
-        return NextResponse.json({ error: "该询价仅向匹配的供应商开放", code: "FORBIDDEN" }, { status: 403 });
-      }
-    } catch {
-      /* 兼容脏数据：解析失败不拦截 */
-    }
   }
 
   // ===== 3. 解析分项报价 =====

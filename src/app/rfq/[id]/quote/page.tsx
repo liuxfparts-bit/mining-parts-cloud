@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import QuoteForm from "@/components/QuoteForm";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { canSupplierAccessRfq } from "@/lib/rfq-supplier-access";
 import { notFound, redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 
@@ -59,6 +60,7 @@ export default async function QuotePage({
     },
   });
   if (!rfq) notFound();
+  if (!canSupplierAccessRfq(rfq, user.supplierId)) notFound();
 
   // 校验该 RFQ 是否允许报价（供应商可见性）
   if (rfq.status === "CLOSED" || rfq.status === "EXPIRED") {
