@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, Send, Store, HelpCircle, CalendarCheck } from "lucide-react";
 import { verifiedStatusCN } from "@/lib/verify-status";
 import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
+import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 
 export const dynamic = "force-dynamic";
 
@@ -73,8 +74,8 @@ export default async function PartNumberDetailPage({
   });
   if (!pn) notFound();
 
-  // 公开页面限制：只展示 publishStatus=READY 的件号
-  if (pn.publishStatus !== "READY") notFound();
+  // 公开页面唯一门槛：件号本身必须 VERIFIED + READY。
+  if (pn.verificationStatus !== "VERIFIED" || pn.publishStatus !== "READY") notFound();
 
   const supplierCount = new Set(pn.products.map((p) => p.supplierId)).size;
 
@@ -90,7 +91,7 @@ export default async function PartNumberDetailPage({
   const relatedParts = await prisma.partNumber.findMany({
     where: {
       id: { not: pn.id },
-      publishStatus: "READY",
+      ...PUBLIC_PN_WHERE,
       OR: [
         ...(relatedEquipIds.length > 0
           ? [{ equipmentRelations: { some: { equipmentModelId: { in: relatedEquipIds } } } }]
@@ -149,7 +150,7 @@ export default async function PartNumberDetailPage({
               ))}
               {pn.category && <Badge variant="secondary">{pn.category}</Badge>}
               {pn.verificationStatus === "VERIFIED" ? (
-                <span className="inline-flex items-center gap-1 text-xs text-brandGreen" title="该件号及适用设备信息已经过矿配云数据审核。验证状态不代表原厂授权、库存状态或供应商资质。">
+                <span className="inline-flex items-center gap-1 text-xs text-brandGreen" title="该 Part Number 主数据已经过矿配云审核。此状态不代表某一设备适配关系已验证，也不代表原厂授权、库存状态或供应商资质。">
                   <CheckCircle2 size={13} /> 已验证
                 </span>
               ) : (
@@ -177,7 +178,7 @@ export default async function PartNumberDetailPage({
           <div className="flex justify-between sm:block">
             <dt className="text-muted flex items-center gap-1">
               验证状态
-              <span title="该件号及适用设备信息已经过矿配云数据审核。验证状态不代表原厂授权、库存状态或供应商资质。">
+              <span title="该 Part Number 主数据已经过矿配云审核。此状态不代表某一设备适配关系已验证，也不代表原厂授权、库存状态或供应商资质。">
                 <HelpCircle size={12} className="text-muted cursor-help" />
               </span>
             </dt>
@@ -188,6 +189,68 @@ export default async function PartNumberDetailPage({
             <dd className="sm:mt-0.5">{pn.lastVerifiedAt ? formatDate(pn.lastVerifiedAt) : "-"}</dd>
           </div>
         </dl>
+      </div>
+
+      {/* P2-1B-2: PN 与设备关系可信度。关系存在不等于适配已经验证。 */}
+      <div className="bg-white border border-line rounded-lg p-4 md:p-6 mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h2 className="text-lg font-bold">适用设备与关系证据</h2>
+          <span className="text-xs text-muted">件号验证与设备适配关系分别审核</span>
+        </div>
+        {pn.equipmentRelations.length === 0 ? (
+          <div className="rounded-md border border-dashed border-line p-4 text-sm text-muted">
+            暂无已登记的设备关系。没有设备关系不代表该件号不存在，仅表示当前数据库尚未建立适配关系。
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pn.equipmentRelations.map((relation) => {
+              const eq = relation.equipmentModel;
+              const relationVerified = relation.verificationStatus === "VERIFIED";
+              return (
+                <div key={relation.id} className="rounded-lg border border-line p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <Link href={`/equipment/${eq.slug}`} className="font-semibold text-accent hover:underline">
+                        {eq.model}
+                      </Link>
+                      <div className="text-sm text-muted mt-0.5">{eq.name}</div>
+                    </div>
+                    {relationVerified ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-brandGreen">
+                        <CheckCircle2 size={13} /> 关系已验证
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted">关系待验证</span>
+                    )}
+                  </div>
+                  <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 mt-3 text-sm">
+                    <div>
+                      <dt className="text-muted">证据状态</dt>
+                      <dd className="font-medium mt-0.5">{relation.evidenceStatus}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted">关系验证</dt>
+                      <dd className="mt-0.5">{relationVerified ? <span className="text-brandGreen">已验证</span> : "待验证"}</dd>
+                    </div>
+                    <div className="md:col-span-2">
+                      <dt className="text-muted">证据摘要</dt>
+                      <dd className="mt-0.5 whitespace-pre-wrap">{relation.evidenceSummary || "暂无明确证据摘要"}</dd>
+                    </div>
+                    {relation.sourceReference && (
+                      <div className="md:col-span-2">
+                        <dt className="text-muted">来源参考</dt>
+                        <dd className="mt-0.5 break-words">{relation.sourceReference}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <p className="text-xs text-muted mt-3">
+          说明：设备关系记录表示数据库中存在该件号与设备型号的关联；只有“关系已验证”才表示该适配关系已经过矿配云审核。
+        </p>
       </div>
 
       {/* 供应商产品 */}
