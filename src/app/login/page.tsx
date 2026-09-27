@@ -35,10 +35,9 @@ export default async function LoginPage({
 
     // 外部邀请绑定：登录后自动关联当前 RFQInvitation 并跳转报价页
     if (inviteToken) {
-      const inv = await prisma.rFQInvitation.findUnique({ where: { token: inviteToken } });
-      if (inv && u.supplierId) {
-        await bindInvitationToSupplier(inviteToken, u.supplierId);
-        redirect(`/rfq/${inv.rfqId}/quote?inv=${inviteToken}`);
+      if (u.role === "SUPPLIER" && u.supplierId) {
+        const inv = await bindInvitationToSupplier(inviteToken, u.supplierId);
+        if (inv) redirect(`/rfq/${inv.rfqId}/quote?inv=${inviteToken}`);
       }
     }
 

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 
 // ==================== 常量 ====================
@@ -10,6 +11,58 @@ export const INV_STATUS = {
   REJECTED: "REJECTED",
   EXPIRED: "EXPIRED",
 } as const;
+
+type InvitationStatus = (typeof INV_STATUS)[keyof typeof INV_STATUS];
+type InvitationDb = Pick<Prisma.TransactionClient, "rFQInvitation">;
+
+// Explicit allowlist: unknown states fail closed; terminal states cannot reopen.
+const TRANSITIONS: Record<InvitationStatus, readonly string[]> = {
+  PENDING_VIEW: ["VIEWED", "ACCEPTED", "REJECTED", "QUOTED", "EXPIRED"],
+  VIEWED: ["ACCEPTED", "REJECTED", "QUOTED", "EXPIRED"],
+  ACCEPTED: ["REJECTED", "QUOTED", "EXPIRED"],
+  QUOTED: [],
+  REJECTED: ["EXPIRED"],
+  EXPIRED: [],
+};
+
+export function canTransitionInvitation(from: string, to: string): boolean {
+  return Object.hasOwn(TRANSITIONS, from) && Object.hasOwn(TRANSITIONS, to) &&
+    (from === to || TRANSITIONS[from as InvitationStatus].includes(to));
+}
+
+const REMINDABLE_STATUSES = ["PENDING_VIEW", "VIEWED", "ACCEPTED", "REJECTED"];
+
+function validSupplierId(value: number): boolean {
+  return Number.isInteger(value) && value > 0 && value <= 2147483647;
+}
+
+/** Conditional writes prevent stale reads from overwriting a newer state/binding. */
+async function transitionInvitation(
+  where: Prisma.RFQInvitationWhereUniqueInput,
+  target: InvitationStatus,
+  db: InvitationDb = prisma,
+  scope?: { rfqId: number; supplierId: number },
+  rejectReason?: string
+) {
+  const inv = await db.rFQInvitation.findUnique({ where });
+  if (!inv || (scope && (inv.rfqId !== scope.rfqId || inv.supplierId !== scope.supplierId))) return null;
+  if (!canTransitionInvitation(inv.status, target)) return null;
+  if (inv.status === target) return inv; // Idempotent: preserve timestamps/reason.
+  const data = {
+    status: target,
+    ...(target === "VIEWED" || target === "ACCEPTED" || target === "REJECTED"
+      ? { viewedAt: inv.viewedAt || new Date() } : {}),
+    ...(target === "ACCEPTED" || target === "REJECTED" || target === "QUOTED"
+      ? { respondedAt: new Date() } : {}),
+    ...(target === "ACCEPTED" ? { rejectReason: null } : {}),
+    ...(target === "REJECTED" ? { rejectReason } : {}),
+  };
+  const updated = await db.rFQInvitation.updateMany({
+    where: { id: inv.id, status: inv.status, supplierId: inv.supplierId, ...(scope || {}) },
+    data,
+  });
+  return updated.count === 1 ? { ...inv, ...data } : null;
+}
 
 export const INV_STATUS_CN: Record<string, string> = {
   PENDING_VIEW: "待查看",
@@ -238,11 +291,8 @@ export async function createInvitationsForRFQ(
         where: { rfqId_supplierId: { rfqId, supplierId: sid } },
       });
       if (existing) {
-        await tx.rFQInvitation.update({
-          where: { id: existing.id },
-          data: { lastReminderAt: new Date(), reminderCount: { increment: 1 } },
-        });
-        result.reminded++;
+        if (await remindInvitation(existing.id, tx)) result.reminded++;
+        else result.failed++;
       } else {
         const inv = await tx.rFQInvitation.create({
           data: { rfqId, supplierId: sid, token: genInviteToken() },
@@ -292,75 +342,61 @@ export async function createInvitationsForRFQ(
 }
 
 /** 采购商"再次邀请"：只更新 lastReminderAt + reminderCount+1，禁止重复记录 */
-export async function remindInvitation(invitationId: number) {
-  return prisma.rFQInvitation.update({
-    where: { id: invitationId },
+export async function remindInvitation(invitationId: number, db: InvitationDb = prisma) {
+  const updated = await db.rFQInvitation.updateMany({
+    where: { id: invitationId, status: { in: REMINDABLE_STATUSES } },
     data: { lastReminderAt: new Date(), reminderCount: { increment: 1 } },
   });
+  return updated.count === 1;
 }
 
 // ==================== 供应商响应 ====================
 /** 查看即标记（VIEWED） */
 export async function markInvitationViewed(invitationId: number) {
-  const inv = await prisma.rFQInvitation.findUnique({
-    where: { id: invitationId },
-    select: { status: true, viewedAt: true },
-  });
-  if (inv && (inv.status === "PENDING_VIEW" || inv.status === "VIEWED")) {
-    await prisma.rFQInvitation.update({
-      where: { id: invitationId },
-      data: { status: inv.status === "PENDING_VIEW" ? "VIEWED" : inv.status, viewedAt: inv.viewedAt || new Date() },
-    });
-  }
+  return transitionInvitation({ id: invitationId }, INV_STATUS.VIEWED);
 }
 
 /** 接受并报价：状态 → ACCEPTED（保留已报价状态不被降级） */
 export async function acceptInvitation(invitationId: number) {
-  return prisma.rFQInvitation.update({
-    where: { id: invitationId },
-    data: {
-      status: INV_STATUS.ACCEPTED,
-      viewedAt: new Date(),
-      respondedAt: new Date(),
-      rejectReason: null,
-    },
-  });
+  return transitionInvitation({ id: invitationId }, INV_STATUS.ACCEPTED);
 }
 
 /** 暂不报价：记录原因 */
 export async function rejectInvitation(invitationId: number, reason: string) {
-  return prisma.rFQInvitation.update({
-    where: { id: invitationId },
-    data: {
-      status: INV_STATUS.REJECTED,
-      viewedAt: new Date(),
-      respondedAt: new Date(),
-      rejectReason: reason,
-    },
-  });
+  return transitionInvitation({ id: invitationId }, INV_STATUS.REJECTED, prisma, undefined, reason);
 }
 
-/** 报价提交后由报价流程调用：邀请状态 → QUOTED（不阻塞报价，报价页成功后调用） */
-export async function markInvitationQuoted(invitationId: number | null) {
-  if (!invitationId) return;
-  await prisma.rFQInvitation.update({
-    where: { id: invitationId },
-    data: { status: INV_STATUS.QUOTED, respondedAt: new Date() },
-  });
+/** Called inside the quote transaction; supplierId must come from the server user. */
+export async function markInvitationQuoted(
+  token: string, rfqId: number, supplierId: number, db: InvitationDb
+) {
+  if (!token || !validSupplierId(supplierId)) return null;
+  return transitionInvitation({ token }, INV_STATUS.QUOTED, db, { rfqId, supplierId });
 }
 
 // ==================== 外部邀请绑定 ====================
 /** 注册/登录后：将外部邀请绑定到当前供应商（只写 supplierId，不改 token） */
-export async function bindInvitationToSupplier(token: string, supplierId: number) {
-  const inv = await prisma.rFQInvitation.findUnique({ where: { token } });
+export async function bindInvitationToSupplier(
+  token: string, supplierId: number, db: InvitationDb = prisma, external: ExternalInviteInput = {}
+) {
+  if (!validSupplierId(supplierId)) return null;
+  const inv = await db.rFQInvitation.findUnique({ where: { token } });
   if (!inv) return null;
-  const data: any = {
+  if (inv.supplierId === supplierId) return inv;
+  if (inv.supplierId !== null || !canTransitionInvitation(inv.status, inv.status)) return null;
+  const data = {
     supplierId,
-    externalCompanyName: inv.externalCompanyName || null,
+    externalCompanyName: inv.externalCompanyName || external.companyName || null,
+    externalContactName: inv.externalContactName || external.contactName || null,
+    externalEmail: inv.externalEmail || external.email || null,
+    externalPhone: inv.externalPhone || external.phone || null,
     viewedAt: inv.viewedAt || new Date(),
     status: inv.status === "PENDING_VIEW" ? "VIEWED" : inv.status,
   };
-  return prisma.rFQInvitation.update({ where: { id: inv.id }, data });
+  const updated = await db.rFQInvitation.updateMany({
+    where: { id: inv.id, supplierId: null, status: inv.status }, data,
+  });
+  return updated.count === 1 ? { ...inv, ...data } : null;
 }
 
 /** 根据 token 读取外部邀请（含 RFQ 信息），供公开邀请页使用 */
@@ -378,9 +414,8 @@ export async function getInvitationByToken(token: string) {
   });
 }
 
-/** 校验 token 是否可报价（未过期 RFQ + 邀请未拒绝） */
+/** Lifecycle hint only; never replaces canSupplierAccessRfq authorization. */
 export function invitationCanQuote(inv: { status: string }, rfqStatus: string) {
-  if (inv.status === "REJECTED") return false;
   if (rfqStatus === "CLOSED" || rfqStatus === "EXPIRED") return false;
-  return true;
+  return canTransitionInvitation(inv.status, INV_STATUS.QUOTED);
 }

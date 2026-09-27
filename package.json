@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:p2-1d": "tsx scripts/test-p2-1d-rfq-supplier-access.ts",
+    "test:p2-1e": "tsx scripts/test-p2-1e-rfq-invitation-quote-chain.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
