@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { canAdminTransitionRfq } from "@/lib/rfq-lifecycle";
 
 async function requireAdmin() {
   const session = await auth();
@@ -229,7 +230,9 @@ export async function rejectProduct(id: number, reason: string) {
 }
 export async function updateRfqStatus(id: number, status: string) {
   await requireAdmin();
-  await prisma.rFQ.update({ where: { id }, data: { status } });
+  const rfq = await prisma.rFQ.findUnique({ where: { id }, select: { status: true } });
+  if (!rfq || !canAdminTransitionRfq(rfq.status, status)) throw new Error("非法询价状态转换");
+  await prisma.rFQ.updateMany({ where: { id, status: rfq.status }, data: { status } });
   revalidatePath("/admin/rfqs");
 }
 export async function createBrand(formData: FormData) {

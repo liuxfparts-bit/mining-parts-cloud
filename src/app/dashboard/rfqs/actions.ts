@@ -4,9 +4,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { canTransitionRfq } from "@/lib/rfq-lifecycle";
 
-/** 服务端归属校验：必须登录，且 RFQ 属于当前用户，否则抛出错误（调用方 catch 后提示） */
-async function requireMyRfq(id: number) {
+/** Company members may close active company RFQs, but may never delete another creator's RFQ. */
+async function requireCompanyRfq(id: number) {
   const s = await auth();
   if (!s?.user) redirect("/login");
   const user = await prisma.user.findUnique({
@@ -14,20 +15,23 @@ async function requireMyRfq(id: number) {
     select: { id: true },
   });
   if (!user) redirect("/login");
-  const rfq = await prisma.rFQ.findUnique({ where: { id }, select: { id: true, userID: true } });
-  if (!rfq || rfq.userID !== user.id) throw new Error("无权操作该询价");
+  const rfq = await prisma.rFQ.findUnique({ where: { id }, select: { id: true, userID: true, companyID: true, status: true } });
+  if (!rfq || (rfq.userID !== user.id && !(rfq.companyID != null && rfq.companyID === (await prisma.user.findUnique({ where: { id: user.id }, select: { buyerCompanyId: true } }))?.buyerCompanyId))) throw new Error("无权操作该询价");
+  return { user, rfq };
+}
+
+async function requireOwnedRfq(id: number) {
+  const { user, rfq } = await requireCompanyRfq(id);
+  if (rfq.userID !== user.id) throw new Error("仅询价创建者可删除该询价");
   return { user, rfq };
 }
 
 /** 采购商关闭自己的询价（COLLECTING / QUOTED → CLOSED） */
 export async function closeMyRfq(id: number) {
-  const { rfq } = await requireMyRfq(id);
-  if (rfq) {
-    await prisma.rFQ.update({
-      where: { id },
-      data: { status: "CLOSED" },
-    });
-  }
+  const { rfq } = await requireCompanyRfq(id);
+  if (rfq.status === "CLOSED") return; // safe idempotent close
+  if (!canTransitionRfq(rfq.status, "CLOSED")) throw new Error("该询价当前不能关闭");
+  await prisma.rFQ.updateMany({ where: { id, status: rfq.status }, data: { status: "CLOSED" } });
   revalidatePath("/dashboard/rfqs");
   revalidatePath(`/dashboard/rfqs/${id}`);
   revalidatePath("/rfqs");
@@ -35,7 +39,7 @@ export async function closeMyRfq(id: number) {
 
 /** 采购商删除自己的询价：仅允许还没有供应商报价的询价（避免破坏 Quote 外键与历史报价数据） */
 export async function deleteMyRfq(id: number) {
-  const { rfq } = await requireMyRfq(id);
+  const { rfq } = await requireOwnedRfq(id);
   if (rfq) {
     const quoteCount = await prisma.quote.count({ where: { rfqId: id } });
     if (quoteCount > 0) {

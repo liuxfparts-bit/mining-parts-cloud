@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { updateRfqStatus } from "../../actions";
+import { canAdminTransitionRfq } from "@/lib/rfq-lifecycle";
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   COLLECTING: { label: "征集中", cls: "bg-green-100 text-green-700" },
@@ -314,7 +315,7 @@ export default async function RfqDetail({ params }: { params: { id: string } }) 
       <div className="bg-white rounded-lg border p-6 mt-4">
         <h2 className="font-bold mb-3">修改状态</h2>
         <div className="flex gap-2 flex-wrap">
-          {["COLLECTING", "QUOTED", "SELECTED", "CLOSED", "REJECTED"].map((s2) => (
+          {["COLLECTING", "QUOTED", "SELECTED", "CLOSED", "REJECTED"].filter((s2) => canAdminTransitionRfq(rfq.status, s2)).map((s2) => (
             <form key={s2} action={async () => { "use server"; await updateRfqStatus(rfq.id, s2); }}>
               <button className={`px-3 py-1 rounded text-sm ${rfq.status === s2 ? "bg-blue-600 text-white" : "bg-gray-100"}`}>
                 {STATUS_LABEL[s2]?.label || s2}

@@ -403,6 +403,8 @@ model Quote {
   items        QuoteItem[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@unique([rfqId, supplierId])
 }
 
 // ========== RFQ 采购明细（一个 RFQ 含多个 Item） ==========
@@ -451,6 +453,7 @@ model QuoteItem {
 
   @@index([quoteId])
   @@index([rfqItemId])
+  @@unique([quoteId, rfqItemId])
 }
 
 // ========== 询价邀请（采购商邀请供应商报价） ==========

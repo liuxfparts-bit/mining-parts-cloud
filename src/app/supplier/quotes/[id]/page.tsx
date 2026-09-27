@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import RfqImages from "@/components/RfqImages";
 import { FileText } from "lucide-react";
+import { WithdrawQuoteButton } from "@/components/QuoteLifecycleActions";
 
 const QUOTE_STATUS_CN: Record<string, { label: string; cls: string }> = {
   PENDING: { label: "已提交 · 采购商比价中", cls: "bg-blue-50 text-blue-700" },
@@ -227,12 +228,10 @@ export default async function SupplierQuoteDetail({ params }: { params: { id: st
       </div>
 
       <div className="flex gap-3">
-        <Link
-          href={`/supplier/rfqs/${quote.rfq.id}`}
-          className="inline-block bg-blue-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-blue-700"
-        >
-          修改报价
-        </Link>
+        {quote.status === "PENDING" && ["COLLECTING", "QUOTED"].includes(quote.rfq.status) && <>
+          <Link href={`/supplier/rfqs/${quote.rfq.id}`} className="inline-block bg-blue-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-blue-700">修改报价</Link>
+          <WithdrawQuoteButton quoteId={quote.id} />
+        </>}
         <Link
           href="/supplier/quotes"
           className="inline-block border border-slate-200 text-slate-600 text-sm px-5 py-2 rounded-lg hover:bg-slate-50"

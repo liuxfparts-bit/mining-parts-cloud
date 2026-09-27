@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { setRfqStatus, deleteRfqs } from "./actions";
+import { setRfqStatus, deleteRfqs, closeRfqs } from "./actions";
 import { useRouter } from "next/navigation";
 
 export function RowActions({ id, status }: { id: number; status: string }) {
@@ -33,9 +33,6 @@ export function RowActions({ id, status }: { id: number; status: string }) {
           <button disabled={busy} onClick={() => act("REJECTED")} className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded">驳回</button>
         </>
       )}
-      {status === "CLOSED" && (
-        <button disabled={busy} onClick={() => act("COLLECTING")} className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded">重新发布</button>
-      )}
       <button disabled={busy} onClick={() => act("DELETE")} className="px-2 py-1 text-xs bg-red-500 text-white rounded">删除</button>
     </div>
   );
@@ -56,7 +53,7 @@ export function BatchBar({ selected }: { selected: number[] }) {
   async function closeAll() {
     if (!confirm(`确定关闭选中的 ${selected.length} 条询价？`)) return;
     try {
-      for (const id of selected) await setRfqStatus(id, "CLOSED");
+      await closeRfqs(selected);
       router.refresh();
     } catch (e: any) {
       alert("操作失败：" + (e?.message || "请重试"));

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { canSupplierAccessRfq } from "@/lib/rfq-supplier-access";
 import { markInvitationQuoted } from "@/lib/rfq-invitation";
+import { canTransitionRfq } from "@/lib/rfq-lifecycle";
 
 export async function POST(req: NextRequest) {
   // ===== 1. Session 鉴权：绝不信任 URL/表单传入的 supplierId =====
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
   if (!canSupplierAccessRfq(rfq, supplierId)) {
     return NextResponse.json({ error: "无权访问该询价或提交报价", code: "FORBIDDEN" }, { status: 403 });
   }
-  if (rfq.status === "CLOSED" || rfq.status === "EXPIRED") {
+  if (!["COLLECTING", "QUOTED"].includes(rfq.status)) {
     return NextResponse.json({ error: "该询价已关闭，无法报价" }, { status: 400 });
   }
 
@@ -64,6 +65,9 @@ export async function POST(req: NextRequest) {
     if (!it.rfqItemId || !(it.unitPrice > 0)) {
       return NextResponse.json({ error: "存在无效的报价明细（缺少明细或单价无效）" }, { status: 400 });
     }
+  }
+  if (new Set(items.map((it) => it.rfqItemId)).size !== items.length) {
+    return NextResponse.json({ error: "同一询价明细只能提交一次报价" }, { status: 400 });
   }
 
   let attachments: string[] = [];
@@ -92,7 +96,16 @@ export async function POST(req: NextRequest) {
 
     // ===== 5. 事务：创建/更新 Quote + 替换 QuoteItems + 计算汇总 =====
     const result = await prisma.$transaction(async (tx) => {
+      // Serialize all submissions for this RFQ before checking its lifecycle or unique quote.
+      await tx.$queryRaw`SELECT "id" FROM "RFQ" WHERE "id" = ${rfqId} FOR UPDATE`;
+      const lockedRfq = await tx.rFQ.findUnique({ where: { id: rfqId } });
+      if (!lockedRfq || !canSupplierAccessRfq(lockedRfq, supplierId) || !["COLLECTING", "QUOTED"].includes(lockedRfq.status)) {
+        throw new Error("询价当前不能提交报价");
+      }
+      // The RFQ row lock serializes competing submissions; the migration's
+      // unique(rfqId,supplierId) is the independent database backstop.
       const existing = await tx.quote.findFirst({ where: { rfqId, supplierId } });
+      if (existing && existing.status !== "PENDING") throw new Error("终态报价不能修改或重新提交");
       const quote =
         existing ||
         (await tx.quote.create({
@@ -142,7 +155,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      if (rfq.status === "COLLECTING") {
+      if (lockedRfq.status === "COLLECTING" && canTransitionRfq("COLLECTING", "QUOTED")) {
         await tx.rFQ.update({ where: { id: rfqId }, data: { status: "QUOTED" } });
       }
 

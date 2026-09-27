@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft, Building2, FileText, Paperclip } from "lucide-react";
+import { AcceptQuoteButton } from "@/components/QuoteLifecycleActions";
 
 const statusMap: Record<string, { label: string; cls: string }> = {
   PENDING: { label: "待处理", cls: "bg-amber-50 text-amber-700" },
@@ -102,6 +103,9 @@ export default async function QuoteDetail({ params }: { params: { id: string } }
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-bold text-slate-800">报价详情</h1>
         <span className={`text-xs px-2 py-0.5 rounded ${st.cls}`}>{st.label}</span>
+        {quote.status === "PENDING" && ["COLLECTING", "QUOTED"].includes(quote.rfq.status) && (
+          <AcceptQuoteButton rfqId={quote.rfq.id} quoteId={quote.id} />
+        )}
       </div>
 
       {/* 询价信息 */}
