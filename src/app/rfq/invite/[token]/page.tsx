@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getInvitationByToken, INV_STATUS_CN, invitationCanQuote } from "@/lib/rfq-invitation";
+import { canSupplierAccessRfq } from "@/lib/rfq-supplier-access";
+import { claimInvitationAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -40,12 +42,13 @@ export default async function InviteLinkPage({ params }: { params: { token: stri
     : null;
 
   const canQuote = invitationCanQuote(inv, rfq.status);
-  const isRejected = inv.status === "REJECTED";
   // 当前登录供应商是否就是被邀请对象
   const isInvitedSupplier = sessionUser?.role === "SUPPLIER" && sessionUser.supplierId != null && inv.supplierId === sessionUser.supplierId;
 
-  const statusText = rfq.status === "CLOSED" || rfq.status === "EXPIRED" ? "该询价已结束" : canQuote ? "" : "该邀请已失效";
-  const showQuoteCta = canQuote && !isRejected;
+  const statusText = rfq.status === "CLOSED" || rfq.status === "EXPIRED" ? "该询价已结束"
+    : !canQuote ? "该邀请已失效"
+    : !["PUBLIC", "MATCHED_SUPPLIERS"].includes(rfq.visibility) ? "该询价不向供应商开放" : "";
+  const hasAccess = isInvitedSupplier && canSupplierAccessRfq(rfq, sessionUser?.supplierId);
 
   return (
     <div className="container py-[42px]">
@@ -126,6 +129,8 @@ export default async function InviteLinkPage({ params }: { params: { token: stri
               <p className="text-lg font-bold text-gray-600">{statusText}</p>
               <p className="text-sm text-gray-400 mt-1">当前邀请状态：{INV_STATUS_CN[inv.status] || inv.status}</p>
             </>
+          ) : sessionUser?.role === "SUPPLIER" && inv.supplierId !== null && !isInvitedSupplier ? (
+            <p className="text-sm text-gray-500">该邀请已关联其他供应商，当前账号无法认领或通过此邀请报价。请使用被邀请的账号登录。</p>
           ) : sessionUser?.role === "SUPPLIER" ? (
             <>
               <p className="text-lg font-bold mb-1">
@@ -133,27 +138,31 @@ export default async function InviteLinkPage({ params }: { params: { token: stri
               </p>
               <p className="text-sm text-gray-500 mb-4">
                 {isInvitedSupplier
-                  ? "该邀请已关联到您的账号，可直接进入报价。"
-                  : "登录账号未绑定本次邀请，报价后将自动关联。"}
+                  ? hasAccess ? "该邀请已关联到您的账号，可直接进入报价。" : "该邀请已关联到您的账号，请确认邀请以完成报价授权。"
+                  : "该邀请尚未绑定。确认后将关联到当前供应商账号，再进入报价。"}
               </p>
-              <Link
+              {hasAccess ? <Link
                 href={`/rfq/${rfq.id}/quote?inv=${token}`}
                 className="inline-block bg-blue-600 text-white font-bold px-8 py-3 rounded hover:bg-blue-700"
               >
                 进入报价
-              </Link>
+              </Link> : inv.status !== "QUOTED" ? (
+                <form action={claimInvitationAction.bind(null, token)}>
+                  <button className="inline-block bg-blue-600 text-white font-bold px-8 py-3 rounded hover:bg-blue-700">确认邀请并进入报价</button>
+                </form>
+              ) : <p className="text-sm text-gray-500">当前账号没有该询价的报价权限，请联系采购方。</p>}
             </>
           ) : (
             <>
               <p className="text-lg font-bold mb-1">收到采购方询价邀请</p>
               <p className="text-sm text-gray-500 mb-5">注册/登录后即可查看并提交报价</p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Link
+                {inv.supplierId === null && <Link
                   href={`/register?token=${token}&role=SUPPLIER`}
                   className="inline-block bg-blue-600 text-white font-bold px-8 py-3 rounded hover:bg-blue-700"
                 >
                   注册并报价
-                </Link>
+                </Link>}
                 <Link
                   href={`/login?token=${token}`}
                   className="inline-block border border-gray-300 text-gray-700 font-bold px-8 py-3 rounded hover:bg-gray-50"

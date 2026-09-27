@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, RFQInvitation } from "@prisma/client";
 import { prisma } from "./db";
 
 // ==================== 常量 ====================
@@ -34,6 +34,37 @@ const REMINDABLE_STATUSES = ["PENDING_VIEW", "VIEWED", "ACCEPTED", "REJECTED"];
 
 function validSupplierId(value: number): boolean {
   return Number.isInteger(value) && value > 0 && value <= 2147483647;
+}
+
+// Lock before reading the TEXT JSON so concurrent grants merge the latest set.
+// All callers must hold this lock until their invitation transaction commits.
+async function lockInvitationRfq(tx: Prisma.TransactionClient, rfqId: number) {
+  await tx.$queryRaw`SELECT "id" FROM "RFQ" WHERE "id" = ${rfqId} FOR UPDATE`;
+  return tx.rFQ.findUnique({ where: { id: rfqId } });
+}
+
+async function authorizeInvitedSupplier(
+  tx: Prisma.TransactionClient,
+  rfq: { id: number; visibility: string; matchedSuppliers: string | null },
+  supplierId: number
+) {
+  if (!validSupplierId(supplierId)) throw new Error("无效供应商");
+  if (rfq.visibility === "PUBLIC") return;
+  if (rfq.visibility !== "MATCHED_SUPPLIERS") return; // PRIVATE never grants access.
+  let ids: unknown;
+  try {
+    ids = typeof rfq.matchedSuppliers === "string" ? JSON.parse(rfq.matchedSuppliers) : null;
+  } catch {
+    throw new Error("询价授权数据无效，请联系管理员");
+  }
+  if (!Array.isArray(ids) || !ids.every(validSupplierId)) {
+    throw new Error("询价授权数据无效，请联系管理员");
+  }
+  const merged = JSON.stringify(Array.from(new Set([...ids, supplierId])));
+  if (merged !== rfq.matchedSuppliers) {
+    await tx.rFQ.update({ where: { id: rfq.id }, data: { matchedSuppliers: merged } });
+    rfq.matchedSuppliers = merged;
+  }
 }
 
 /** Conditional writes prevent stale reads from overwriting a newer state/binding. */
@@ -280,29 +311,42 @@ export async function createInvitationsForRFQ(
   externals: ExternalInviteInput[]
 ): Promise<{ created: number; reminded: number; failed: number; error?: string }> {
   const result: { created: number; reminded: number; failed: number; error?: string } = { created: 0, reminded: 0, failed: 0 };
-  const rfq = await prisma.rFQ.findUnique({ where: { id: rfqId }, select: { id: true, title: true, rfqNo: true } });
-  if (!rfq) return { ...result, error: "RFQ 不存在" };
-
   await prisma.$transaction(async (tx) => {
+    const rfq = await lockInvitationRfq(tx, rfqId);
+    const buyer = await tx.user.findUnique({ where: { id: buyerUserId } });
+    if (!rfq || buyer?.role !== "BUYER" ||
+      (rfq.userID !== buyer.id && !(rfq.companyID != null && rfq.companyID === buyer.buyerCompanyId))) {
+      throw new Error("无权邀请供应商");
+    }
     // 注册供应商
-    const uniqIds = Array.from(new Set(supplierIds.filter(Boolean)));
+    const uniqIds = Array.from(new Set(supplierIds));
     for (const sid of uniqIds) {
+      if (!validSupplierId(sid)) { result.failed++; continue; }
+      // Buyer selections are untrusted until resolved to an existing supplier.
+      const supplier = await tx.supplier.findUnique({
+        where: { id: sid }, select: { id: true, users: { select: { id: true } }, name: true },
+      });
+      if (!supplier) { result.failed++; continue; }
       const existing = await tx.rFQInvitation.findUnique({
-        where: { rfqId_supplierId: { rfqId, supplierId: sid } },
+        where: { rfqId_supplierId: { rfqId, supplierId: supplier.id } },
       });
       if (existing) {
-        if (await remindInvitation(existing.id, tx)) result.reminded++;
+        const reminded = await remindInvitation(existing.id, tx);
+        if (reminded) result.reminded++;
         else result.failed++;
+        if (reminded && ["PENDING_VIEW", "VIEWED", "ACCEPTED"].includes(existing.status) &&
+          rfq.status !== "CLOSED" && rfq.status !== "EXPIRED") {
+          await authorizeInvitedSupplier(tx, rfq, supplier.id);
+        }
       } else {
         const inv = await tx.rFQInvitation.create({
-          data: { rfqId, supplierId: sid, token: genInviteToken() },
+          data: { rfqId, supplierId: supplier.id, token: genInviteToken() },
         });
+        if (rfq.status !== "CLOSED" && rfq.status !== "EXPIRED") {
+          await authorizeInvitedSupplier(tx, rfq, supplier.id);
+        }
         result.created++;
         // 站内信给该供应商的 User
-        const supplier = await tx.supplier.findUnique({
-          where: { id: sid },
-          select: { users: { select: { id: true } }, name: true },
-        });
         const uid = supplier?.users?.[0]?.id;
         if (uid) {
           await tx.notification.create({
@@ -375,15 +419,30 @@ export async function markInvitationQuoted(
 }
 
 // ==================== 外部邀请绑定 ====================
-/** 注册/登录后：将外部邀请绑定到当前供应商（只写 supplierId，不改 token） */
+/** Bind the server-derived supplier and authorize this RFQ atomically; never reassign. */
 export async function bindInvitationToSupplier(
-  token: string, supplierId: number, db: InvitationDb = prisma, external: ExternalInviteInput = {}
-) {
+  token: string, supplierId: number, db?: Prisma.TransactionClient, external: ExternalInviteInput = {}
+): Promise<RFQInvitation | null> {
   if (!validSupplierId(supplierId)) return null;
+  if (!db) return prisma.$transaction((tx) => bindInvitationToSupplier(token, supplierId, tx, external));
+  const initial = await db.rFQInvitation.findUnique({ where: { token } });
+  if (!initial || (initial.supplierId !== null && initial.supplierId !== supplierId)) return null;
+  const rfq = await lockInvitationRfq(db, initial.rfqId);
+  // RFQ first, invitation second: preserve lock order and prevent a terminal
+  // transition racing an idempotent binding's missing authorization repair.
+  await db.$queryRaw`SELECT "id" FROM "RFQInvitation" WHERE "token" = ${token} FOR UPDATE`;
   const inv = await db.rFQInvitation.findUnique({ where: { token } });
-  if (!inv) return null;
-  if (inv.supplierId === supplierId) return inv;
-  if (inv.supplierId !== null || !canTransitionInvitation(inv.status, inv.status)) return null;
+  if (!rfq || !inv || inv.rfqId !== rfq.id || (inv.supplierId !== null && inv.supplierId !== supplierId)) return null;
+  // Terminal invitations cannot establish new visibility authorization.
+  if (!["PENDING_VIEW", "VIEWED", "ACCEPTED"].includes(inv.status)) return inv.supplierId === supplierId ? inv : null;
+  if (rfq.status === "CLOSED" || rfq.status === "EXPIRED" ||
+    !["PUBLIC", "MATCHED_SUPPLIERS"].includes(rfq.visibility)) return null;
+  const supplier = await db.supplier.findUnique({ where: { id: supplierId }, select: { id: true } });
+  if (!supplier) return null;
+  if (inv.supplierId === supplier.id) {
+    await authorizeInvitedSupplier(db, rfq, supplier.id);
+    return inv;
+  }
   const data = {
     supplierId,
     externalCompanyName: inv.externalCompanyName || external.companyName || null,
@@ -396,7 +455,9 @@ export async function bindInvitationToSupplier(
   const updated = await db.rFQInvitation.updateMany({
     where: { id: inv.id, supplierId: null, status: inv.status }, data,
   });
-  return updated.count === 1 ? { ...inv, ...data } : null;
+  if (updated.count !== 1) return null;
+  await authorizeInvitedSupplier(db, rfq, supplier.id);
+  return { ...inv, ...data };
 }
 
 /** 根据 token 读取外部邀请（含 RFQ 信息），供公开邀请页使用 */

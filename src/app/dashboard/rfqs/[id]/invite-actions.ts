@@ -55,8 +55,8 @@ export async function inviteSuppliersAction(formData: FormData) {
   // 解析供应商多选
   const supplierIds = formData
     .getAll("supplierIds")
-    .map((v) => parseInt(String(v)))
-    .filter((n) => !isNaN(n) && n > 0);
+    .map((v) => /^\d+$/.test(String(v)) ? Number(v) : NaN)
+    .filter((n) => Number.isInteger(n) && n > 0 && n <= 2147483647);
 
   // 外部供应商（可多条：索引前缀 company_/contact_/email_/phone_）
   const externals: { companyName?: string; contactName?: string; email?: string; phone?: string }[] = [];

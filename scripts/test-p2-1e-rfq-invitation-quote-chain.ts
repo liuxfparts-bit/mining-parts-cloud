@@ -31,14 +31,23 @@ let invitationWrites = 0;
 let quoteWrites = 0;
 let transactionCalls = 0;
 let beforeUpdate: (() => void) | undefined;
+let authorizationWrites = 0;
+let lockCalls = 0;
+let lockQueue = Promise.resolve();
+let buyer: any;
+let supplierExists = true;
 function reset(status = "PENDING_VIEW", supplierId: number | null = 42) {
   row = { id: 1, token: "invite", rfqId: 9, supplierId, status, viewedAt: null, respondedAt: null,
     reminderCount: 0, lastReminderAt: null, rejectReason: null, externalCompanyName: null };
-  rfq = { id: 9, title: "Test RFQ", status: "COLLECTING", visibility: "PUBLIC", matchedSuppliers: null };
-  user = { id: 5, role: "SUPPLIER", supplierId: 42, email: "supplier@example.test" };
+  rfq = { id: 9, userID: 6, title: "Test RFQ", status: "COLLECTING", visibility: "PUBLIC", matchedSuppliers: null, items: [], quotes: [], images: null, attachments: null };
+  buyer = { id: 6, role: "BUYER", buyerCompanyId: null };
+  user = { id: 5, role: "SUPPLIER", supplierId: 42, supplier: { id: 42, name: "Test" }, email: "supplier@example.test" };
   session = { user: { id: "5", role: "SUPPLIER", email: user.email } };
   invitationWrites = quoteWrites = transactionCalls = 0;
   beforeUpdate = undefined;
+  authorizationWrites = lockCalls = 0;
+  lockQueue = Promise.resolve();
+  supplierExists = true;
 }
 function matches(where: any): boolean {
   if (!row) return false;
@@ -50,7 +59,11 @@ function matches(where: any): boolean {
 }
 const db: any = {
   rFQInvitation: {
-    findUnique: async ({ where }: any) => matches(where) ? { ...row } : null,
+    findUnique: async ({ where, include }: any) => matches(where) ? { ...row, ...(include?.rfq ? { rfq } : {}) } : null,
+    create: async ({ data }: any) => {
+      row = { id: 1, status: "PENDING_VIEW", viewedAt: null, respondedAt: null, reminderCount: 0, supplierId: null, ...data };
+      invitationWrites++; return { ...row };
+    },
     updateMany: async ({ where, data }: any) => {
       beforeUpdate?.();
       beforeUpdate = undefined;
@@ -64,13 +77,19 @@ const db: any = {
     update: async () => { throw new Error("Unconditional invitation write is forbidden"); },
   },
   user: {
-    findUnique: async () => user,
+    findUnique: async ({ where }: any) => where.id === 6 ? buyer : user,
     findFirst: async () => user,
     create: async () => ({ id: 5 }),
     update: async () => ({}),
   },
-  supplier: { create: async () => ({ id: 42 }) },
-  rFQ: { findUnique: async () => rfq, update: async () => { quoteWrites++; return rfq; } },
+  supplier: { create: async () => ({ id: 42 }), findUnique: async ({ where }: any) => supplierExists ? { id: where.id, users: [] } : null },
+  rFQ: {
+    findUnique: async ({ where }: any) => where.id === rfq.id ? { ...rfq } : null,
+    update: async ({ data }: any) => {
+      if ("matchedSuppliers" in data) authorizationWrites++; else quoteWrites++;
+      Object.assign(rfq, data); return { ...rfq };
+    },
+  },
   rFQItem: { findMany: async () => [{ id: 100, quantity: 2 }], count: async () => 1 },
   quote: {
     findFirst: async () => null,
@@ -78,7 +97,29 @@ const db: any = {
     update: async () => { quoteWrites++; return { id: 10 }; },
   },
   quoteItem: { create: async () => { quoteWrites++; return {}; } },
-  $transaction: async (fn: (tx: any) => Promise<unknown>) => { transactionCalls++; return fn(db); },
+  $transaction: async (fn: (tx: any) => Promise<unknown>) => {
+    transactionCalls++;
+    let release: (() => void) | undefined;
+    let snapshot: any;
+    const tx = { ...db, $queryRaw: async (strings: TemplateStringsArray, id: number | string) => {
+      if (strings.join("?") === 'SELECT "id" FROM "RFQInvitation" WHERE "token" = ? FOR UPDATE') {
+        assert.ok(snapshot, "RFQ must be locked before invitation");
+        assert.equal(id, row.token); return [{ id: row.id }];
+      }
+      assert.equal(strings.join("?"), 'SELECT "id" FROM "RFQ" WHERE "id" = ? FOR UPDATE');
+      assert.equal(id, rfq.id); lockCalls++;
+      const previous = lockQueue;
+      lockQueue = new Promise<void>((resolve) => { release = resolve; });
+      await previous;
+      snapshot = { row: row ? { ...row } : null, rfq: { ...rfq }, invitationWrites, authorizationWrites };
+      return [{ id }];
+    } };
+    try { return await fn(tx); }
+    catch (error) {
+      if (snapshot) { row = snapshot.row; rfq = snapshot.rfq; invitationWrites = snapshot.invitationWrites; authorizationWrites = snapshot.authorizationWrites; }
+      throw error;
+    } finally { release?.(); }
+  },
 };
 const lifecycle = load("src/lib/rfq-invitation.ts", { crypto: { default: crypto }, "./db": { prisma: db } });
 const mocks = {
@@ -87,10 +128,14 @@ const mocks = {
   "@/lib/rfq-invitation": lifecycle,
   "@/lib/rfq-supplier-access": { canSupplierAccessRfq },
   "next/server": { NextResponse: { json: (body: unknown, init?: { status: number }) => ({ body, status: init?.status ?? 200 }) } },
-  "next/navigation": { redirect: (url: string) => { throw new Error(`REDIRECT:${url}`); } },
+  "next/navigation": { redirect: (url: string) => { throw new Error(`REDIRECT:${url}`); }, notFound: () => { throw new Error("NOT_FOUND"); } },
   "next/cache": { revalidatePath: () => {} },
   "bcryptjs": { default: { hash: async () => "mock-hash" } },
   "next-auth": { AuthError: class extends Error {} },
+  "next/link": { default: "Link" },
+  "react": { Suspense: "Suspense" },
+  "@/components/QuoteForm": { default: "QuoteForm" },
+  "@/components/ui/badge": { Badge: "Badge" },
   "react/jsx-runtime": {
     jsx: (type: unknown, props: unknown) => ({ type, props }),
     jsxs: (type: unknown, props: unknown) => ({ type, props }),
@@ -100,6 +145,9 @@ const post = load("src/app/api/quote/route.ts", mocks).POST;
 const register = load("src/app/api/register/route.ts", mocks).POST;
 const loginPage = load("src/app/login/page.tsx", mocks).default;
 const actions = load("src/app/supplier/invitations/actions.ts", mocks);
+const claim = load("src/app/rfq/invite/[token]/actions.ts", mocks).claimInvitationAction;
+const invitationPage = load("src/app/rfq/invite/[token]/page.tsx", { ...mocks, "./actions": { claimInvitationAction: claim } }).default;
+const quotePage = load("src/app/rfq/[id]/quote/page.tsx", mocks).default;
 const request = { formData: async () => new Map([
   ["rfqId", "9"], ["supplierId", "77"], ["invitationToken", "invite"],
   ["items", JSON.stringify([{ rfqItemId: 100, unitPrice: 10 }])],
@@ -112,6 +160,13 @@ async function test(name: string, fn: () => unknown) {
   passed++;
   console.log(`PASS ${name}`);
 }
+
+function nodes(node: any): any[] {
+  if (!node || typeof node !== "object") return [];
+  if (Array.isArray(node)) return node.flatMap(nodes);
+  return [node, ...nodes(node.props?.children)];
+}
+function matched() { rfq.visibility = "MATCHED_SUPPLIERS"; rfq.matchedSuppliers = "[3,7,9]"; }
 
 async function main() {
   await test("A PENDING_VIEW -> VIEWED", async () => {
@@ -198,7 +253,7 @@ async function main() {
     for (const status of ["PENDING_VIEW", "VIEWED", "ACCEPTED", "REJECTED", "QUOTED", "EXPIRED", "UNKNOWN"]) {
       row.status = status; const originalCount = row.reminderCount;
       const allowed = ["PENDING_VIEW", "VIEWED", "ACCEPTED", "REJECTED"].includes(status);
-      const result = await lifecycle.createInvitationsForRFQ(9, 5, [42, 42], []);
+      const result = await lifecycle.createInvitationsForRFQ(9, 6, [42, 42], []);
       assert.equal(result.reminded, allowed ? 1 : 0); assert.equal(result.failed, allowed ? 0 : 1);
       assert.equal(row.reminderCount, originalCount + (allowed ? 1 : 0)); assert.equal(row.status, status);
     }
@@ -252,15 +307,18 @@ async function main() {
   });
   await test("Registration binds only unbound invitations using the created supplier", async () => {
     user = null;
+    rfq.visibility = "MATCHED_SUPPLIERS"; rfq.matchedSuppliers = "[3,7,9]";
     for (const supplierId of [null, 77]) {
       row.supplierId = supplierId; row.status = "PENDING_VIEW"; invitationWrites = 0;
       const response = await register({ json: async () => ({ contactName: "Test", phone: "123", password: "test-password", email: "test@example.test", company: "Test", token: "invite", supplierId: 77 }) });
       assert.equal(response.status, 200); assert.equal(row.supplierId, supplierId === null ? 42 : 77);
       assert.equal(invitationWrites, supplierId === null ? 1 : 0);
+      assert.equal(canSupplierAccessRfq(rfq, 42), true);
     }
   });
   await test("Login binds the authenticated supplier and ignores forged supplierId", async () => {
     session = null;
+    rfq.visibility = "MATCHED_SUPPLIERS"; rfq.matchedSuppliers = "[3,7,9]";
     function findForm(node: any): any {
       if (!node || typeof node !== "object") return undefined;
       if (node.type === "form") return node;
@@ -274,9 +332,124 @@ async function main() {
         supplierId === null ? /REDIRECT:\/rfq\/9\/quote/ : /^Error: REDIRECT:\/supplier$/);
       assert.equal(row.supplierId, supplierId === null ? 42 : 77);
       assert.equal(invitationWrites, supplierId === null ? 1 : 0);
+      assert.equal(canSupplierAccessRfq(rfq, 42), true);
     }
   });
-  console.log(`P2-1E passed: ${passed} test groups (A-W, concurrency, ownership, login/registration; no database access).`);
+  await test("Grant A/B/C: buyer invitation adds database supplier, preserves IDs, deduplicates and reaches quote", async () => {
+    matched(); rfq.matchedSuppliers = "[3,7,9,3]"; row = null;
+    const result = await lifecycle.createInvitationsForRFQ(9, 6, [42, 42], []);
+    assert.equal(result.created, 1); assert.equal(lockCalls, 1);
+    assert.deepEqual(JSON.parse(rfq.matchedSuppliers), [3,7,9,42]);
+    assert.equal(canSupplierAccessRfq(rfq, 42), true);
+    const page = await quotePage({ params: { id: "9" }, searchParams: { inv: row.token } });
+    assert.ok(nodes(page).some((node) => node.type === "QuoteForm"));
+    const writes = authorizationWrites;
+    await lifecycle.createInvitationsForRFQ(9, 6, [42], []);
+    assert.equal(authorizationWrites, writes);
+    assert.equal((await post(request)).status, 200);
+  });
+  await test("Grant D/E: external invitation creation then explicit authenticated binding reaches quote", async () => {
+    matched(); row = null;
+    await lifecycle.createInvitationsForRFQ(9, 6, [], [{ companyName: "External" }]);
+    assert.equal(row.supplierId, null); assert.equal(canSupplierAccessRfq(rfq, 42), false);
+    await assert.rejects(() => claim(row.token), /REDIRECT:\/rfq\/9\/quote/);
+    assert.equal(row.supplierId, 42); assert.equal(canSupplierAccessRfq(rfq, 42), true);
+    const page = await quotePage({ params: { id: "9" }, searchParams: { inv: row.token } });
+    assert.ok(nodes(page).some((node) => node.type === "QuoteForm"));
+    row.token = "invite";
+    assert.equal((await post(request)).status, 200); assert.equal(row.status, "QUOTED");
+  });
+  await test("Grant F/G: another supplier's token cannot bind or authorize direct POST", async () => {
+    matched(); row.supplierId = 77;
+    await assert.rejects(() => claim("invite"), /REDIRECT:\/rfq\/invite\/invite/);
+    assert.equal(row.supplierId, 77); assert.equal(authorizationWrites, 0);
+    assert.equal((await post(request)).status, 403); assert.equal(quoteWrites, 0);
+    await assert.rejects(() => quotePage({ params: { id: "9" }, searchParams: { inv: "invite" } }), /NOT_FOUND/);
+  });
+  await test("Grant H: binding authorizes only the invitation RFQ, never a requested different RFQ", async () => {
+    matched(); row.supplierId = null; row.rfqId = rfq.id = 99;
+    await assert.rejects(() => claim("invite"), /REDIRECT:\/rfq\/99\/quote/);
+    assert.equal(canSupplierAccessRfq(rfq, 42), true);
+    rfq = { ...rfq, id: 9, matchedSuppliers: "[3,7,9]" };
+    assert.equal((await post(request)).status, 403);
+    assert.equal(rfq.matchedSuppliers, "[3,7,9]"); assert.equal(quoteWrites, 0);
+  });
+  await test("Grant I/J: PRIVATE never grants; PUBLIC remains unchanged", async () => {
+    for (const visibility of ["PRIVATE", "PUBLIC"]) {
+      rfq.visibility = visibility; rfq.matchedSuppliers = "[3,7,9]"; row = null;
+      await lifecycle.createInvitationsForRFQ(9, 6, [42], []);
+      assert.equal(rfq.matchedSuppliers, "[3,7,9]");
+      assert.equal(canSupplierAccessRfq(rfq, 42), visibility === "PUBLIC");
+      row.supplierId = null;
+      const bound = await lifecycle.bindInvitationToSupplier(row.token, 42);
+      assert.equal(Boolean(bound), visibility === "PUBLIC");
+      assert.equal((await post(request)).status, visibility === "PUBLIC" ? 200 : 403);
+    }
+    assert.equal(authorizationWrites, 0);
+  });
+  await test("Grant K: corrupt JSON aborts invitation/binding transaction without replacing data", async () => {
+    for (const raw of [null, "[", "null", "{}", "42", '[3,"7"]', "[3,0]", "[3,-1]", "[3,1.5]", "[3,2147483648]", "[3,1e999]"]) {
+      matched(); rfq.matchedSuppliers = raw; row.supplierId = null;
+      const original = { ...row };
+      await assert.rejects(() => lifecycle.bindInvitationToSupplier(row.token, 42), /授权数据无效/);
+      assert.deepEqual(row, original); assert.equal(rfq.matchedSuppliers, raw);
+      row = null;
+      await assert.rejects(() => lifecycle.createInvitationsForRFQ(9, 6, [42], []), /授权数据无效/);
+      assert.equal(row, null); assert.equal(rfq.matchedSuppliers, raw);
+      reset();
+    }
+  });
+  await test("Grant L: overlapping transactions lock before reading and retain both additions", async () => {
+    matched(); row = null;
+    const results = await Promise.all([
+      lifecycle.createInvitationsForRFQ(9, 6, [42], []),
+      lifecycle.createInvitationsForRFQ(9, 6, [77], []),
+    ]);
+    assert.equal(results.every((result: any) => result.created === 1), true);
+    assert.equal(lockCalls, 2);
+    assert.deepEqual(JSON.parse(rfq.matchedSuppliers), [3,7,9,42,77]);
+    assert.equal(canSupplierAccessRfq(rfq, 42), true); assert.equal(canSupplierAccessRfq(rfq, 77), true);
+  });
+  await test("Grant N/O: terminal/rejected binding never adds authority or changes lifecycle", async () => {
+    matched();
+    for (const status of ["QUOTED", "EXPIRED", "REJECTED", "UNKNOWN"]) {
+      row.status = status; row.supplierId = null;
+      assert.equal(await lifecycle.bindInvitationToSupplier("invite", 42), null);
+      row.supplierId = 42; await lifecycle.bindInvitationToSupplier("invite", 42);
+      assert.equal(row.status, status); assert.equal(authorizationWrites, 0);
+      await lifecycle.createInvitationsForRFQ(9, 6, [42], []);
+      assert.equal(authorizationWrites, 0); assert.equal(row.status, status);
+    }
+  });
+  await test("Grant requires RFQ ownership and a real valid supplier record", async () => {
+    matched(); row = null;
+    buyer.id = 123;
+    await assert.rejects(() => lifecycle.createInvitationsForRFQ(9, 6, [42], []), /无权邀请/);
+    buyer.id = 6; supplierExists = false;
+    const missing = await lifecycle.createInvitationsForRFQ(9, 6, [42], []);
+    assert.equal(missing.failed, 1); assert.equal(row, null);
+    supplierExists = true;
+    const invalid = await lifecycle.createInvitationsForRFQ(9, 6, [0, -1, 1.5, 2147483648, "42"], []);
+    assert.equal(invalid.failed, 5); assert.equal(authorizationWrites, 0);
+  });
+  await test("UI distinguishes unbound, own, another supplier, and unquoteable invitations", async () => {
+    matched();
+    for (const [supplierId, status, expected, hasForm, hasQuote] of [
+      [null, "PENDING_VIEW", "该邀请尚未绑定", true, false],
+      [42, "VIEWED", "该邀请已关联到您的账号", false, true],
+      [77, "VIEWED", "该邀请已关联其他供应商", false, false],
+      [42, "EXPIRED", "该邀请已失效", false, false],
+      [42, "REJECTED", "该邀请已失效", false, false],
+    ] as const) {
+      row.supplierId = supplierId; row.status = status; rfq.matchedSuppliers = "[3,7,9,42]";
+      const page = await invitationPage({ params: { token: "invite" } });
+      assert.ok(JSON.stringify(page).includes(expected));
+      assert.equal(nodes(page).some((node) => node.type === "form"), hasForm);
+      assert.equal(nodes(page).some((node) => node.props?.href?.startsWith("/rfq/9/quote")), hasQuote);
+      assert.equal(JSON.stringify(page).includes("报价后将自动关联"), false);
+    }
+  });
+  console.log(`P2-1E passed: ${passed} test groups (lifecycle, explicit authorization, concurrency, ownership, UI; no database access).`);
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });
