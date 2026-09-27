@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { canSupplierAccessRfq } from "@/lib/rfq-supplier-access";
+import { markInvitationQuoted } from "@/lib/rfq-invitation";
 
 export async function POST(req: NextRequest) {
   // ===== 1. Session 鉴权：绝不信任 URL/表单传入的 supplierId =====
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
     attachments = [];
   }
 
-  // 邀请 token：报价成功后将该邀请标记为 QUOTED（仅校验属于本 RFQ 且绑定当前供应商/或待绑定）
+  // token 仅用于归因；邀请必须已绑定当前供应商，不授予 RFQ 访问权限。
   const invitationToken = String(formData.get("invitationToken") || "").trim();
 
   try {
@@ -145,15 +146,9 @@ export async function POST(req: NextRequest) {
         await tx.rFQ.update({ where: { id: rfqId }, data: { status: "QUOTED" } });
       }
 
-      // 报价成功 → 邀请状态 QUOTED（token 必须属于本 RFQ 且 supplierId 为空或等于当前供应商）
+      // 仅相同 RFQ、相同已绑定供应商且生命周期允许的邀请可标记 QUOTED。
       if (invitationToken) {
-        const inv = await tx.rFQInvitation.findUnique({ where: { token: invitationToken } });
-        if (inv && inv.rfqId === rfqId && (inv.supplierId === null || inv.supplierId === supplierId)) {
-          await tx.rFQInvitation.update({
-            where: { id: inv.id },
-            data: { status: "QUOTED", respondedAt: new Date() },
-          });
-        }
+        await markInvitationQuoted(invitationToken, rfqId, supplierId, tx);
       }
       return updated;
     });

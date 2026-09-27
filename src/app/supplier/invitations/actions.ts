@@ -38,7 +38,7 @@ export async function acceptInvitationAction(formData: FormData) {
   // 已拒绝的邀请不可接受
   if (inv.status === "REJECTED") redirect("/supplier/invitations");
 
-  await acceptInvitation(invitationId);
+  if (!await acceptInvitation(invitationId)) redirect("/supplier/invitations");
   revalidatePath("/supplier/invitations");
   // 直接带入 RFQ 信息跳转供应商后台报价页（保留统一后台布局，token 用于报价成功后回写邀请状态）
   redirect(`/supplier/rfqs/${inv.rfqId}?inv=${inv.token}`);
@@ -52,7 +52,9 @@ export async function rejectInvitationAction(formData: FormData) {
   if (!reason) return { success: false, error: "请选择暂不报价的原因" };
 
   await requireOwnInvitation(invitationId, user.supplierId!);
-  await rejectInvitation(invitationId, reason);
+  if (!await rejectInvitation(invitationId, reason)) {
+    return { success: false, error: "当前邀请状态不允许拒绝" };
+  }
   revalidatePath("/supplier/invitations");
   return { success: true, message: "已记录，感谢您的反馈" };
 }
