@@ -123,20 +123,44 @@ type RFQItemForm = {
   images: string[];
 };
 
-const emptyItem = (defaultPart?: string): RFQItemForm => ({
-  brandName: "",
-  equipmentModel: "",
-  productName: "",
-  partNumber: defaultPart || "",
+type RFQPrefill = {
+  partNumber?: string;
+  brandName?: string;
+  equipmentModel?: string;
+  productName?: string;
+};
+
+const emptyItem = (prefill: RFQPrefill = {}): RFQItemForm => ({
+  brandName: prefill.brandName || "",
+  equipmentModel: prefill.equipmentModel || "",
+  productName: prefill.productName || "",
+  partNumber: prefill.partNumber || "",
   quantity: "1",
   unit: "pcs",
   description: "",
   images: [],
 });
 
-export default function RFQForm({ defaultPart }: { defaultPart?: string }) {
+export default function RFQForm({
+  defaultPart,
+  defaultBrand,
+  defaultEquipment,
+  defaultProductName,
+}: {
+  defaultPart?: string;
+  defaultBrand?: string;
+  defaultEquipment?: string;
+  defaultProductName?: string;
+}) {
   const [state, formAction] = useFormState(createRFQ, initialState);
-  const [items, setItems] = useState<RFQItemForm[]>([emptyItem(defaultPart)]);
+  const [items, setItems] = useState<RFQItemForm[]>([
+    emptyItem({
+      partNumber: defaultPart,
+      brandName: defaultBrand,
+      equipmentModel: defaultEquipment,
+      productName: defaultProductName,
+    }),
+  ]);
 
   // ===== Excel 批量导入 =====
   const [excel, setExcel] = useState<{

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { bindInvitationToSupplier } from "@/lib/rfq-invitation";
 
 export async function POST(req: Request) {
   try {
@@ -101,21 +102,9 @@ export async function POST(req: Request) {
 
       // 外部邀请绑定：注册完成后将公开邀请关联到新供应商（不覆盖原有 supplierId 的邀请）
       if (inviteToken) {
-        const inv = await tx.rFQInvitation.findUnique({ where: { token: inviteToken } });
-        if (inv) {
-          await tx.rFQInvitation.update({
-            where: { id: inv.id },
-            data: {
-              supplierId: supplier.id,
-              externalCompanyName: inv.externalCompanyName || company,
-              externalContactName: inv.externalContactName || contactName,
-              externalEmail: inv.externalEmail || email,
-              externalPhone: inv.externalPhone || phone,
-              viewedAt: inv.viewedAt || new Date(),
-              status: inv.status === "PENDING_VIEW" ? "VIEWED" : inv.status,
-            },
-          });
-        }
+        await bindInvitationToSupplier(inviteToken, supplier.id, tx, {
+          companyName: company, contactName, email, phone,
+        });
       }
     });
 

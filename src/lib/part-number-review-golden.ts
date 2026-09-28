@@ -1,0 +1,77 @@
+export type ReviewPriority = "P1" | "P2" | "P3";
+
+export const GOLDEN_SANDVIK_63: ReadonlyArray<{ number: string; priority: ReviewPriority }> = [
+  { number: "BG01178528", priority: "P2" },
+  { number: "64804381", priority: "P3" },
+  { number: "65631025", priority: "P3" },
+  { number: "64804241", priority: "P2" },
+  { number: "BD00013068", priority: "P1" },
+  { number: "A2U900-694062", priority: "P2" },
+  { number: "A2U900-694015", priority: "P2" },
+  { number: "BD00025322", priority: "P2" },
+  { number: "A2U936-694027", priority: "P2" },
+  { number: "A2U900-694059", priority: "P2" },
+  { number: "AFP1006-5", priority: "P2" },
+  { number: "AFP1009-3", priority: "P2" },
+  { number: "A2U921-692002", priority: "P2" },
+  { number: "AFP1007-12", priority: "P2" },
+  { number: "016-63028", priority: "P2" },
+  { number: "A2U913-651005", priority: "P1" },
+  { number: "BU00017556", priority: "P1" },
+  { number: "C2A1S7057", priority: "P3" },
+  { number: "915-26018", priority: "P2" },
+  { number: "BR00068886", priority: "P2" },
+  { number: "BR00068778", priority: "P2" },
+  { number: "A2U130-265025", priority: "P2" },
+  { number: "BD00011619", priority: "P2" },
+  { number: "A2U220-324006", priority: "P1" },
+  { number: "A2U220-321040", priority: "P1" },
+  { number: "A2U900-191929", priority: "P2" },
+  { number: "A2U130-591278", priority: "P3" },
+  { number: "A2U130-596154", priority: "P3" },
+  { number: "A2U913-522006", priority: "P3" },
+  { number: "A2U900-711015", priority: "P1" },
+  { number: "A2U220-256034", priority: "P1" },
+  { number: "A2U900-256033", priority: "P2" },
+  { number: "AFP1006-4", priority: "P2" },
+  { number: "A2U936-694046", priority: "P1" },
+  { number: "A2U130-694057", priority: "P3" },
+  { number: "A2U913-694007", priority: "P2" },
+  { number: "A2U220-194480", priority: "P1" },
+  { number: "A2U220-193386", priority: "P1" },
+  { number: "A2U900-594393", priority: "P1" },
+  { number: "A2U900-472060", priority: "P1" },
+  { number: "A2U900-472061", priority: "P1" },
+  { number: "BD00024890", priority: "P2" },
+  { number: "BD00011599", priority: "P1" },
+  { number: "BD00024886", priority: "P1" },
+  { number: "A2U900-472057", priority: "P1" },
+  { number: "A2U900-472055", priority: "P1" },
+  { number: "A2U900-694075", priority: "P2" },
+  { number: "A2U921-254035", priority: "P3" },
+  { number: "A2U900-534055", priority: "P2" },
+  { number: "A2U220-592056", priority: "P2" },
+  { number: "A2U900-472047", priority: "P3" },
+  { number: "A2U900-521064", priority: "P1" },
+  { number: "A2U900-521062", priority: "P1" },
+  { number: "A2U913-694052", priority: "P2" },
+  { number: "A2U900-694064", priority: "P1" },
+  { number: "A2U220-396005", priority: "P1" },
+  { number: "A2U220-195086", priority: "P1" },
+  { number: "A2U936-690011", priority: "P3" },
+  { number: "A2U220-254090", priority: "P3" },
+  { number: "A2U913-256005", priority: "P3" },
+  { number: "BD00024894", priority: "P2" },
+  { number: "BD00024008", priority: "P2" },
+  { number: "A2U936-694048", priority: "P3" },
+];
+
+export const GOLDEN_SANDVIK_NUMBERS = GOLDEN_SANDVIK_63.map((x) => x.number);
+export const GOLDEN_PRIORITY_BY_NUMBER = new Map(
+  GOLDEN_SANDVIK_63.map((x) => [x.number, x.priority] as const)
+);
+
+export function goldenNumbersByPriority(priority?: string): string[] {
+  if (!priority || !["P1", "P2", "P3"].includes(priority)) return GOLDEN_SANDVIK_NUMBERS;
+  return GOLDEN_SANDVIK_63.filter((x) => x.priority === priority).map((x) => x.number);
+}

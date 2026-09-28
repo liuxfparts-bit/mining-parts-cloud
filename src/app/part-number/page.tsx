@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
+import { normalizePartNumber, PUBLIC_PN_WHERE } from "@/lib/part-number";
 import Pagination from "@/components/Pagination";
 import PartNumberCard from "@/components/PartNumberCard";
 import { Search } from "lucide-react";
@@ -21,20 +22,22 @@ export default async function PartNumbersPage({
   searchParams: Record<string, string | undefined>;
 }) {
   const q = (searchParams.q || "").trim();
+  const normalizedQ = normalizePartNumber(q);
   const brandId = searchParams.brandId ? parseInt(searchParams.brandId) : null;
   const equipmentId = searchParams.equipmentId ? parseInt(searchParams.equipmentId) : null;
   const categoryId = searchParams.categoryId ? parseInt(searchParams.categoryId) : null;
   const pageSize = searchParams.pageSize ? Math.min(100, Math.max(10, parseInt(searchParams.pageSize))) : 20;
   const page = searchParams.page ? Math.max(1, parseInt(searchParams.page)) : 1;
 
-  // V3.1: 公开找件号列表只显示 publishStatus=READY；HOLD/REJECTED 不公开
-  const where: any = { publishStatus: "READY" };
+  // P2-1B-1: 公开件号统一执行 VERIFIED + READY 门槛。
+  const where: any = { ...PUBLIC_PN_WHERE };
   const and: any[] = [];
 
   if (q) {
     and.push({
       OR: [
         { number: { contains: q } },
+        ...(normalizedQ ? [{ normalizedPartNumber: { contains: normalizedQ } }] : []),
         { name: { contains: q } },
         { nameEn: { contains: q } },
         { brand: { name: { contains: q } } },
@@ -83,11 +86,9 @@ export default async function PartNumbersPage({
 
   return (
     <div className="container py-[42px]">
-      {/* 顶部标题 */}
       <h1 className="text-3xl font-bold mb-2">找件号</h1>
       <p className="text-muted mb-6">按品牌、设备型号、配件名称或 Part Number 快速查找矿山备件</p>
 
-      {/* 大搜索框 */}
       <form method="get" action="/part-number" className="bg-white border border-line rounded-lg p-4 mb-4">
         <div className="flex gap-2">
           <input
@@ -100,7 +101,6 @@ export default async function PartNumbersPage({
             <Search className="h-4 w-4" />搜索
           </button>
         </div>
-        {/* 高级筛选 */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-3 text-sm">
           <select name="brandId" defaultValue={brandId ?? ""} className={selectCls}>
             <option value="">全部品牌</option>
@@ -121,7 +121,6 @@ export default async function PartNumbersPage({
         </div>
       </form>
 
-      {/* 数据统计 */}
       <p className="text-sm text-muted mb-4">共 {total} 个相关件号</p>
 
       {partNumbers.length === 0 ? (
@@ -152,7 +151,6 @@ export default async function PartNumbersPage({
         </div>
       )}
 
-      {/* 分页 + 每页条数 */}
       <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} baseQuery={baseQuery} />
     </div>
   );

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireVerifiedBuyer } from "@/lib/buyer-company";
+import { findTrustedSupplierIdsForPartNumber } from "@/lib/supplier-capability";
 
 export async function createRFQ(prevState: { error?: string; success?: boolean }, formData: FormData) {
   // 服务端身份校验：必须登录，归属写入当前登录用户（禁止前端传 buyerId/userId）
@@ -87,14 +88,9 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
       let partNumberId: number | null = null;
       const pn = String(it.partNumber || "").trim();
       if (pn) {
-        const found = await prisma.partNumber.findUnique({
-          where: { number: pn.toUpperCase() },
-          include: { products: true },
-        });
-        if (found) {
-          partNumberId = found.id;
-          for (const p of found.products) matchedSupplierIds.push(p.supplierId);
-        }
+        const capability = await findTrustedSupplierIdsForPartNumber(pn);
+        partNumberId = capability.partNumberId;
+        matchedSupplierIds.push(...capability.supplierIds);
       }
       itemDatas.push({
         seq: validItems.indexOf(it) + 1,
