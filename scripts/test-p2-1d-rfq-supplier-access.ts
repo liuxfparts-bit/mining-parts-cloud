@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { canSupplierAccessRfq } from "../src/lib/rfq-supplier-access";
+import { canTransitionRfq } from "../src/lib/rfq-lifecycle";
 
 // Execute the actual server entry points with strictly mocked imports: no database,
 // credentials, network, or invitation lifecycle changes are used by these tests.
@@ -76,6 +77,7 @@ async function main() {
     "@/lib/prisma": { prisma },
     "@/lib/db": { prisma },
     "@/lib/rfq-supplier-access": { canSupplierAccessRfq },
+    "@/lib/rfq-lifecycle": { canTransitionRfq },
     "@/lib/rfq-invitation": { markInvitationQuoted: async () => { throw new Error("Unexpected invitation write"); } },
     "next/server": { NextResponse: { json: (body: unknown, init?: { status: number }) => ({ body, status: init?.status ?? 200 }) } },
     "next/navigation": { notFound, redirect: () => { throw new Error("REDIRECT"); } },
