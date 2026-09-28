@@ -48,7 +48,7 @@ export default function Footer() {
         <div className="border-t border-white/10 mt-6 pt-4 text-xs text-slate-400 text-center leading-relaxed">
           <p>© 2026 矿配云 Mining Parts Cloud · 中国矿山设备与配件专业询价平台</p>
           <p className="mt-1">
-            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer" className="hover:text-slate-200">晋ICP备XXXXXXXX号</a>
+            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer" className="hover:text-slate-200">晋ICP备2026014393号-1</a>
           </p>
         </div>
       </div>
