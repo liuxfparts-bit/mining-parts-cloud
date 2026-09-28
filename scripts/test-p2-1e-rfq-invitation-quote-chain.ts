@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { canSupplierAccessRfq } from "../src/lib/rfq-supplier-access";
+import { canTransitionRfq } from "../src/lib/rfq-lifecycle";
 
 // Run real server modules with allowlisted mocks. No Prisma client, credentials,
 // database, network, or production environment is loaded by this verification.
@@ -127,6 +128,7 @@ const mocks = {
   "@/lib/auth": { auth: async () => session, signIn: async () => ({}) },
   "@/lib/rfq-invitation": lifecycle,
   "@/lib/rfq-supplier-access": { canSupplierAccessRfq },
+  "@/lib/rfq-lifecycle": { canTransitionRfq },
   "next/server": { NextResponse: { json: (body: unknown, init?: { status: number }) => ({ body, status: init?.status ?? 200 }) } },
   "next/navigation": { redirect: (url: string) => { throw new Error(`REDIRECT:${url}`); }, notFound: () => { throw new Error("NOT_FOUND"); } },
   "next/cache": { revalidatePath: () => {} },
