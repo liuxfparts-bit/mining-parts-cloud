@@ -21,10 +21,12 @@ export default async function InvitationSection({
   rfqId,
   page = 1,
   pageSize = 10,
+  canInvite = true,
 }: {
   rfqId: number;
   page?: number;
   pageSize?: number;
+  canInvite?: boolean;
 }) {
   const size = PAGE_SIZES.includes(pageSize) ? pageSize : 10;
 
@@ -71,12 +73,12 @@ export default async function InvitationSection({
           <h2 className="font-bold">询价邀请</h2>
           <p className="text-xs text-gray-400 mt-0.5">通过智能推荐或供应商库邀请供应商报价</p>
         </div>
-        <Link
+        {canInvite && <Link
           href={`/dashboard/rfqs/${rfqId}/invite`}
           className="inline-block bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
         >
           + 邀请供应商报价
-        </Link>
+        </Link>}
       </div>
 
       {/* 统计卡片 */}

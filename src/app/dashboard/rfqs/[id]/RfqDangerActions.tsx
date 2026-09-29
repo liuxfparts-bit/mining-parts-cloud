@@ -5,13 +5,14 @@ import { useState, useTransition } from "react";
 type Props = {
   rfqId: number;
   canClose: boolean;
+  canDelete: boolean;
   hasQuotes: boolean;
   closeAction: () => Promise<void>;
   deleteAction: () => Promise<void>;
 };
 
 /** 采购商 RFQ 管理操作（关闭 / 删除），删除需二次确认；server action 错误会回显 */
-export function RfqDangerActions({ rfqId, canClose, hasQuotes, closeAction, deleteAction }: Props) {
+export function RfqDangerActions({ rfqId, canClose, canDelete, hasQuotes, closeAction, deleteAction }: Props) {
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -39,7 +40,7 @@ export function RfqDangerActions({ rfqId, canClose, hasQuotes, closeAction, dele
           关闭询价
         </button>
       )}
-      {confirming ? (
+      {canDelete && confirming ? (
         <span className="flex items-center gap-2 text-sm">
           <span className="text-gray-500">
             确定要删除该询价吗？{hasQuotes ? "（该询价已有报价，无法删除，可关闭）" : "删除后不可恢复。"}
@@ -52,13 +53,13 @@ export function RfqDangerActions({ rfqId, canClose, hasQuotes, closeAction, dele
           </button>
           <button onClick={() => setConfirming(false)} className="text-sm border rounded px-3 py-1.5">取消</button>
         </span>
-      ) : (
+      ) : canDelete ? (
         <button
           onClick={() => setConfirming(true)}
           className="text-sm border border-red-200 text-red-600 rounded px-3 py-1.5 hover:bg-red-50">
           删除询价
         </button>
-      )}
+      ) : null}
     </div>
   );
 }
