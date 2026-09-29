@@ -4,8 +4,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createInvitationsForRFQ, remindInvitation } from "@/lib/rfq-invitation";
+import { createInvitationsForRFQ, remindInvitationForRFQ } from "@/lib/rfq-invitation";
 import { requireVerifiedBuyer } from "@/lib/buyer-company";
+import { canAcceptQuotes } from "@/lib/rfq-lifecycle";
 
 /** 从 session 取当前采购商 User（服务端身份，绝不信任前端 buyerId） */
 async function requireBuyerUser() {
@@ -45,6 +46,9 @@ export async function inviteSuppliersAction(formData: FormData) {
   if (isNaN(rfqId)) return { success: false, error: "参数错误" };
 
   const rfq = await requireOwnRfq(rfqId, buyer.id);
+  if (!canAcceptQuotes(rfq.status)) {
+    return { success: false, error: "该询价当前不能邀请供应商报价" };
+  }
 
   // 认证门槛：未认证采购商不允许邀请供应商
   const gate = await requireVerifiedBuyer(buyer.id);
@@ -101,7 +105,8 @@ export async function remindInvitationAction(formData: FormData) {
   });
   if (!inv) redirect("/dashboard/rfqs");
   const rfq = await requireOwnRfq(inv.rfqId, buyer.id);
+  if (!canAcceptQuotes(rfq.status)) redirect(`/dashboard/rfqs/${rfq.id}`);
 
-  await remindInvitation(invitationId);
+  await remindInvitationForRFQ(invitationId, rfq.id);
   revalidatePath(`/dashboard/rfqs/${rfq.id}`);
 }

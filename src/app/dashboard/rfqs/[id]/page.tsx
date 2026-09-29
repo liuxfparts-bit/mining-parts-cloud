@@ -8,6 +8,7 @@ import { closeMyRfq, deleteMyRfq } from "../actions";
 import { RfqDangerActions } from "./RfqDangerActions";
 import InvitationSection from "./InvitationSection";
 import { buildItemRanks, quotedSupplierCount, type ComparisonItem, type ComparisonQuote } from "@/lib/rfq-comparison";
+import { canAcceptQuotes, canTransitionRfq } from "@/lib/rfq-lifecycle";
 
 const statusMap: Record<string, { label: string; cls: string }> = {
   COLLECTING: { label: "征集中", cls: "bg-blue-50 text-blue-700" }, QUOTED: { label: "已报价", cls: "bg-green-50 text-green-700" }, SELECTED: { label: "已选定", cls: "bg-green-50 text-green-700" }, CLOSED: { label: "已关闭", cls: "bg-gray-100 text-gray-600" }, EXPIRED: { label: "已过期", cls: "bg-red-50 text-red-600" }, REJECTED: { label: "已驳回", cls: "bg-red-50 text-red-600" },
@@ -41,7 +42,8 @@ export default async function BuyerRfqDetail({ params, searchParams }: { params:
   const quotedSuppliers = quotedSupplierCount(quotes);
   const itemRanks = buildItemRanks(items, quotes);
   const status = statusMap[rfq.status] || { label: rfq.status, cls: "bg-gray-100 text-gray-600" };
-  const canInvite = ["COLLECTING", "QUOTED", "SELECTED"].includes(rfq.status);
+  const canInvite = canAcceptQuotes(rfq.status);
+  const canClose = canTransitionRfq(rfq.status, "CLOSED");
   const pageHref = (nextPage: number, nextSize: number) => {
     const query = new URLSearchParams({ page: String(nextPage), pageSize: String(nextSize) });
     if (searchParams.invPage) query.set("invPage", searchParams.invPage);
@@ -70,6 +72,6 @@ export default async function BuyerRfqDetail({ params, searchParams }: { params:
 
     <section className="mb-5 rounded-xl border bg-white p-5"><h2 className="font-bold">询价信息</h2><div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">{[{ label: "联系人", value: rfq.contactName }, { label: "联系电话", value: rfq.contactPhone }, { label: "交货地点", value: rfq.deliveryLocation }, { label: "期望交期", value: date(rfq.deliveryDate) }, { label: "贸易条款", value: rfq.incoterm }, { label: "创建日期", value: date(rfq.createdAt) }, { label: "截止日期", value: date(rfq.expiresAt) }].map((field) => <div key={field.label}><p className="text-xs text-gray-400">{field.label}</p><p className="mt-1 text-gray-800">{field.value || "—"}</p></div>)}</div></section>
     <InvitationSection rfqId={rfq.id} page={parseInt(searchParams.invPage || "1") || 1} pageSize={parseInt(searchParams.invPageSize || "10") || 10} canInvite={canInvite} />
-    <section className="mt-5 rounded-xl border border-red-100 bg-red-50/40 p-5"><h2 className="font-bold text-gray-900">询价管理</h2><p className="mt-1 text-xs text-gray-500">关闭或删除询价会影响后续采购流程，请确认当前处理状态。</p><div className="mt-4"><RfqDangerActions rfqId={rfq.id} canClose={canInvite} canDelete={rfq.userID === user.id} hasQuotes={quotes.length > 0} closeAction={closeMyRfq.bind(null, rfq.id)} deleteAction={deleteMyRfq.bind(null, rfq.id)} /></div></section>
+    <section className="mt-5 rounded-xl border border-red-100 bg-red-50/40 p-5"><h2 className="font-bold text-gray-900">询价管理</h2><p className="mt-1 text-xs text-gray-500">关闭或删除询价会影响后续采购流程，请确认当前处理状态。</p><div className="mt-4"><RfqDangerActions rfqId={rfq.id} canClose={canClose} canDelete={rfq.userID === user.id} hasQuotes={quotes.length > 0} closeAction={closeMyRfq.bind(null, rfq.id)} deleteAction={deleteMyRfq.bind(null, rfq.id)} /></div></section>
   </div>;
 }

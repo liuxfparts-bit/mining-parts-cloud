@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { Prisma, RFQInvitation } from "@prisma/client";
 import { prisma } from "./db";
+import { canAcceptQuotes } from "./rfq-lifecycle";
 
 // ==================== 常量 ====================
 export const INV_STATUS = {
@@ -318,6 +319,7 @@ export async function createInvitationsForRFQ(
       (rfq.userID !== buyer.id && !(rfq.companyID != null && rfq.companyID === buyer.buyerCompanyId))) {
       throw new Error("无权邀请供应商");
     }
+    if (!canAcceptQuotes(rfq.status)) throw new Error("该询价当前不能邀请供应商报价");
     // 注册供应商
     const uniqIds = Array.from(new Set(supplierIds));
     for (const sid of uniqIds) {
@@ -392,6 +394,17 @@ export async function remindInvitation(invitationId: number, db: InvitationDb = 
     data: { lastReminderAt: new Date(), reminderCount: { increment: 1 } },
   });
   return updated.count === 1;
+}
+
+/** Lock and recheck the RFQ lifecycle before a buyer reminder can write. */
+export async function remindInvitationForRFQ(invitationId: number, rfqId: number) {
+  return prisma.$transaction(async (tx) => {
+    const rfq = await lockInvitationRfq(tx, rfqId);
+    if (!rfq || !canAcceptQuotes(rfq.status)) return false;
+    const invitation = await tx.rFQInvitation.findUnique({ where: { id: invitationId }, select: { rfqId: true } });
+    if (!invitation || invitation.rfqId !== rfqId) return false;
+    return remindInvitation(invitationId, tx);
+  });
 }
 
 // ==================== 供应商响应 ====================
