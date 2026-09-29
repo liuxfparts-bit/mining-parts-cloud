@@ -94,7 +94,9 @@ export default async function InvitationSection({
       {/* 明细列表 */}
       {invitations.length === 0 ? (
         <div className="border border-dashed rounded-lg p-8 text-center text-gray-400 text-sm">
-          尚未邀请供应商。点击右上角「邀请供应商报价」，系统将根据您的询价内容智能推荐精准供应商。
+          {canInvite
+            ? "尚未邀请供应商。点击右上角「邀请供应商报价」，系统将根据您的询价内容智能推荐精准供应商。"
+            : "尚未邀请供应商。当前询价状态不再接受新的供应商报价。"}
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -137,7 +139,7 @@ export default async function InvitationSection({
                   <td className="py-2 px-2 text-xs text-gray-500">{inv.respondedAt ? inv.respondedAt.toLocaleString("zh-CN") : "—"}</td>
                   <td className="py-2 px-2">
                     <div className="flex gap-2">
-                      {inv.status === "REJECTED" ? (
+                      {canInvite && (inv.status === "REJECTED" ? (
                         <form action={remindInvitationAction}>
                           <input type="hidden" name="invitationId" value={inv.id} />
                           <button className="text-xs text-blue-600 hover:underline">再次邀请</button>
@@ -147,7 +149,7 @@ export default async function InvitationSection({
                           <input type="hidden" name="invitationId" value={inv.id} />
                           <button className="text-xs text-blue-600 hover:underline">再次邀请</button>
                         </form>
-                      )}
+                      ))}
                     </div>
                   </td>
                 </tr>

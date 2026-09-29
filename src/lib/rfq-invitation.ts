@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { Prisma, RFQInvitation } from "@prisma/client";
 import { prisma } from "./db";
+import { canAcceptQuotes } from "./rfq-lifecycle";
 
 // ==================== 常量 ====================
 export const INV_STATUS = {
@@ -318,6 +319,7 @@ export async function createInvitationsForRFQ(
       (rfq.userID !== buyer.id && !(rfq.companyID != null && rfq.companyID === buyer.buyerCompanyId))) {
       throw new Error("无权邀请供应商");
     }
+    if (!canAcceptQuotes(rfq.status)) throw new Error("该询价当前不能邀请供应商报价");
     // 注册供应商
     const uniqIds = Array.from(new Set(supplierIds));
     for (const sid of uniqIds) {
@@ -335,14 +337,14 @@ export async function createInvitationsForRFQ(
         if (reminded) result.reminded++;
         else result.failed++;
         if (reminded && ["PENDING_VIEW", "VIEWED", "ACCEPTED"].includes(existing.status) &&
-          rfq.status !== "CLOSED" && rfq.status !== "EXPIRED") {
+          canAcceptQuotes(rfq.status)) {
           await authorizeInvitedSupplier(tx, rfq, supplier.id);
         }
       } else {
         const inv = await tx.rFQInvitation.create({
           data: { rfqId, supplierId: supplier.id, token: genInviteToken() },
         });
-        if (rfq.status !== "CLOSED" && rfq.status !== "EXPIRED") {
+        if (canAcceptQuotes(rfq.status)) {
           await authorizeInvitedSupplier(tx, rfq, supplier.id);
         }
         result.created++;
@@ -394,6 +396,17 @@ export async function remindInvitation(invitationId: number, db: InvitationDb = 
   return updated.count === 1;
 }
 
+/** Lock and recheck the RFQ lifecycle before a buyer reminder can write. */
+export async function remindInvitationForRFQ(invitationId: number, rfqId: number) {
+  return prisma.$transaction(async (tx) => {
+    const rfq = await lockInvitationRfq(tx, rfqId);
+    if (!rfq || !canAcceptQuotes(rfq.status)) return false;
+    const invitation = await tx.rFQInvitation.findUnique({ where: { id: invitationId }, select: { rfqId: true } });
+    if (!invitation || invitation.rfqId !== rfqId) return false;
+    return remindInvitation(invitationId, tx);
+  });
+}
+
 // ==================== 供应商响应 ====================
 /** 查看即标记（VIEWED） */
 export async function markInvitationViewed(invitationId: number) {
@@ -435,7 +448,7 @@ export async function bindInvitationToSupplier(
   if (!rfq || !inv || inv.rfqId !== rfq.id || (inv.supplierId !== null && inv.supplierId !== supplierId)) return null;
   // Terminal invitations cannot establish new visibility authorization.
   if (!["PENDING_VIEW", "VIEWED", "ACCEPTED"].includes(inv.status)) return inv.supplierId === supplierId ? inv : null;
-  if (rfq.status === "CLOSED" || rfq.status === "EXPIRED" ||
+  if (!canAcceptQuotes(rfq.status) ||
     !["PUBLIC", "MATCHED_SUPPLIERS"].includes(rfq.visibility)) return null;
   const supplier = await db.supplier.findUnique({ where: { id: supplierId }, select: { id: true } });
   if (!supplier) return null;

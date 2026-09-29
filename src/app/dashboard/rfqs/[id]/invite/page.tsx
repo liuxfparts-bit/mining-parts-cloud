@@ -8,6 +8,7 @@ import { recommendSuppliersForRFQ } from "@/lib/rfq-invitation";
 import { requireVerifiedBuyer } from "@/lib/buyer-company";
 import { ShieldCheck } from "lucide-react";
 import InvitePanel from "./InvitePanel";
+import { canAcceptQuotes } from "@/lib/rfq-lifecycle";
 
 const PAGE_SIZE = 10;
 
@@ -41,6 +42,7 @@ export default async function InvitePage({
   const sameCompany =
     rfq.companyID != null && user.buyerCompanyId != null && rfq.companyID === user.buyerCompanyId;
   if (rfq.userID !== user.id && !sameCompany) notFound();
+  if (!canAcceptQuotes(rfq.status)) redirect(`/dashboard/rfqs/${id}`);
 
   // 认证门槛：未认证采购商引导去认证，不开放邀请页
   const gate = await requireVerifiedBuyer(user.id);
