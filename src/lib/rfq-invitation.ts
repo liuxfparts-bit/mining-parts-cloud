@@ -337,14 +337,14 @@ export async function createInvitationsForRFQ(
         if (reminded) result.reminded++;
         else result.failed++;
         if (reminded && ["PENDING_VIEW", "VIEWED", "ACCEPTED"].includes(existing.status) &&
-          rfq.status !== "CLOSED" && rfq.status !== "EXPIRED") {
+          canAcceptQuotes(rfq.status)) {
           await authorizeInvitedSupplier(tx, rfq, supplier.id);
         }
       } else {
         const inv = await tx.rFQInvitation.create({
           data: { rfqId, supplierId: supplier.id, token: genInviteToken() },
         });
-        if (rfq.status !== "CLOSED" && rfq.status !== "EXPIRED") {
+        if (canAcceptQuotes(rfq.status)) {
           await authorizeInvitedSupplier(tx, rfq, supplier.id);
         }
         result.created++;
@@ -448,7 +448,7 @@ export async function bindInvitationToSupplier(
   if (!rfq || !inv || inv.rfqId !== rfq.id || (inv.supplierId !== null && inv.supplierId !== supplierId)) return null;
   // Terminal invitations cannot establish new visibility authorization.
   if (!["PENDING_VIEW", "VIEWED", "ACCEPTED"].includes(inv.status)) return inv.supplierId === supplierId ? inv : null;
-  if (rfq.status === "CLOSED" || rfq.status === "EXPIRED" ||
+  if (!canAcceptQuotes(rfq.status) ||
     !["PUBLIC", "MATCHED_SUPPLIERS"].includes(rfq.visibility)) return null;
   const supplier = await db.supplier.findUnique({ where: { id: supplierId }, select: { id: true } });
   if (!supplier) return null;

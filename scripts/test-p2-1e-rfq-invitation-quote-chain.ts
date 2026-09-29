@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { canSupplierAccessRfq } from "../src/lib/rfq-supplier-access";
-import { canTransitionRfq } from "../src/lib/rfq-lifecycle";
+import { canAcceptQuotes, canTransitionRfq } from "../src/lib/rfq-lifecycle";
 
 // Run real server modules with allowlisted mocks. No Prisma client, credentials,
 // database, network, or production environment is loaded by this verification.
@@ -122,7 +122,7 @@ const db: any = {
     } finally { release?.(); }
   },
 };
-const lifecycle = load("src/lib/rfq-invitation.ts", { crypto: { default: crypto }, "./db": { prisma: db } });
+const lifecycle = load("src/lib/rfq-invitation.ts", { crypto: { default: crypto }, "./db": { prisma: db }, "./rfq-lifecycle": { canAcceptQuotes } });
 const mocks = {
   "@/lib/prisma": { prisma: db }, "@/lib/db": { prisma: db },
   "@/lib/auth": { auth: async () => session, signIn: async () => ({}) },
@@ -421,6 +421,14 @@ async function main() {
       assert.equal(row.status, status); assert.equal(authorizationWrites, 0);
       await lifecycle.createInvitationsForRFQ(9, 6, [42], []);
       assert.equal(authorizationWrites, 0); assert.equal(row.status, status);
+    }
+  });
+  await test("Non-quotable RFQs cannot bind an active external invitation or gain authorization", async () => {
+    for (const status of ["SELECTED", "CLOSED", "EXPIRED", "REJECTED", "UNKNOWN"]) {
+      matched(); rfq.status = status; row.status = "PENDING_VIEW"; row.supplierId = null;
+      const original = { ...row };
+      assert.equal(await lifecycle.bindInvitationToSupplier("invite", 42), null);
+      assert.deepEqual(row, original); assert.equal(authorizationWrites, 0);
     }
   });
   await test("Grant requires RFQ ownership and a real valid supplier record", async () => {
