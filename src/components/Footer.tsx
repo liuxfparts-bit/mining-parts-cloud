@@ -47,8 +47,12 @@ export default function Footer() {
         {/* 版权行 */}
         <div className="border-t border-white/10 mt-6 pt-4 text-xs text-slate-400 text-center leading-relaxed">
           <p>© 2026 矿配云 Mining Parts Cloud · 中国矿山设备与配件专业询价平台</p>
-          <p className="mt-1">
+          <p className="mt-1 flex items-center justify-center gap-x-4 gap-y-1 flex-wrap">
             <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer" className="hover:text-slate-200">晋ICP备2026014393号-1</a>
+            <a href="https://beian.mps.gov.cn/#/query/webSearch?code=14060202000233" target="_blank" rel="noreferrer" className="hover:text-slate-200 inline-flex items-center gap-1">
+              <img src="/gongan-beian.png" alt="公安备案" className="h-4 w-4" />
+              晋公网安备14060202000233号
+            </a>
           </p>
         </div>
       </div>
