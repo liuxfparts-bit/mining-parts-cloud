@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { canUserReadRfq } from "@/lib/rfq-supplier-access";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,7 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
   const s = await auth();
   const uid = s?.user ? parseInt(String((s.user as any).id)) : null;
   const me = uid
-    ? await prisma.user.findUnique({ where: { id: uid }, select: { id: true, role: true, supplierId: true } })
+    ? await prisma.user.findUnique({ where: { id: uid }, select: { id: true, role: true, supplierId: true, buyerCompanyId: true } })
     : null;
   const isSupplier = me?.role === "SUPPLIER" && me.supplierId !== null && me.supplierId !== undefined;
   const mySupplierId: number | null = isSupplier ? (me.supplierId as number) : null;
@@ -58,6 +59,12 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
     },
   });
   if (!rfq) notFound();
+
+  // Canonical RFQ read authorization. Non-public RFQs fail closed before rendering.
+  const accessUser = me
+    ? { id: me.id, role: me.role, supplierId: me.supplierId, buyerCompanyId: me.buyerCompanyId }
+    : null;
+  if (!canUserReadRfq(rfq, accessUser)) notFound();
 
   // 报价可见性（服务端权限）：发布者本人 / 管理员可见全部；供应商仅见自己的；其余用户与访客一律不可见
   const isOwner = rfq.userID !== null && rfq.userID !== undefined && me?.id === rfq.userID;
