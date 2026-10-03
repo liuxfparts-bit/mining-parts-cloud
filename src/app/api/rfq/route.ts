@@ -10,6 +10,7 @@ export async function POST() {
 
 export async function GET() {
   const rfqs = await prisma.rFQ.findMany({
+    where: { visibility: "PUBLIC" },
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json(rfqs);
