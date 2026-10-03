@@ -1,18 +1,32 @@
 /** IDs must be positive integers representable by Prisma's PostgreSQL Int. */
-function isSupplierId(value: unknown): value is number {
+function isDbId(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 2147483647;
 }
 
+type RfqVisibility = {
+  visibility: unknown;
+  matchedSuppliers?: unknown;
+  userID?: number | null;
+  companyID?: number | null;
+};
+
+export type RfqAccessUser = {
+  id: number;
+  role: string;
+  buyerCompanyId?: number | null;
+  supplierId?: number | null;
+};
+
 /**
- * Server-side visibility policy. Call only after authentication, using the
- * supplier ID loaded from the user's database record, never request input.
- * Invitation tokens do not grant visibility. Unknown or corrupt data denies access.
+ * Supplier visibility policy. Use the supplier ID loaded from the authenticated
+ * user's database record, never request input. Invitation tokens do not grant
+ * visibility. Unknown/corrupt data fails closed.
  */
 export function canSupplierAccessRfq(
-  rfq: { visibility: unknown; matchedSuppliers: unknown },
+  rfq: Pick<RfqVisibility, "visibility" | "matchedSuppliers">,
   supplierId: unknown
 ): boolean {
-  if (!isSupplierId(supplierId)) return false;
+  if (!isDbId(supplierId)) return false;
   if (rfq.visibility === "PUBLIC") return true;
   if (rfq.visibility !== "MATCHED_SUPPLIERS") return false;
   if (typeof rfq.matchedSuppliers !== "string") return false;
@@ -23,5 +37,42 @@ export function canSupplierAccessRfq(
   } catch {
     return false;
   }
-  return Array.isArray(matched) && matched.every(isSupplierId) && matched.includes(supplierId);
+  return Array.isArray(matched) && matched.every(isDbId) && matched.includes(supplierId);
+}
+
+/** Buyer ownership is creator OR a member of the same buyer company. */
+export function canBuyerAccessRfq(
+  rfq: Pick<RfqVisibility, "userID" | "companyID">,
+  user: Pick<RfqAccessUser, "id" | "buyerCompanyId">
+): boolean {
+  if (!isDbId(user.id)) return false;
+  if (rfq.userID === user.id) return true;
+  return isDbId(rfq.companyID) &&
+    isDbId(user.buyerCompanyId) &&
+    rfq.companyID === user.buyerCompanyId;
+}
+
+/**
+ * Canonical read policy for RFQ detail surfaces.
+ *
+ * PUBLIC:
+ *   anonymous + authenticated users may read.
+ * MATCHED_SUPPLIERS:
+ *   matched suppliers, owning buyer/company, and admin may read.
+ * PRIVATE:
+ *   owning buyer/company and admin may read; suppliers never gain access.
+ * Unknown visibility fails closed except for admin/owner recovery access.
+ */
+export function canUserReadRfq(rfq: RfqVisibility, user: RfqAccessUser | null): boolean {
+  if (rfq.visibility === "PUBLIC") return true;
+  if (!user) return false;
+  if (user.role === "ADMIN") return true;
+  if (user.role === "BUYER") return canBuyerAccessRfq(rfq, user);
+  if (user.role === "SUPPLIER") return canSupplierAccessRfq(rfq, user.supplierId);
+  return false;
+}
+
+/** Only PUBLIC RFQs belong on anonymous/public discovery surfaces. */
+export function isPublicRfq(rfq: Pick<RfqVisibility, "visibility">): boolean {
+  return rfq.visibility === "PUBLIC";
 }
