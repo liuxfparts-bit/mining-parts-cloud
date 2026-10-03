@@ -270,6 +270,15 @@ export default function RFQForm({
           <Input name="title" required placeholder="例如：Sandvik LS190 液压泵及配件采购" />
           <p className="text-xs text-muted mt-1">一条询价单可包含多个采购明细，供应商将逐项报价</p>
         </div>
+        <div>
+          <label className="block text-xs font-bold mb-1">可见范围 *</label>
+          <select name="visibility" defaultValue="PUBLIC" className="w-full border border-line rounded-md px-3 py-2 text-sm bg-white">
+            <option value="PUBLIC">公开询价 — 询价大厅及所有供应商可见</option>
+            <option value="MATCHED_SUPPLIERS">匹配供应商 — 仅系统匹配或受邀供应商可见</option>
+            <option value="PRIVATE">私密询价 — 仅本企业采购成员和管理员可见</option>
+          </select>
+          <p className="text-xs text-muted mt-1">私密询价不会出现在询价大厅、设备页或供应商待报价列表。</p>
+        </div>
       </div>
 
       {/* 采购明细（多 Item） */}
