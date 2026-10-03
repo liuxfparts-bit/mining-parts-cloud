@@ -20,10 +20,19 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
   if (!sessionUser) {
     return { error: "登录已失效，请重新登录后再发布询价" };
   }
-  // 采购商企业认证门槛：BUYER 必须企业认证通过才可发布 RFQ（SUPPLIER/ADMIN 不拦截）
+  // RFQ is a buyer-side business action. Supplier/admin sessions must not create
+  // buyer-owned RFQs through this endpoint.
+  if (sessionUser.role !== "BUYER") {
+    return { error: "仅采购商账号可发布询价" };
+  }
   const gate = await requireVerifiedBuyer(sessionUser.id);
   if (!gate.allowed) {
     return { error: gate.reason || "企业认证未通过，无法发布询价" };
+  }
+
+  const visibility = String(formData.get("visibility") || "PUBLIC");
+  if (!["PUBLIC", "MATCHED_SUPPLIERS", "PRIVATE"].includes(visibility)) {
+    return { error: "询价可见范围无效" };
   }
 
   const title = String(formData.get("title") || "");
@@ -143,7 +152,9 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
           contactPhone,
           contactEmail: contactEmail || null,
           whatsapp: whatsapp || null,
-          matchedSuppliers: uniqueMatched.length > 0 ? JSON.stringify(uniqueMatched) : null,
+          visibility,
+          matchedSuppliers:
+            visibility === "MATCHED_SUPPLIERS" ? JSON.stringify(uniqueMatched) : null,
         },
       });
 
@@ -161,7 +172,5 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
   revalidatePath("/rfq");
   revalidatePath("/rfqs");
   // 发布成功后按角色回到各自询价管理页（采购商 → 后台"我的询价"，不再跳到前台公共页）
-  if (sessionUser.role === "ADMIN") redirect("/admin/rfqs");
-  if (sessionUser.role === "SUPPLIER") redirect("/supplier/rfqs");
   redirect("/dashboard/rfqs");
 }
