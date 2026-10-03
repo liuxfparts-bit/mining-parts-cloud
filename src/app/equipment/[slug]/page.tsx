@@ -50,7 +50,7 @@ export default async function EquipmentDetailPage({ params }: { params: { slug: 
         },
         orderBy: { partNumber: { number: "asc" } },
       },
-      rfqs: { take: 3, orderBy: { createdAt: "desc" } },
+      rfqs: { where: { visibility: "PUBLIC" }, take: 3, orderBy: { createdAt: "desc" } },
     },
   });
   if (!equipment || equipment.status !== "ACTIVE") notFound();
