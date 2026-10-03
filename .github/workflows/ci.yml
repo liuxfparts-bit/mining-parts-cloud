@@ -71,5 +71,8 @@ jobs:
       - name: Verify migration state
         run: npx prisma migrate status
 
+      - name: WP0-2 RFQ access matrix
+        run: npm run test:wp0-2
+
       - name: Production build
         run: npm run build
