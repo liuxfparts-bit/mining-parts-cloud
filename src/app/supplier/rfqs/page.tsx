@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { canSupplierAccessRfq } from "@/lib/rfq-supplier-access";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -20,28 +21,31 @@ export default async function SupplierRfqs({
   });
   if (!user?.supplierId) redirect("/supplier");
 
-  // ===== 数据库级分页：只查询当前页 =====
+  // PUBLIC and MATCHED_SUPPLIERS share the same canonical authorization helper.
+  // matchedSuppliers is legacy TEXT JSON, so correctness takes priority over unsafe
+  // substring matching. Filter the candidate set server-side, then paginate.
   const pageSize = PAGE_SIZES.includes(parseInt(searchParams.pageSize || ""))
     ? parseInt(searchParams.pageSize || "20")
     : 20;
-  const total = await prisma.rFQ.count({
-    where: { status: "COLLECTING", visibility: "PUBLIC", quotes: { none: { supplierId: user.supplierId } } },
-  });
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const requested = parseInt(searchParams.page || "1");
-  const page = isNaN(requested) || requested < 1 ? 1 : Math.min(requested, totalPages);
-  const skip = (page - 1) * pageSize;
-
-  const openRfqs = await prisma.rFQ.findMany({
-    where: { status: "COLLECTING", visibility: "PUBLIC", quotes: { none: { supplierId: user.supplierId } } },
+  const candidates = await prisma.rFQ.findMany({
+    where: {
+      status: "COLLECTING",
+      visibility: { in: ["PUBLIC", "MATCHED_SUPPLIERS"] },
+      quotes: { none: { supplierId: user.supplierId } },
+    },
     include: {
       partNumber: { include: { brand: true } },
       _count: { select: { items: true } },
     },
     orderBy: { createdAt: "desc" },
-    skip,
-    take: pageSize,
   });
+  const accessibleRfqs = candidates.filter((rfq) => canSupplierAccessRfq(rfq, user.supplierId));
+  const total = accessibleRfqs.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const requested = parseInt(searchParams.page || "1");
+  const page = isNaN(requested) || requested < 1 ? 1 : Math.min(requested, totalPages);
+  const skip = (page - 1) * pageSize;
+  const openRfqs = accessibleRfqs.slice(skip, skip + pageSize);
 
   const href = (p: number, ps: number) => `/supplier/rfqs?page=${p}&pageSize=${ps}`;
 
@@ -51,7 +55,7 @@ export default async function SupplierRfqs({
         <div>
           <h1 className="text-xl font-bold">待处理询价（询价大厅）</h1>
           <p className="text-sm text-gray-500 mt-1">
-            公开征集中的采购需求，共 {total} 条待报价
+            您有权限查看的征集询价，共 {total} 条待报价
           </p>
         </div>
         <Link href="/supplier/profile" className="border px-4 py-2 rounded text-sm text-slate-600 hover:bg-slate-50">
@@ -61,7 +65,7 @@ export default async function SupplierRfqs({
 
       {openRfqs.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-12 text-center text-gray-500">
-          暂无待报价的公开询价
+          暂无您可访问的待报价询价
         </div>
       ) : (
         <div className="space-y-3">
