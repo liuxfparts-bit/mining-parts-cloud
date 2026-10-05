@@ -38,6 +38,13 @@ const menuSections = [
     ],
   },
   {
+    title: "安全",
+    items: [
+      { href: "/admin/users", label: "用户与管理员", icon: ShieldCheck },
+      { href: "/admin/security-audit", label: "安全审计", icon: ShieldCheck },
+    ],
+  },
+  {
     title: "运营",
     items: [
       { href: "/admin/seo", label: "SEO", icon: Search },
