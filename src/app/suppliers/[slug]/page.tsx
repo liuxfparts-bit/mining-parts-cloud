@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CheckCircle2, MapPin, Phone, Mail, Globe, MessageCircle, Clock, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
+import { PUBLIC_PRODUCT_WHERE, PUBLIC_SUPPLIER_WHERE } from "@/lib/public-product";
 
 export const dynamic = "force-dynamic";
 
@@ -16,19 +16,18 @@ const levelLabel: Record<string, { label: string; className: string }> = {
 };
 
 export default async function SupplierDetailPage({ params }: { params: { slug: string } }) {
-  const s = await prisma.supplier.findUnique({
-    where: { slug: params.slug },
+  const s = await prisma.supplier.findFirst({
+    where: { slug: params.slug, ...PUBLIC_SUPPLIER_WHERE },
     include: {
-      users: { select: { status: true } },
       products: {
-        where: PUBLIC_PRODUCT_WHERE_NESTED,
+        where: PUBLIC_PRODUCT_WHERE,
         include: { partNumber: { include: { equipmentRelations: { include: { equipmentModel: true } }, brand: true } } },
         orderBy: { createdAt: "desc" },
       },
     },
   });
-  // 仅已认证且账号状态正常（无 DISABLED 账号）的厂家可公开访问
-  if (!s || s.verifiedStatus !== "VERIFIED" || s.users.some((u) => u.status === "DISABLED")) notFound();
+  // 公开详情与厂家目录使用同一可信供应商规则，避免直接 URL 绕过。
+  if (!s) notFound();
 
   const level = levelLabel[s.memberLevel] || levelLabel.FREE;
 
@@ -68,12 +67,9 @@ export default async function SupplierDetailPage({ params }: { params: { slug: s
               {s.description && <p className="text-sm text-muted mt-2 leading-relaxed">{s.description}</p>}
             </div>
 
-            {/* 运营数据 */}
+            {/* 仅展示可由可信公开供货记录直接计算的指标。行为类指标待 WP0-5 建立真实事件链后恢复。 */}
             <div className="flex gap-6 mt-4 text-sm flex-wrap">
-              <span>产品 <b>{s.products.length}</b></span>
-              {s.responseRate && <span>回复率 <b className="text-brandGreen">{s.responseRate}%</b></span>}
-              <span>浏览 <b>{s.viewCount}</b></span>
-              <span>询价 <b>{s.inquiryCount}</b></span>
+              <span>公开供货产品 <b>{s.products.length}</b></span>
             </div>
 
             {/* 联系按钮 */}
