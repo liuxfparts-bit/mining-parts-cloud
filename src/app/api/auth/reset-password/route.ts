@@ -18,9 +18,25 @@ export async function POST(req: NextRequest) {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
-    prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: record.userId },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    });
+    await tx.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+    await tx.passwordResetToken.updateMany({
+      where: { userId: record.userId, usedAt: null, id: { not: record.id } },
+      data: { usedAt: new Date() },
+    });
+    await tx.securityAuditLog.create({
+      data: {
+        actorUserId: record.userId,
+        action: "PASSWORD_RESET_COMPLETED",
+        targetType: "USER",
+        targetId: String(record.userId),
+        summary: "Password reset completed; existing sessions and unused reset links invalidated.",
+      },
+    });
+  });
   return NextResponse.json({ ok: true });
 }
