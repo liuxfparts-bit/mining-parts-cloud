@@ -63,7 +63,7 @@ export default async function QuotePage({
   if (!canSupplierAccessRfq(rfq, user.supplierId)) notFound();
 
   // 校验该 RFQ 是否允许报价（供应商可见性）
-  if (rfq.status === "CLOSED" || rfq.status === "EXPIRED") {
+  if (!["COLLECTING", "QUOTED"].includes(rfq.status)) {
     return (
       <div className="container py-[42px]">
         <div className="max-w-[500px] mx-auto bg-white border border-line rounded-lg p-8 text-center">
