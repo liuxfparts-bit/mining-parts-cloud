@@ -477,6 +477,6 @@ export async function getInvitationByToken(token: string) {
 
 /** Lifecycle hint only; never replaces canSupplierAccessRfq authorization. */
 export function invitationCanQuote(inv: { status: string }, rfqStatus: string) {
-  if (rfqStatus === "CLOSED" || rfqStatus === "EXPIRED") return false;
+  if (!["COLLECTING", "QUOTED"].includes(rfqStatus)) return false;
   return canTransitionInvitation(inv.status, INV_STATUS.QUOTED);
 }
