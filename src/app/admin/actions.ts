@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { canAdminTransitionRfq } from "@/lib/rfq-lifecycle";
+import { writeSecurityAudit } from "@/lib/security-audit";
 
 async function requireAdmin() {
   const session = await auth();
@@ -73,6 +74,7 @@ export async function approveCompany(id: string) {
     where: { supplierId: sid },
     data: { status: "ACTIVE" },
   });
+  await writeSecurityAudit({ actorUserId: adminId, action: "SUPPLIER_APPROVED", targetType: "SUPPLIER", targetId: sid });
   revalidatePath("/admin/verification");
   revalidatePath("/admin/suppliers");
   revalidatePath("/");
@@ -87,8 +89,9 @@ export async function rejectCompany(id: string, reason: string) {
   const session = await requireAdmin();
   const adminIdRaw = (session.user as any).id;
   const adminId = Number.isNaN(Number(adminIdRaw)) ? null : Number(adminIdRaw);
+  const sid = parseInt(id);
   await prisma.supplier.update({
-    where: { id: parseInt(id) },
+    where: { id: sid },
     data: {
       verifiedStatus: "REJECTED",
       rejectionReason: reason,
@@ -96,6 +99,7 @@ export async function rejectCompany(id: string, reason: string) {
       rejectedBy: adminId,
     },
   });
+  await writeSecurityAudit({ actorUserId: adminId, action: "SUPPLIER_REJECTED", targetType: "SUPPLIER", targetId: sid });
   revalidatePath("/admin/verification");
   revalidatePath("/admin/suppliers");
   revalidatePath("/");
@@ -107,14 +111,13 @@ export async function rejectCompany(id: string, reason: string) {
 
 // 切换禁用（沿用 verifiedStatus 标记 DISABLED，前台查询已排除）
 export async function toggleDisableCompany(id: string) {
-  await requireAdmin();
+  const session = await requireAdmin();
   const sid = parseInt(id);
   const cur = await prisma.supplier.findUnique({ where: { id: sid } });
   if (!cur) return;
-  await prisma.supplier.update({
-    where: { id: sid },
-    data: { verifiedStatus: cur.verifiedStatus === "DISABLED" ? "PENDING" : "DISABLED" },
-  });
+  const nextStatus = cur.verifiedStatus === "DISABLED" ? "PENDING" : "DISABLED";
+  await prisma.supplier.update({ where: { id: sid }, data: { verifiedStatus: nextStatus } });
+  await writeSecurityAudit({ actorUserId: Number((session.user as any).id), action: "SUPPLIER_STATUS_CHANGED", targetType: "SUPPLIER", targetId: sid, metadata: { from: cur.verifiedStatus, to: nextStatus } });
   revalidatePath("/admin/suppliers");
   revalidatePath("/");
   revalidatePath("/suppliers");
@@ -202,8 +205,10 @@ export async function reviewPartNumberStatus(id: number, formData: FormData) {
   redirect(`/admin/part-numbers/${id}`);
 }
 export async function setProductStatus(id: number, status: string) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const current = await prisma.product.findUnique({ where: { id }, select: { status: true } });
   await prisma.product.update({ where: { id }, data: { status } });
+  await writeSecurityAudit({ actorUserId: Number((session.user as any).id), action: "PRODUCT_STATUS_CHANGED", targetType: "PRODUCT", targetId: id, metadata: { from: current?.status ?? null, to: status } });
   revalidatePath("/admin/products");
 }
 
@@ -214,6 +219,7 @@ export async function approveProduct(id: number) {
     where: { id },
     data: { status: "PUBLISHED", verificationStatus: "VERIFIED", verifiedAt: new Date(), verifiedBy: admin?.id ?? null },
   });
+  await writeSecurityAudit({ actorUserId: admin?.id ?? null, action: "PRODUCT_APPROVED", targetType: "PRODUCT", targetId: id });
   revalidatePath("/admin/products");
   redirect("/admin/products");
 }
@@ -225,14 +231,16 @@ export async function rejectProduct(id: number, reason: string) {
     where: { id },
     data: { status: "REJECTED", verificationStatus: "REJECTED", verificationReason: reason, rejectedAt: new Date(), rejectedBy: admin?.id ?? null },
   });
+  await writeSecurityAudit({ actorUserId: admin?.id ?? null, action: "PRODUCT_REJECTED", targetType: "PRODUCT", targetId: id });
   revalidatePath("/admin/products");
   redirect("/admin/products");
 }
 export async function updateRfqStatus(id: number, status: string) {
-  await requireAdmin();
+  const session = await requireAdmin();
   const rfq = await prisma.rFQ.findUnique({ where: { id }, select: { status: true } });
   if (!rfq || !canAdminTransitionRfq(rfq.status, status)) throw new Error("非法询价状态转换");
   await prisma.rFQ.updateMany({ where: { id, status: rfq.status }, data: { status } });
+  await writeSecurityAudit({ actorUserId: Number((session.user as any).id), action: "RFQ_STATUS_CHANGED", targetType: "RFQ", targetId: id, metadata: { from: rfq.status, to: status } });
   revalidatePath("/admin/rfqs");
 }
 export async function createBrand(formData: FormData) {
