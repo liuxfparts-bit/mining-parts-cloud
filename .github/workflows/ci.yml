@@ -74,5 +74,8 @@ jobs:
       - name: WP0-2 RFQ access matrix
         run: npm run test:wp0-2
 
+      - name: WP0-3 public trust checks
+        run: npm run test:wp0-3
+
       - name: Production build
         run: npm run build
