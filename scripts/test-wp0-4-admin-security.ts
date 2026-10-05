@@ -9,6 +9,8 @@ function must(text: string, needle: string, label: string) {
 
 const schema = read("prisma/schema.prisma");
 const auth = read("src/lib/auth.ts");
+const edgeAuth = read("src/lib/auth-edge.ts");
+const middleware = read("src/middleware.ts");
 const change = read("src/app/api/account/change-password/route.ts");
 const reset = read("src/app/api/auth/reset-password/route.ts");
 const adminReset = read("src/app/api/admin/users/reset-password/route.ts");
@@ -28,6 +30,17 @@ must(auth, "select: { role: true, status: true, sessionVersion: true }", "auth d
 must(auth, 'current.status !== "ACTIVE"', "disabled user session is not invalidated");
 must(auth, "current.sessionVersion !== Number(token.sessionVersion)", "session version mismatch is not enforced");
 must(auth, "token.invalidated", "invalidated JWT marker missing");
+
+must(edgeAuth, 'providers: []', "Edge auth must not initialize database-backed providers");
+must(edgeAuth, 'from "next-auth"', "Edge auth NextAuth instance missing");
+if (edgeAuth.includes("prisma") || edgeAuth.includes("@prisma")) {
+  throw new Error("WP0-4 failed: Edge auth must not import or query Prisma");
+}
+must(middleware, 'from "@/lib/auth-edge"', "middleware must use Edge-safe auth");
+if (middleware.includes('from "@/lib/auth"')) {
+  throw new Error("WP0-4 failed: middleware still imports Node/Prisma auth");
+}
+
 
 must(change, "sessionVersion: { increment: 1 }", "change-password does not revoke sessions");
 must(change, 'action: "PASSWORD_CHANGED"', "change-password audit missing");
