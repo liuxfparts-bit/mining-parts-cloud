@@ -33,7 +33,8 @@
     "batch:stage33": "tsx scripts/run-stage33-safe-batch.ts",
     "pilot:pn-cross-reference": "tsx scripts/pilot-create-pn-cross-reference.ts",
     "p1e:fixture": "tsx scripts/p1e-cross-reference-fixture.ts",
-    "p1e:candidate-audit": "tsx scripts/p1e-candidate-audit.ts"
+    "p1e:candidate-audit": "tsx scripts/p1e-candidate-audit.ts",
+    "test:wp0-4-edge-runtime": "tsx scripts/test-wp0-4-edge-runtime.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
