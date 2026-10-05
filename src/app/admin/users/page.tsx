@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import ResetPwButton from "./ResetPwButton";
+import { getAdminContinuityStatus } from "@/lib/security-audit";
 
 export default async function AdminUsers({
   searchParams,
@@ -27,6 +28,7 @@ export default async function AdminUsers({
   if (role) where.role = role;
   if (status) where.status = status;
 
+  const { activeAdminCount, hasRedundancy } = await getAdminContinuityStatus();
   const total = await prisma.user.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const users = await prisma.user.findMany({
@@ -49,6 +51,11 @@ export default async function AdminUsers({
   return (
     <div className="p-6">
       <h1 className="text-xl font-bold mb-4">用户管理（共 {total}）</h1>
+      {!hasRedundancy && (
+        <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          管理员连续性风险：当前仅有 {activeAdminCount} 个 ACTIVE 管理员。生产基线建议至少保留 2 个受控管理员账户，避免单点锁死。
+        </div>
+      )}
 
       <form className="bg-white border rounded p-3 mb-4 flex flex-wrap gap-2 items-center">
         <input name="q" defaultValue={q} placeholder="邮箱/姓名/手机/公司"
