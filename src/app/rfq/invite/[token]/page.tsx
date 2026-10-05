@@ -25,6 +25,10 @@ export default async function InviteLinkPage({ params }: { params: { token: stri
   if (!inv) notFound();
 
   const rfq = inv.rfq;
+  // PRIVATE means buyer-company/admin only; possession of an invitation token
+  // must not disclose RFQ content or create supplier access.
+  if (rfq.visibility === "PRIVATE") notFound();
+
   const buyerUser = rfq.userID
     ? await prisma.user.findUnique({
         where: { id: rfq.userID },
