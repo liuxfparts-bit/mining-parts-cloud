@@ -267,6 +267,7 @@ model User {
   company       String?   // 采购方公司名
   emailVerified DateTime?
   status        String    @default("ACTIVE") // ACTIVE / DISABLED
+  sessionVersion Int      @default(0) // bump to invalidate all existing JWT sessions
   favorites     Favorite[]
   notifications Notification[]
   passwordResetTokens PasswordResetToken[]
@@ -299,6 +300,22 @@ model BuyerCompany {
 
   @@index([verifiedStatus])
   @@index([ownerUserId])
+}
+
+// ========== 安全与管理员操作审计 ==========
+model SecurityAuditLog {
+  id          Int      @id @default(autoincrement())
+  actorUserId Int?
+  action      String
+  targetType  String
+  targetId    String?
+  summary     String?  @db.Text
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 // ========== 密码重置 Token ==========
