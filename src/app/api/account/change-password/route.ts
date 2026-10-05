@@ -18,6 +18,20 @@ export async function POST(req: NextRequest) {
   const ok = await bcrypt.compare(oldPw, user.passwordHash);
   if (!ok) return NextResponse.json({ ok: false, message: "原密码错误" }, { status: 400 });
   const passwordHash = await bcrypt.hash(newPw, 10);
-  await prisma.user.update({ where: { id: uid }, data: { passwordHash } });
-  return NextResponse.json({ ok: true });
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: uid },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    });
+    await tx.securityAuditLog.create({
+      data: {
+        actorUserId: uid,
+        action: "PASSWORD_CHANGED",
+        targetType: "USER",
+        targetId: String(uid),
+        summary: "User changed password; all existing sessions invalidated.",
+      },
+    });
+  });
+  return NextResponse.json({ ok: true, reauthRequired: true });
 }
