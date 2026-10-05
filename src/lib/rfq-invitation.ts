@@ -318,6 +318,9 @@ export async function createInvitationsForRFQ(
       (rfq.userID !== buyer.id && !(rfq.companyID != null && rfq.companyID === buyer.buyerCompanyId))) {
       throw new Error("无权邀请供应商");
     }
+    if (rfq.visibility === "PRIVATE") {
+      throw new Error("私密询价不可邀请供应商");
+    }
     // 注册供应商
     const uniqIds = Array.from(new Set(supplierIds));
     for (const sid of uniqIds) {
