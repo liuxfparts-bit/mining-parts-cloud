@@ -50,7 +50,7 @@ export default async function AdminUsers({
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold mb-4">用户管理（共 {total}）</h1>
+      <div className="mb-4 flex items-center justify-between gap-3"><h1 className="text-xl font-bold">用户管理（共 {total}）</h1><a href="/admin/users/new-admin" className="bg-blue-600 text-white px-4 py-2 rounded text-sm">创建备用管理员</a></div>
       {!hasRedundancy && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           管理员连续性风险：当前仅有 {activeAdminCount} 个 ACTIVE 管理员。生产基线建议至少保留 2 个受控管理员账户，避免单点锁死。
