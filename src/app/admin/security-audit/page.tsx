@@ -15,7 +15,7 @@ export default async function SecurityAuditPage({
     prisma.securityAuditLog.count({ where }),
     prisma.securityAuditLog.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
   ]);
-  const actorIds = [...new Set(logs.map((x) => x.actorUserId).filter((x): x is number => x != null))];
+  const actorIds = Array.from(new Set(logs.map((x) => x.actorUserId).filter((x): x is number => x != null)));
   const actors = actorIds.length ? await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, email: true, name: true } }) : [];
   const actorMap = new Map(actors.map((x) => [x.id, x]));
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
