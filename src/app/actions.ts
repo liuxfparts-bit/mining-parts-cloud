@@ -77,8 +77,8 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
   }
 
   try {
-    // 逐条匹配件号 → 合并匹配到的供应商
-    const matchedSupplierIds: number[] = [];
+    // Resolve trusted part-number links only. Supplier recommendations must not
+    // become RFQ authorization implicitly; MATCHED_SUPPLIERS starts with no grants.
     const itemDatas: {
       seq: number;
       brandId: number | null;
@@ -99,7 +99,6 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
       if (pn) {
         const capability = await findTrustedSupplierIdsForPartNumber(pn);
         partNumberId = capability.partNumberId;
-        matchedSupplierIds.push(...capability.supplierIds);
       }
       itemDatas.push({
         seq: validItems.indexOf(it) + 1,
@@ -116,7 +115,6 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
       });
     }
 
-    const uniqueMatched = Array.from(new Set(matchedSupplierIds));
     const first = itemDatas[0];
 
     await prisma.$transaction(async (tx) => {
@@ -154,7 +152,7 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
           whatsapp: whatsapp || null,
           visibility,
           matchedSuppliers:
-            visibility === "MATCHED_SUPPLIERS" ? JSON.stringify(uniqueMatched) : null,
+            visibility === "MATCHED_SUPPLIERS" ? "[]" : null,
         },
       });
 
