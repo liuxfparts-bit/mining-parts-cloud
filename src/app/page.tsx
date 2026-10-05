@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
+import { PUBLIC_PRODUCT_WHERE, PUBLIC_PRODUCT_WHERE_NESTED, PUBLIC_SUPPLIER_WHERE } from "@/lib/public-product";
 import { ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +21,8 @@ export default async function HomePage() {
       include: { brand: true, equipmentRelations: { include: { equipmentModel: { include: { brand: true } } } }, products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } } },
       take: 6, orderBy: { id: "asc" },
     }),
-    prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } }, include: { _count: { select: { products: true } } }, take: 8, orderBy: { id: "asc" } }),
-    prisma.rFQ.findMany({ where: { status: "COLLECTING" }, take: 6, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
+    prisma.supplier.findMany({ where: PUBLIC_SUPPLIER_WHERE, include: { _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } } }, take: 8, orderBy: { id: "asc" } }),
+    prisma.rFQ.findMany({ where: { status: "COLLECTING", visibility: "PUBLIC" }, take: 6, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
     prisma.banner.findMany({ where: { status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
     prisma.brand.findMany({ where: { equipment: { some: { status: "ACTIVE" } } }, include: { equipment: { where: { status: "ACTIVE" }, take: 6, orderBy: { id: "desc" } }, _count: { select: { partNumbers: true } } }, orderBy: { name: "asc" } }),
     prisma.category.findMany({ take: 16, orderBy: { sortOrder: "asc" } }),
@@ -212,15 +212,19 @@ export default async function HomePage() {
         {/* 优质供应商 */}
         <section>
           <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">优质供应商</h2><Link href="/suppliers" className="text-sm text-blue-600">全部 <ArrowRight className="inline h-3 w-3" /></Link></div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {suppliers.map((s) => (
-              <Link key={s.id} href={`/suppliers/${s.slug}`} className="bg-white border rounded p-4 hover:shadow block">
-                <div className="font-bold">{s.name}</div>
-                <span className="inline-block mt-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">✓ 已认证</span>
-                <div className="text-xs text-gray-500 mt-2">产品 {s._count.products} 个</div>
-              </Link>
-            ))}
-          </div>
+          {suppliers.length === 0 ? (
+            <div className="bg-white border rounded p-8 text-center text-gray-500">暂无达到公开标准的供应商</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {suppliers.map((s) => (
+                <Link key={s.id} href={`/suppliers/${s.slug}`} className="bg-white border rounded p-4 hover:shadow block">
+                  <div className="font-bold">{s.name}</div>
+                  <span className="inline-block mt-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">✓ 已认证</span>
+                  <div className="text-xs text-gray-500 mt-2">公开供货产品 {s._count.products} 个</div>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* 底部转化 CTA */}
