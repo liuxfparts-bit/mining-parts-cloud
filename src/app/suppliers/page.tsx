@@ -5,7 +5,7 @@ import SupplierFilter from "@/components/SupplierFilter";
 import Pagination from "@/components/Pagination";
 import type { Prisma } from "@prisma/client";
 import type { Metadata } from "next";
-import { PUBLIC_PRODUCT_WHERE } from "@/lib/public-product";
+import { PUBLIC_PRODUCT_WHERE, PUBLIC_SUPPLIER_WHERE } from "@/lib/public-product";
 
 export const dynamic = "force-dynamic";
 
@@ -84,8 +84,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Se
   }
 
   const where: Prisma.SupplierWhereInput = {
-    verifiedStatus: "VERIFIED",
-    users: { none: { status: "DISABLED" } },
+    ...PUBLIC_SUPPLIER_WHERE,
     AND: conditions,
   };
 
@@ -98,7 +97,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Se
   // ===== 数据库级分页：只取当前页数据 =====
   const suppliers = await prisma.supplier.findMany({
     where,
-    include: { _count: { select: { products: true } } },
+    include: { _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } } },
     orderBy: [{ id: "asc" }],
     skip: (currentPage - 1) * pageSize,
     take: pageSize,
@@ -121,8 +120,8 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Se
 
       {suppliers.length === 0 ? (
         <div className="bg-white border border-line rounded-lg p-10 text-center">
-          <p className="mb-3 font-bold text-lg">没有找到符合条件的厂家</p>
-          <p className="text-sm text-muted mb-4">请调整搜索条件后重试。</p>
+          <p className="mb-3 font-bold text-lg">没有找到达到公开标准的厂家</p>
+          <p className="text-sm text-muted mb-4">公开厂家需完成企业认证，并至少有一条已验证、已发布且件号可公开的供货产品。</p>
           <Link
             href="/suppliers"
             className="inline-block border border-line text-sm px-5 py-2 rounded-md hover:bg-gray-50"
