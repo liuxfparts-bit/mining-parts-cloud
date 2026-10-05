@@ -12,6 +12,7 @@
     "test:p2-1f": "tsx scripts/test-p2-1f-quote-integrity-selection-lifecycle.ts",
     "test:wp0-2": "tsx scripts/test-wp0-2-rfq-access.ts",
     "test:wp0-3": "tsx scripts/test-wp0-3-public-trust.ts",
+    "test:wp0-4": "tsx scripts/test-wp0-4-admin-security.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
