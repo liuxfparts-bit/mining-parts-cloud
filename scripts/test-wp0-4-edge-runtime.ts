@@ -58,9 +58,12 @@ async function main() {
       maxAge: 3600,
     });
   
-    const res = await fetch(base + "/login", {
+    const res = await fetch(base + "/", {
       redirect: "manual",
-      headers: { cookie: `${cookieName}=${token}` },
+      headers: {
+        cookie: `${cookieName}=${token}`,
+        "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile",
+      },
     });
   
     // A valid ADMIN JWT on the mobile root path is handled entirely by Edge
