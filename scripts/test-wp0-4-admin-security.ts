@@ -15,6 +15,8 @@ const adminReset = read("src/app/api/admin/users/reset-password/route.ts");
 const users = read("src/app/admin/users/page.tsx");
 const adminActions = read("src/app/admin/actions.ts");
 const auditPage = read("src/app/admin/security-audit/page.tsx");
+const createAdmin = read("src/app/api/admin/users/create-admin/route.ts");
+const newAdminPage = read("src/app/admin/users/new-admin/page.tsx");
 const migration = read("prisma/migrations/0006_admin_security_audit/migration.sql");
 
 must(schema, "sessionVersion Int      @default(0)", "User sessionVersion missing");
@@ -40,6 +42,11 @@ must(adminReset, 'action: "ADMIN_PASSWORD_RESET"', "admin reset audit missing");
 must(users, "getAdminContinuityStatus", "admin continuity status missing");
 must(users, "至少保留 2 个受控管理员账户", "single-admin warning missing");
 must(auditPage, "securityAuditLog.findMany", "audit viewer missing");
+must(createAdmin, 'role: "ADMIN"', "backup admin creation must create ADMIN role");
+must(createAdmin, 'status: "ACTIVE"', "backup admin creation must create active account");
+must(createAdmin, 'action: "ADMIN_ACCOUNT_CREATED"', "backup admin creation audit missing");
+must(createAdmin, "password.length < 12", "backup admin password policy missing");
+must(newAdminPage, "/api/admin/users/create-admin", "backup admin UI is not wired");
 
 for (const action of [
   "SUPPLIER_APPROVED",
