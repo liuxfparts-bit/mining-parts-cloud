@@ -29,8 +29,9 @@ export default async function SecurityPage() {
             body: JSON.stringify({ oldPassword: f.oldPassword.value, newPassword: f.newPassword.value })
           });
           const j = await r.json();
-          document.getElementById('cp-msg').textContent = j.ok ? '密码已修改' : (j.message || '失败');
+          document.getElementById('cp-msg').textContent = j.ok ? '密码已修改，请重新登录' : (j.message || '失败');
           document.getElementById('cp-msg').style.color = j.ok ? 'green' : 'red';
+          if (j.ok) window.location.href = '/login?passwordChanged=1';
         });
       `}} />
     </div>
