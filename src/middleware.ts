@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { edgeAuth } from "@/lib/auth-edge";
 
-export default auth((req) => {
+export default edgeAuth((req) => {
   const { nextUrl } = req;
   const isLoggedIn = !!req.auth;
   const role = (req.auth as any)?.user?.role;
@@ -48,12 +48,10 @@ export default auth((req) => {
     // BUYER 正常放行
   }
 
-  // 已登录访问登录页：按角色跳转
-  if (path === "/login" && isLoggedIn) {
-    if (role === "ADMIN") return NextResponse.redirect(new URL("/admin", nextUrl));
-    if (role === "SUPPLIER") return NextResponse.redirect(new URL("/supplier", nextUrl));
-    return NextResponse.redirect(new URL("/dashboard", nextUrl));
-  }
+  // /login intentionally does not redirect in Edge middleware.
+  // The login page calls the Node.js auth() implementation, which validates
+  // status/role/sessionVersion against PostgreSQL. This prevents a stale JWT
+  // from bouncing between /login and a protected route after session revocation.
 });
 
 export const config = {
