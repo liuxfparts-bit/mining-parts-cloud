@@ -127,7 +127,7 @@ export async function toggleDisableCompany(id: string) {
 
 // ===== 兼容旧导出 =====
 export async function reviewSupplier(id: number, status: "VERIFIED" | "REJECTED", reason?: string) {
-  await requireAdmin();
+  const session = await requireAdmin();
   await prisma.supplier.update({ where: { id }, data: { verifiedStatus: status } });
   if (status === "VERIFIED") {
     await prisma.user.updateMany({
@@ -135,6 +135,7 @@ export async function reviewSupplier(id: number, status: "VERIFIED" | "REJECTED"
       data: { status: "ACTIVE" },
     });
   }
+  await writeSecurityAudit({ actorUserId: Number((session.user as any).id), action: "SUPPLIER_REVIEWED", targetType: "SUPPLIER", targetId: id, metadata: { status } });
   revalidatePath("/admin/suppliers");
   revalidatePath("/");
   revalidatePath("/suppliers");
@@ -142,8 +143,10 @@ export async function reviewSupplier(id: number, status: "VERIFIED" | "REJECTED"
   revalidatePath("/sitemap.xml");
 }
 export async function updateMemberLevel(id: number, level: string) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const current = await prisma.supplier.findUnique({ where: { id }, select: { memberLevel: true } });
   await prisma.supplier.update({ where: { id }, data: { memberLevel: level } });
+  await writeSecurityAudit({ actorUserId: Number((session.user as any).id), action: "SUPPLIER_MEMBER_LEVEL_CHANGED", targetType: "SUPPLIER", targetId: id, metadata: { from: current?.memberLevel ?? null, to: level } });
   revalidatePath(`/admin/suppliers/${id}`);
 }
 
