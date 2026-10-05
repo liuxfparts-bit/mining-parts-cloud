@@ -37,3 +37,15 @@ export const PUBLIC_PRODUCT_WHERE = {
   ...PUBLIC_PRODUCT_WHERE_NESTED,
   partNumber: { publishStatus: "READY" },
 } satisfies Prisma.ProductWhereInput;
+
+/**
+ * Canonical public Supplier visibility rule.
+ *
+ * 企业认证只证明主体通过审核；进入公开厂家目录还必须至少存在一条
+ * 满足 PUBLIC_PRODUCT_WHERE 的可信公开供货记录。
+ */
+export const PUBLIC_SUPPLIER_WHERE = {
+  verifiedStatus: "VERIFIED",
+  users: { none: { status: "DISABLED" } },
+  products: { some: PUBLIC_PRODUCT_WHERE },
+} satisfies Prisma.SupplierWhereInput;
