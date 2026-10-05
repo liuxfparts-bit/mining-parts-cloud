@@ -61,7 +61,7 @@ export default async function SupplierQuotePage({
 
   if (!canSupplierAccessRfq(rfq, supplierId)) notFound();
 
-  const closed = rfq.status === "CLOSED" || rfq.status === "EXPIRED";
+  const closed = !["COLLECTING", "QUOTED"].includes(rfq.status);
   const existing = (rfq.quotes[0] || null) as ExistingQuoteT;
   const items = rfq.items as QuoteItemT[];
   const st = STATUS_CN[rfq.status] || { label: rfq.status, cls: "bg-gray-100 text-gray-600" };
