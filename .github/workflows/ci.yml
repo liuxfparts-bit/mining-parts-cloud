@@ -77,5 +77,8 @@ jobs:
       - name: WP0-3 public trust checks
         run: npm run test:wp0-3
 
+      - name: WP0-4 admin security checks
+        run: npm run test:wp0-4
+
       - name: Production build
         run: npm run build
