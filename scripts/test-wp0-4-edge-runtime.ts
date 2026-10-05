@@ -62,12 +62,14 @@ try {
     headers: { cookie: `${cookieName}=${token}` },
   });
 
-  // /login must remain reachable in Edge middleware. The Node.js login page
-  // performs database-backed sessionVersion validation and decides whether a
-  // valid session should redirect. An empty CI database may return 200 or a
-  // server-side redirect, but Edge itself must not crash on JWT processing.
-  if (res.status >= 500) {
-    throw new Error(`WP0-4R failed: authenticated middleware request returned ${res.status}`);
+  // A valid ADMIN JWT on the mobile root path is handled entirely by Edge
+  // middleware and must redirect to /admin without touching Prisma.
+  if (![301, 302, 303, 307, 308].includes(res.status)) {
+    throw new Error(`WP0-4R failed: authenticated Edge request returned ${res.status}, expected redirect`);
+  }
+  const location = res.headers.get("location") || "";
+  if (!location.endsWith("/admin")) {
+    throw new Error(`WP0-4R failed: authenticated Edge request redirected to ${location || "<none>"}`);
   }
 
   await sleep(500);
