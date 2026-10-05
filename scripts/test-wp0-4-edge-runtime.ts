@@ -14,7 +14,7 @@ async function waitForServer() {
   for (let i = 0; i < 60; i++) {
     try {
       const res = await fetch(base + "/login", { redirect: "manual" });
-      if (res.status >= 200 && res.status < 500) return;
+      if (res.status >= 100) return;
     } catch {}
     await sleep(500);
   }
