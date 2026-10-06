@@ -8,6 +8,7 @@ export default function ImageUploader() {
     setBusy(true);
     const fd = new FormData();
     fd.append("file", file);
+    fd.append("scope", "admin-image");
     const r = await fetch("/api/upload", { method: "POST", body: fd });
     const data = await r.json();
     if (data.url) {
@@ -18,7 +19,7 @@ export default function ImageUploader() {
   return (
     <label className="border px-3 py-2 rounded text-sm cursor-pointer whitespace-nowrap">
       {busy ? "上传中…" : "上传图片"}
-      <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+      <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
     </label>
   );
 }

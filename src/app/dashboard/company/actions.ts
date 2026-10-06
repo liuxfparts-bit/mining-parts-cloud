@@ -4,13 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { uploadPrincipal, uploadUrlsBelongToPrincipal } from "@/lib/upload-policy";
 
 export async function submitCompanyVerification(formData: FormData) {
   const session = await auth();
   const email = (session?.user as any)?.email;
   if (!email) redirect("/login");
   const user = await prisma.user.findUnique({ where: { email: String(email).toLowerCase() } });
-  if (!user || user.role !== "BUYER") redirect("/dashboard");
+  if (!user || user.role !== "BUYER" || user.status !== "ACTIVE") redirect("/dashboard");
 
   const companyName = String(formData.get("companyName") || "").trim();
   const unifiedCode = String(formData.get("unifiedCode") || "").trim();
@@ -31,6 +32,15 @@ export async function submitCompanyVerification(formData: FormData) {
   if (existing?.verifiedStatus === "VERIFIED") {
     // 已认证企业不允许直接修改，提示联系管理员
     redirect("/dashboard/company?error=" + encodeURIComponent("企业已认证，如需变更资质请联系平台管理员"));
+  }
+
+  const licensePrincipal = uploadPrincipal("BUYER", user.id);
+  const grandfatheredLicense = existing?.licenseImage ? [existing.licenseImage] : [];
+  if (
+    licenseImage &&
+    !uploadUrlsBelongToPrincipal([licenseImage], "buyer-license", licensePrincipal, grandfatheredLicense)
+  ) {
+    redirect("/dashboard/company?error=" + encodeURIComponent("营业执照图片不属于当前账号或上传用途无效"));
   }
 
   if (existing) {

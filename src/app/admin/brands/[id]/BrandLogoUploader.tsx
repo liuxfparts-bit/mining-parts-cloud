@@ -14,6 +14,7 @@ export default function BrandLogoUploader({ brandId, initialLogo }: { brandId: n
     setBusy(true); setMsg("正在上传…");
     const fd = new FormData();
     fd.append("file", file);
+    fd.append("scope", "admin-image");
     const up = await fetch("/api/upload", { method: "POST", body: fd });
     const data = await up.json();
     if (!up.ok || !data.url) { setMsg("上传失败"); setBusy(false); return; }
@@ -41,7 +42,7 @@ export default function BrandLogoUploader({ brandId, initialLogo }: { brandId: n
         <div>
           <label className="inline-block bg-blue-600 text-white px-3 py-1.5 rounded text-sm cursor-pointer">
             {busy ? "上传中…" : (logo ? "更换Logo" : "上传Logo")}
-            <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} disabled={busy} />
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} disabled={busy} />
           </label>
           {logo && <button onClick={del} className="ml-2 border px-3 py-1.5 rounded text-sm text-red-600">删除</button>}
         </div>

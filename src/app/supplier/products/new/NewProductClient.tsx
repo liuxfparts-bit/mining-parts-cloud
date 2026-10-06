@@ -41,6 +41,7 @@ export default function NewProductClient({ maxImages, memberLevel, preselect }: 
     if (!f || images.length >= maxImages) return;
     setUploading(true);
     const fd = new FormData(); fd.append("file", f);
+    fd.append("scope", "product-image");
     const res = await fetch("/api/upload", { method: "POST", body: fd });
     const j = await res.json();
     if (j.url) setImages((arr) => [...arr, j.url]);
@@ -164,7 +165,7 @@ export default function NewProductClient({ maxImages, memberLevel, preselect }: 
                 <button type="button" onClick={() => setImages(images.filter((_, j) => j !== i))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs">×</button>
               </div>
             ))}
-            {images.length < maxImages && <input type="file" accept="image/*" onChange={uploadOne} disabled={uploading} className="block text-sm" />}
+            {images.length < maxImages && <input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadOne} disabled={uploading} className="block text-sm" />}
           </div>
           <div className="flex gap-3 pt-3">
             <button type="button" onClick={() => setStep(1)} className="border px-4 py-2 rounded text-sm">上一步</button>

@@ -118,7 +118,7 @@ export default function QuoteForm({
     try {
       const fd = new FormData();
       fd.append("file", f);
-      fd.append("scope", "quote");
+      fd.append("scope", "quote-attachment");
       const r = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
       if (r.status === 401) {
         setErr("登录已失效，即将跳转登录…");

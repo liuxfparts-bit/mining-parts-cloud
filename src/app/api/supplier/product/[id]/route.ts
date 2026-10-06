@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { changedProductTrustFields } from "@/lib/product-verification";
 import { resolveSupplierWriteAccess } from "@/lib/supplier-write-access";
+import { splitStoredUploadUrls, uploadPrincipal, uploadUrlsBelongToPrincipal } from "@/lib/upload-policy";
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const access = await resolveSupplierWriteAccess("BUSINESS");
@@ -15,6 +16,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }
 
   const b = await req.json();
+  const imageUrls = splitStoredUploadUrls(b.images);
+  const existingImageUrls = splitStoredUploadUrls(product.images);
+  const principal = uploadPrincipal("SUPPLIER", supplierId);
+  if (!uploadUrlsBelongToPrincipal(imageUrls, "product-image", principal, existingImageUrls)) {
+    return NextResponse.json({ success: false, message: "产品图片不属于当前供应商或上传用途无效" }, { status: 400 });
+  }
   const data: any = {
     name: b.name,
     productType: b.productType,
@@ -26,7 +33,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     leadTime: b.leadTime,
     warranty: b.warranty,
     description: b.description,
-    images: b.images || "",
+    images: imageUrls.join(","),
   };
 
   const changedTrustFields = changedProductTrustFields(product as any, data);

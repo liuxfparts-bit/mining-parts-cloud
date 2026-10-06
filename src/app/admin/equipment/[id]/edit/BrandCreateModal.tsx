@@ -14,6 +14,7 @@ export default function BrandCreateModal({ onCreated, onClose }: { onCreated: (b
   async function upload(file: File) {
     const fd = new FormData();
     fd.append("file", file);
+    fd.append("scope", "admin-image");
     const r = await fetch("/api/upload", { method: "POST", body: fd });
     const d = await r.json();
     if (d.url) setLogo(d.url);
@@ -45,7 +46,7 @@ export default function BrandCreateModal({ onCreated, onClose }: { onCreated: (b
               {logo ? <img src={logo} className="h-10 object-contain border rounded" /> : null}
               <label className="border px-3 py-1.5 text-xs cursor-pointer bg-gray-50">
                 {logo ? "更换Logo" : "上传Logo"}
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
               </label>
             </div>
           </div>

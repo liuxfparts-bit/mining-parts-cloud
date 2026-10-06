@@ -10,6 +10,7 @@ export default function EquipmentImageUploader({ name = "imageUrl", initialUrl =
     setBusy(true);
     const fd = new FormData();
     fd.append("file", file);
+    fd.append("scope", "admin-image");
     const r = await fetch("/api/upload", { method: "POST", body: fd });
     const data = await r.json();
     if (data.url) {
@@ -32,7 +33,7 @@ export default function EquipmentImageUploader({ name = "imageUrl", initialUrl =
         <input type="hidden" name={name} value={url} />
         <label className="border px-3 py-2 rounded text-sm cursor-pointer whitespace-nowrap bg-gray-50">
           {busy ? "上传中…" : url ? "更换图片" : "选择图片"}
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
         </label>
         {url && <button type="button" onClick={clear} className="text-xs text-red-600">删除图片</button>}
       </div>
