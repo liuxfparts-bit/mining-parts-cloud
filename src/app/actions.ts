@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireVerifiedBuyer } from "@/lib/buyer-company";
 import { findTrustedSupplierIdsForPartNumber } from "@/lib/supplier-capability";
+import { writeBusinessEvent } from "@/lib/analytics";
 
 export async function createRFQ(prevState: { error?: string; success?: boolean }, formData: FormData) {
   // 服务端身份校验：必须登录，归属写入当前登录用户（禁止前端传 buyerId/userId）
@@ -117,6 +118,7 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
 
     const first = itemDatas[0];
 
+    let createdRfqId: number | null = null;
     await prisma.$transaction(async (tx) => {
       // 生成 rfqNo：RFQ-YYYYMMDD-当天序号
       const now = new Date();
@@ -156,12 +158,17 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
         },
       });
 
+      createdRfqId = rfq.id;
+
       for (const it of itemDatas) {
         await tx.rFQItem.create({
           data: { ...it, rfqId: rfq.id },
         });
       }
     });
+    if (createdRfqId) {
+      await writeBusinessEvent({ eventType: "RFQ_CREATE", path: "/rfq/create", userId: sessionUser.id, entityType: "RFQ", entityId: createdRfqId, metadata: { visibility, itemCount: itemDatas.length } });
+    }
   } catch (e) {
     console.error("createRFQ error:", e);
     return { error: "提交失败，请重试" };
