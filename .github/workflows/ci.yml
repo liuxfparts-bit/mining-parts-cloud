@@ -80,5 +80,8 @@ jobs:
       - name: WP0-4 admin security checks
         run: npm run test:wp0-4
 
+      - name: WP0-5 analytics checks
+        run: npm run test:wp0-5
+
       - name: Production build
         run: npm run build
