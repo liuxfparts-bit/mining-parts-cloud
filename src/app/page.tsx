@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { PUBLIC_PRODUCT_WHERE, PUBLIC_PRODUCT_WHERE_NESTED, PUBLIC_SUPPLIER_WHERE } from "@/lib/public-product";
 import { ArrowRight } from "lucide-react";
+import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 
 export const dynamic = "force-dynamic";
 
@@ -14,17 +15,44 @@ export default async function HomePage() {
   await auth();
 
   const [brands, equipment, partNumbers, suppliers, recentRFQs, homeBanners, brandsWithEquipment, categories] = await Promise.all([
-    prisma.brand.findMany({ include: { _count: { select: { equipment: true, partNumbers: true } } }, take: 12, orderBy: { name: "asc" } }),
-    prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true, _count: { select: { partNumberRelations: true } } }, take: 8, orderBy: { id: "asc" } }),
+    prisma.brand.findMany({
+      where: { status: "ACTIVE" },
+      include: {
+        _count: {
+          select: {
+            equipment: { where: { status: "ACTIVE" } },
+            partNumbers: { where: PUBLIC_PN_WHERE },
+          },
+        },
+      },
+      take: 12,
+      orderBy: { name: "asc" },
+    }),
+    prisma.equipment.findMany({
+      where: { status: "ACTIVE" },
+      include: {
+        brand: true,
+        _count: { select: { partNumberRelations: { where: { partNumber: PUBLIC_PN_WHERE } } } },
+      },
+      take: 8,
+      orderBy: { id: "asc" },
+    }),
     prisma.partNumber.findMany({
-      where: { publishStatus: "READY" },
+      where: PUBLIC_PN_WHERE,
       include: { brand: true, equipmentRelations: { include: { equipmentModel: { include: { brand: true } } } }, products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } } },
       take: 6, orderBy: { id: "asc" },
     }),
     prisma.supplier.findMany({ where: PUBLIC_SUPPLIER_WHERE, include: { _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } } }, take: 8, orderBy: { id: "asc" } }),
     prisma.rFQ.findMany({ where: { status: "COLLECTING", visibility: "PUBLIC" }, take: 6, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
     prisma.banner.findMany({ where: { status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
-    prisma.brand.findMany({ where: { equipment: { some: { status: "ACTIVE" } } }, include: { equipment: { where: { status: "ACTIVE" }, take: 6, orderBy: { id: "desc" } }, _count: { select: { partNumbers: true } } }, orderBy: { name: "asc" } }),
+    prisma.brand.findMany({
+      where: { status: "ACTIVE", equipment: { some: { status: "ACTIVE" } } },
+      include: {
+        equipment: { where: { status: "ACTIVE" }, take: 6, orderBy: { id: "desc" } },
+        _count: { select: { partNumbers: { where: PUBLIC_PN_WHERE } } },
+      },
+      orderBy: { name: "asc" },
+    }),
     prisma.category.findMany({ take: 16, orderBy: { sortOrder: "asc" } }),
   ]);
   if (homeBanners.length > 0) {
