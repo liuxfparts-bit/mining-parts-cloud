@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canUserReadRfq, type RfqAccessUser } from "@/lib/rfq-supplier-access";
-import { PUBLIC_PRODUCT_WHERE } from "@/lib/public-product";
+import { PUBLIC_PRODUCT_WHERE, PUBLIC_SUPPLIER_IDENTITY_WHERE } from "@/lib/public-product";
+import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 
 const MIME: Record<string, string> = {
   jpg: "image/jpeg",
@@ -47,7 +48,7 @@ async function canReadRfqUpload(url: string, reader: Reader | null, previewCompa
   });
   if (item) return canUserReadRfq(item.rfq, reader);
   const rfq = await prisma.rFQ.findFirst({
-    where: { images: { contains: url } },
+    where: { OR: [{ images: { contains: url } }, { attachments: { contains: url } }] },
     select: { visibility: true, matchedSuppliers: true, userID: true, companyID: true, businessAuthenticity: true },
   });
   return !!rfq && canUserReadRfq(rfq, reader);
@@ -71,14 +72,17 @@ async function canReadQuoteUpload(url: string, reader: Reader | null, previewSup
 async function canReadProductUpload(url: string, reader: Reader | null, previewSupplierId?: number | null) {
   if (reader?.role === "ADMIN") return true;
   if (previewSupplierId && reader?.role === "SUPPLIER" && reader.supplierId === previewSupplierId) return true;
+  const productUrlWhere = {
+    OR: [{ images: { contains: url } }, { datasheet: url }, { drawing: url }],
+  };
   const publicProduct = await prisma.product.findFirst({
-    where: { AND: [PUBLIC_PRODUCT_WHERE, { images: { contains: url } }] },
+    where: { AND: [PUBLIC_PRODUCT_WHERE, productUrlWhere] },
     select: { id: true },
   });
   if (publicProduct) return true;
   if (reader?.role === "SUPPLIER" && reader.supplierId) {
     const own = await prisma.product.findFirst({
-      where: { supplierId: reader.supplierId, images: { contains: url } },
+      where: { supplierId: reader.supplierId, ...productUrlWhere },
       select: { id: true },
     });
     return !!own;
@@ -97,14 +101,76 @@ async function canReadBuyerLicense(url: string, reader: Reader | null, previewUs
   return !!company;
 }
 
+async function canReadPartNumberUpload(url: string, reader: Reader | null) {
+  if (reader?.role === "ADMIN") return true;
+  const trusted = await prisma.partNumber.findFirst({
+    where: {
+      AND: [
+        PUBLIC_PN_WHERE,
+        { OR: [{ drawing: url }, { images: { contains: url } }, { sourceFiles: { contains: url } }] },
+      ],
+    },
+    select: { id: true },
+  });
+  return !!trusted;
+}
+
+async function canReadSupplierUpload(url: string, reader: Reader | null) {
+  if (reader?.role === "ADMIN") return true;
+  if (reader?.role === "SUPPLIER" && reader.supplierId) {
+    const own = await prisma.supplier.findFirst({
+      where: {
+        id: reader.supplierId,
+        OR: [
+          { logo: url },
+          { factoryImages: { contains: url } },
+          { certificates: { contains: url } },
+          { businessLicense: url },
+        ],
+      },
+      select: { id: true },
+    });
+    if (own) return true;
+  }
+  const publicSupplierAsset = await prisma.supplier.findFirst({
+    where: {
+      AND: [
+        PUBLIC_SUPPLIER_IDENTITY_WHERE,
+        { OR: [{ logo: url }, { factoryImages: { contains: url } }] },
+      ],
+    },
+    select: { id: true },
+  });
+  return !!publicSupplierAsset;
+}
+
+async function canReadSupplierRequestUpload(url: string, reader: Reader | null) {
+  if (reader?.role === "ADMIN") return true;
+  if (reader?.role !== "SUPPLIER" || !reader.supplierId) return false;
+  const [pnRequest, equipmentRequest] = await Promise.all([
+    prisma.partNumberRequest.findFirst({
+      where: { supplierId: reader.supplierId, images: { contains: url } },
+      select: { id: true },
+    }),
+    prisma.equipmentRequest.findFirst({
+      where: { supplierId: reader.supplierId, imageUrl: url },
+      select: { id: true },
+    }),
+  ]);
+  return !!pnRequest || !!equipmentRequest;
+}
+
 async function canReadLegacyUpload(url: string, reader: Reader | null) {
   const publicAdminAsset = await Promise.all([
     prisma.banner.findFirst({ where: { imageUrl: url }, select: { id: true } }),
     prisma.brand.findFirst({ where: { logo: url }, select: { id: true } }),
-    prisma.equipment.findFirst({ where: { imageUrl: url }, select: { id: true } }),
+    prisma.equipment.findFirst({ where: { OR: [{ imageUrl: url }, { brochure: url }] }, select: { id: true } }),
   ]);
   if (publicAdminAsset.some(Boolean)) return true;
   if (await canReadProductUpload(url, reader)) return true;
+  if (await canReadPartNumberUpload(url, reader)) return true;
+  if (await canReadSupplierUpload(url, reader)) return true;
+  if (await canReadSupplierRequestUpload(url, reader)) return true;
   if (await canReadRfqUpload(url, reader)) return true;
   if (await canReadQuoteUpload(url, reader)) return true;
   if (await canReadBuyerLicense(url, reader)) return true;
