@@ -74,6 +74,7 @@ assert.equal(
 
 const supplierPut = read("src/app/api/supplier/product/[id]/route.ts");
 assert.match(supplierPut, /PRODUCT_VERIFICATION_INVALIDATED/);
+assert.match(supplierPut, /tx\.securityAuditLog\.create/);
 assert.match(supplierPut, /updatedAt: product\.updatedAt/);
 assert.match(supplierPut, /verificationStatus = "PENDING"/);
 

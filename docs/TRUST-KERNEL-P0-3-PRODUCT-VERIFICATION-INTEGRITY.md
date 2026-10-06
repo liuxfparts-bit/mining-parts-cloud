@@ -35,7 +35,7 @@ Admin approval now requires:
 6. Product name is non-empty.
 7. Product has not changed concurrently since the approval snapshot.
 
-Approval writes a non-null admin verifier and records dependency state in SecurityAuditLog.
+Approval writes a non-null admin verifier and records dependency state in SecurityAuditLog in the same database transaction; a verified write cannot commit without its approval audit record.
 
 ## Concurrency rule
 

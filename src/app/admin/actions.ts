@@ -355,38 +355,44 @@ export async function approveProduct(id: number) {
     throw new Error("产品不满足可信审核条件：" + errors.join("；"));
   }
 
-  const result = await prisma.product.updateMany({
-    where: {
-      id,
-      updatedAt: product.updatedAt,
-      status: "PENDING",
-      verificationStatus: "PENDING",
-    },
-    data: {
-      status: "PUBLISHED",
-      verificationStatus: "VERIFIED",
-      verificationReason: null,
-      verifiedAt: new Date(),
-      verifiedBy: admin.id,
-      rejectedAt: null,
-      rejectedBy: null,
-    },
+  const updatedCount = await prisma.$transaction(async (tx) => {
+    const result = await tx.product.updateMany({
+      where: {
+        id,
+        updatedAt: product.updatedAt,
+        status: "PENDING",
+        verificationStatus: "PENDING",
+      },
+      data: {
+        status: "PUBLISHED",
+        verificationStatus: "VERIFIED",
+        verificationReason: null,
+        verifiedAt: new Date(),
+        verifiedBy: admin.id,
+        rejectedAt: null,
+        rejectedBy: null,
+      },
+    });
+    if (result.count === 1) {
+      await tx.securityAuditLog.create({
+        data: {
+          actorUserId: admin.id,
+          action: "PRODUCT_APPROVED",
+          targetType: "PRODUCT",
+          targetId: String(id),
+          metadata: {
+            partNumberVerificationStatus: product.partNumber.verificationStatus,
+            partNumberPublishStatus: product.partNumber.publishStatus,
+            supplierVerifiedStatus: product.supplier.verifiedStatus,
+            supplierApprovedAt: product.supplier.approvedAt,
+            supplierApprovedBy: product.supplier.approvedBy,
+          },
+        },
+      });
+    }
+    return result.count;
   });
-  if (result.count !== 1) throw new Error("产品已被其他操作更新，请刷新后重新审核");
-
-  await writeSecurityAudit({
-    actorUserId: admin.id,
-    action: "PRODUCT_APPROVED",
-    targetType: "PRODUCT",
-    targetId: id,
-    metadata: {
-      partNumberVerificationStatus: product.partNumber.verificationStatus,
-      partNumberPublishStatus: product.partNumber.publishStatus,
-      supplierVerifiedStatus: product.supplier.verifiedStatus,
-      supplierApprovedAt: product.supplier.approvedAt,
-      supplierApprovedBy: product.supplier.approvedBy,
-    },
-  });
+  if (updatedCount !== 1) throw new Error("产品已被其他操作更新，请刷新后重新审核");
   revalidateProductTrustSurfaces();
   redirect("/admin/products");
 }
