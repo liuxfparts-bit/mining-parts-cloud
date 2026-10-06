@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export default function ImageUpload({ name, defaultValue }: { name: string; defaultValue?: string }) {
+export default function ImageUpload({ name, scope, defaultValue }: { name: string; scope: "rfq-image" | "buyer-license" | "product-image" | "admin-image"; defaultValue?: string }) {
   const [url, setUrl] = useState(defaultValue || "");
   const [uploading, setUploading] = useState(false);
 
@@ -12,6 +12,7 @@ export default function ImageUpload({ name, defaultValue }: { name: string; defa
     setUploading(true);
     const fd = new FormData();
     fd.append("file", f);
+    fd.append("scope", scope);
     const res = await fetch("/api/upload", { method: "POST", body: fd });
     const j = await res.json();
     if (j.url) setUrl(j.url);
@@ -21,7 +22,7 @@ export default function ImageUpload({ name, defaultValue }: { name: string; defa
   return (
     <div>
       <input type="hidden" name={name} value={url} />
-      <input type="file" accept="image/*" onChange={onChange} className="block text-sm" />
+      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onChange} className="block text-sm" />
       {uploading && <p className="text-xs text-gray-500 mt-1">上传中...</p>}
       {url && <img src={url} alt="preview" className="mt-2 h-20 rounded border" />}
     </div>

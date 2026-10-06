@@ -193,5 +193,5 @@ export default async function BuyerCompanyPage({
 
 // 客户端图片上传（避免服务端组件直接渲染文件输入）
 function ImageUploadClient({ defaultValue }: { defaultValue: string }) {
-  return <ImageUpload name="licenseImage" defaultValue={defaultValue} />;
+  return <ImageUpload name="licenseImage" scope="buyer-license" defaultValue={defaultValue} />;
 }

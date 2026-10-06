@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { requireVerifiedBuyer } from "@/lib/buyer-company";
 import { findTrustedSupplierIdsForPartNumber } from "@/lib/supplier-capability";
 import { writeBusinessEvent } from "@/lib/analytics";
+import { splitStoredUploadUrls, uploadPrincipal, uploadUrlsBelongToPrincipal } from "@/lib/upload-policy";
 
 export async function createRFQ(prevState: { error?: string; success?: boolean }, formData: FormData) {
   // 服务端身份校验：必须登录，归属写入当前登录用户（禁止前端传 buyerId/userId）
@@ -27,7 +28,7 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
     return { error: "仅采购商账号可发布询价" };
   }
   const gate = await requireVerifiedBuyer(sessionUser.id);
-  if (!gate.allowed) {
+  if (!gate.allowed || !gate.company) {
     return { error: gate.reason || "企业认证未通过，无法发布询价" };
   }
 
@@ -60,6 +61,12 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
     if (!Array.isArray(items)) items = [];
   } catch {
     items = [];
+  }
+
+  const uploadPrincipalId = uploadPrincipal("BUYER", gate.company.id);
+  items = items.map((it) => ({ ...it, images: splitStoredUploadUrls(it.images) }));
+  if (items.some((it) => !uploadUrlsBelongToPrincipal(it.images || [], "rfq-image", uploadPrincipalId))) {
+    return { error: "询价图片不属于当前采购企业或上传用途无效" };
   }
 
   // 过滤无效明细：必须有配件名称或件号，且数量 > 0

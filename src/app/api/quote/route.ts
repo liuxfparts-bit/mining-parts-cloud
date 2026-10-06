@@ -5,6 +5,7 @@ import { markInvitationQuoted } from "@/lib/rfq-invitation";
 import { canTransitionRfq } from "@/lib/rfq-lifecycle";
 import { writeBusinessEvent } from "@/lib/analytics";
 import { resolveSupplierWriteAccess } from "@/lib/supplier-write-access";
+import { splitStoredUploadUrls, uploadPrincipal, uploadUrlsBelongToPrincipal } from "@/lib/upload-policy";
 
 export async function POST(req: NextRequest) {
   // ===== 1. Canonical supplier write authorization =====
@@ -62,6 +63,16 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(attachments)) attachments = [];
   } catch {
     attachments = [];
+  }
+  attachments = splitStoredUploadUrls(attachments);
+  const previousQuote = await prisma.quote.findFirst({
+    where: { rfqId, supplierId },
+    select: { attachments: true },
+  });
+  const previousAttachments = splitStoredUploadUrls(previousQuote?.attachments);
+  const attachmentPrincipal = uploadPrincipal("SUPPLIER", supplierId);
+  if (!uploadUrlsBelongToPrincipal(attachments, "quote-attachment", attachmentPrincipal, previousAttachments)) {
+    return NextResponse.json({ error: "报价附件不属于当前供应商或上传用途无效" }, { status: 400 });
   }
 
   // token 仅用于归因；邀请必须已绑定当前供应商，不授予 RFQ 访问权限。
