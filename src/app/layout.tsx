@@ -3,6 +3,8 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import MobileNav from "@/components/MobileNav";
+import AnalyticsTracker from "@/components/AnalyticsTracker";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "矿配云 | Mining Parts Cloud - 找设备 · 找配件 · 找厂家 · 发询价",
@@ -18,6 +20,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="min-h-screen flex flex-col">
+        <Suspense fallback={null}><AnalyticsTracker /></Suspense>
         <Header />
         <main className="flex-1 pb-16 lg:pb-0">{children}</main>
         <Footer />
