@@ -129,6 +129,7 @@ const mocks = {
   "@/lib/rfq-invitation": lifecycle,
   "@/lib/rfq-supplier-access": { canSupplierAccessRfq },
   "@/lib/rfq-lifecycle": { canTransitionRfq },
+  "@/lib/analytics": { writeBusinessEvent: async () => {} },
   "next/server": { NextResponse: { json: (body: unknown, init?: { status: number }) => ({ body, status: init?.status ?? 200 }) } },
   "next/navigation": { redirect: (url: string) => { throw new Error(`REDIRECT:${url}`); }, notFound: () => { throw new Error("NOT_FOUND"); } },
   "next/cache": { revalidatePath: () => {} },
