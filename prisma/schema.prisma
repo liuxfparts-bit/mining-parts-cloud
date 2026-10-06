@@ -345,6 +345,15 @@ model Favorite {
   @@index([userId])
 }
 
+// ========== 业务事实真实性 ==========
+// UNKNOWN: 历史数据尚未人工归类；REAL: 真实业务；TEST: 测试/演练业务。
+// 数据库默认 UNKNOWN，避免 migration 将历史数据误判为真实业务。
+enum BusinessAuthenticity {
+  UNKNOWN
+  REAL
+  TEST
+}
+
 // ========== 询价单 RFQ ==========
 model RFQ {
   id             Int        @id @default(autoincrement())
@@ -384,6 +393,7 @@ model RFQ {
   visibility     String     @default("PUBLIC") // PUBLIC / MATCHED_SUPPLIERS / PRIVATE
   matchedSuppliers String?  // JSON 数组
   status         String     @default("COLLECTING") // COLLECTING / QUOTED / SELECTED / CLOSED / EXPIRED
+  businessAuthenticity BusinessAuthenticity @default(UNKNOWN)
   region         String?
   rfqNo          String?    // 编号，如 RFQ-20260915-001
   quotes         Quote[]
@@ -392,6 +402,8 @@ model RFQ {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   expiresAt      DateTime?  // 询价过期时间
+
+  @@index([businessAuthenticity, createdAt])
 }
 
 // ========== 报价 Quote ==========
@@ -417,11 +429,13 @@ model Quote {
   totalAmount  Float?   // 完整报价总额（仅当对所有 Item 都有有效报价时）
   quotedCount  Int      @default(0) // 已报价项数
   status       String   @default("PENDING") // PENDING / ACCEPTED / REJECTED / WITHDRAWN
+  businessAuthenticity BusinessAuthenticity @default(UNKNOWN)
   items        QuoteItem[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@unique([rfqId, supplierId])
+  @@index([businessAuthenticity, createdAt])
 }
 
 // ========== RFQ 采购明细（一个 RFQ 含多个 Item） ==========
@@ -489,6 +503,7 @@ model RFQInvitation {
   token          String   @unique // 唯一邀请 Token，用于外部免登录/注册引导
   // PENDING_VIEW 待查看 / VIEWED 已查看 / ACCEPTED 已接受 / QUOTED 已报价 / REJECTED 已拒绝 / EXPIRED 已过期
   status         String   @default("PENDING_VIEW")
+  businessAuthenticity BusinessAuthenticity @default(UNKNOWN)
   invitedAt      DateTime @default(now())
   viewedAt       DateTime?
   respondedAt    DateTime?
@@ -502,6 +517,7 @@ model RFQInvitation {
   @@index([rfqId])
   @@index([supplierId])
   @@index([status])
+  @@index([businessAuthenticity, createdAt])
 }
 
 // ========== 站内信通知 ==========
