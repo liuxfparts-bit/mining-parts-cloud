@@ -22,7 +22,7 @@ const TYPE_LABEL: Record<string, string> = {
 export default async function AdminRfqsPage({
   searchParams,
 }: {
-  searchParams: { page?: string; pageSize?: string; q?: string; status?: string; type?: string };
+  searchParams: { page?: string; pageSize?: string; q?: string; status?: string; type?: string; authenticity?: string };
 }) {
   const page = Math.max(1, parseInt(searchParams.page || "1") || 1);
   const pageSize = [10, 20, 50, 100].includes(parseInt(searchParams.pageSize || "10"))
@@ -31,10 +31,12 @@ export default async function AdminRfqsPage({
   const q = (searchParams.q || "").trim();
   const status = searchParams.status || "";
   const type = searchParams.type || "";
+  const authenticity = ["REAL", "TEST", "UNKNOWN"].includes(searchParams.authenticity || "") ? searchParams.authenticity! : "";
 
   const where: any = {};
   if (status) where.status = status;
   if (type) where.purchaseType = type;
+  if (authenticity) where.businessAuthenticity = authenticity;
   if (q) {
     where.OR = [
       { rfqNo: { contains: q, mode: "insensitive" } },
@@ -78,6 +80,7 @@ export default async function AdminRfqsPage({
     if (q) sp.set("q", q);
     if (status) sp.set("status", status);
     if (type) sp.set("type", type);
+    if (authenticity) sp.set("authenticity", authenticity);
     if (extra) Object.entries(extra).forEach(([k, v]) => sp.set(k, v));
     return `/admin/rfqs?${sp.toString()}`;
   }
@@ -118,6 +121,12 @@ export default async function AdminRfqsPage({
           <option value="">全部类型</option>
           {Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
+        <select name="authenticity" defaultValue={authenticity} className="h-9 border rounded px-2 text-sm">
+          <option value="">全部真实性</option>
+          <option value="REAL">REAL 真实业务</option>
+          <option value="TEST">TEST 测试业务</option>
+          <option value="UNKNOWN">UNKNOWN 待归类</option>
+        </select>
         <select name="pageSize" defaultValue={pageSize} className="h-9 border rounded px-2 text-sm">
           {[10, 20, 50, 100].map((s) => <option key={s} value={s}>{s} 条/页</option>)}
         </select>
@@ -138,6 +147,7 @@ export default async function AdminRfqsPage({
               <th className="text-left p-3">报价完成度</th>
               <th className="text-left p-3">类型</th>
               <th className="text-left p-3">状态</th>
+              <th className="text-left p-3">真实性</th>
               <th className="text-left p-3">创建时间</th>
               <th className="text-left p-3">截止时间</th>
               <th className="text-left p-3">操作</th>
@@ -169,6 +179,7 @@ export default async function AdminRfqsPage({
                   </td>
                   <td className="p-3 text-xs">{TYPE_LABEL[r.purchaseType] || r.purchaseType}</td>
                   <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs ${st.cls}`}>{st.label}</span></td>
+                  <td className="p-3 text-xs font-bold">{r.businessAuthenticity}</td>
                   <td className="p-3 text-xs whitespace-nowrap">{r.createdAt.toLocaleString("zh-CN")}</td>
                   <td className="p-3 text-xs whitespace-nowrap">
                     {r.expiresAt ? new Date(r.expiresAt).toLocaleString("zh-CN") : "—"}
@@ -178,7 +189,7 @@ export default async function AdminRfqsPage({
               );
             })}
             {items.length === 0 && (
-              <tr><td colSpan={12} className="p-8 text-center text-muted">无数据</td></tr>
+              <tr><td colSpan={13} className="p-8 text-center text-muted">无数据</td></tr>
             )}
           </tbody>
         </table>
