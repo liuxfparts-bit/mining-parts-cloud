@@ -37,11 +37,14 @@ assert.match(analytics, /entityId: \{ in: realRfqIdsToday\.map/, "conversion att
 assert.match(analytics, /UNKNOWN\/TEST 均不进入真实经营指标/);
 
 assert.match(adminActions, /setRfqBusinessAuthenticity/);
-assert.match(adminActions, /quote\.updateMany\(\{ where: \{ rfqId: id \}, data: \{ businessAuthenticity: value \} \}\)/);
-assert.match(adminActions, /rFQInvitation\.updateMany\(\{ where: \{ rfqId: id \}, data: \{ businessAuthenticity: value \} \}\)/);
+assert.doesNotMatch(adminActions, /quote\.updateMany\([\s\S]{0,200}businessAuthenticity: value/, "RFQ reclassification must not overwrite Quote facts");
+assert.doesNotMatch(adminActions, /rFQInvitation\.updateMany\([\s\S]{0,200}businessAuthenticity: value/, "RFQ reclassification must not overwrite Invitation facts");
 assert.match(adminActions, /RFQ_BUSINESS_AUTHENTICITY_CHANGED/);
 assert.match(adminActions, /setQuoteBusinessAuthenticity/);
 assert.match(adminActions, /QUOTE_BUSINESS_AUTHENTICITY_CHANGED/);
+assert.match(adminActions, /setInvitationBusinessAuthenticity/);
+assert.match(adminActions, /RFQ_INVITATION_BUSINESS_AUTHENTICITY_CHANGED/);
+assert.match(adminActions, /cascade: false/);
 assert.match(adminActions, /已接受报价必须与所属 RFQ 保持相同业务真实性/);
 assert.match(selection, /rfq\.businessAuthenticity === "UNKNOWN"/);
 assert.match(selection, /target\.businessAuthenticity !== rfq\.businessAuthenticity/);
