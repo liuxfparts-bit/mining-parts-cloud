@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +21,8 @@ export default async function BrandsPage() {
   const countsMap: Record<number, { equipment: number; partNumbers: number }> = {};
   try {
     const [eqGroups, pnGroups] = await Promise.all([
-      prisma.equipment.groupBy({ by: ["brandId"], _count: true }),
-      prisma.partNumber.groupBy({ by: ["brandId"], where: { publishStatus: "READY" }, _count: true }),
+      prisma.equipment.groupBy({ by: ["brandId"], where: { status: "ACTIVE" }, _count: true }),
+      prisma.partNumber.groupBy({ by: ["brandId"], where: PUBLIC_PN_WHERE, _count: true }),
     ]);
     for (const g of eqGroups) if (g.brandId) countsMap[g.brandId] = { equipment: g._count, partNumbers: 0 };
     for (const g of pnGroups) {

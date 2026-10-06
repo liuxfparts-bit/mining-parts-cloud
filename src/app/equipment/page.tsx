@@ -5,6 +5,7 @@ import EquipmentCard from "@/components/EquipmentCard";
 import { Search } from "lucide-react";
 import type { Metadata } from "next";
 import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
+import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export default async function EquipmentPage({
         // V3.1: Part Number Source of Truth = PartNumberEquipment（非 legacy equipmentId）
         // 过滤 publishStatus=READY；@@unique([partNumberId, equipmentModelId]) 保证 relation count == distinct PN
         partNumberRelations: {
-          where: { partNumber: { publishStatus: "READY" } },
+          where: { partNumber: PUBLIC_PN_WHERE },
           select: {
             equipmentModelId: true,
             partNumber: {

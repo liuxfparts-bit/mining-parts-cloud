@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Search, Package, Wrench, Building2, Tag } from "lucide-react";
-import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
+import { PUBLIC_PRODUCT_WHERE_NESTED, PUBLIC_SUPPLIER_WHERE } from "@/lib/public-product";
+import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 import { SearchAnalytics } from "@/components/AnalyticsTracker";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +27,8 @@ export default async function SearchPage({
   }
 
   // 精确匹配件号 → 直接跳转件号详情页
-  const exactPart = await prisma.partNumber.findUnique({
-    where: { number: q.toUpperCase() },
+  const exactPart = await prisma.partNumber.findFirst({
+    where: { number: q.toUpperCase(), ...PUBLIC_PN_WHERE },
     select: { slug: true },
   });
   if (exactPart) {
@@ -37,7 +38,7 @@ export default async function SearchPage({
   const [partNumbers, equipment, brands, suppliers] = await Promise.all([
     prisma.partNumber.findMany({
       where: {
-        publishStatus: "READY",
+        ...PUBLIC_PN_WHERE,
         OR: [
           { number: { contains: q } },
           { name: { contains: q } },
@@ -62,17 +63,19 @@ export default async function SearchPage({
           { brand: { name: { contains: q } } },
         ],
       },
-      include: { brand: true, _count: { select: { partNumberRelations: true } } },
+      include: {
+        brand: true,
+        _count: { select: { partNumberRelations: { where: { partNumber: PUBLIC_PN_WHERE } } } },
+      },
       take: 10,
     }),
     prisma.brand.findMany({
-      where: { OR: [{ name: { contains: q } }, { nameEn: { contains: q } }] },
+      where: { status: "ACTIVE", OR: [{ name: { contains: q } }, { nameEn: { contains: q } }] },
       take: 5,
     }),
     prisma.supplier.findMany({
       where: {
-        verifiedStatus: "VERIFIED",
-        users: { none: { status: "DISABLED" } },
+        ...PUBLIC_SUPPLIER_WHERE,
         OR: [
           { name: { contains: q } },
           { shortName: { contains: q } },

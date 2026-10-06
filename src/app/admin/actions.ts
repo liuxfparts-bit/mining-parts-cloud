@@ -50,7 +50,8 @@ export async function updateCompany(id: string, formData: FormData) {
         mainEquipment: v("mainEquipment"),
         description: v("description"),
         memberLevel,
-        verifiedStatus: (formData.get("verifiedStatus") as string) || current.verifiedStatus,
+        // Trust Kernel: identity review state is never editable from the generic
+        // company form. VERIFIED/REJECTED transitions must use review actions.
       },
     });
   }
@@ -67,7 +68,14 @@ export async function approveCompany(id: string) {
   const sid = parseInt(id);
   await prisma.supplier.update({
     where: { id: sid },
-    data: { verifiedStatus: "VERIFIED", approvedAt: new Date(), approvedBy: adminId },
+    data: {
+      verifiedStatus: "VERIFIED",
+      approvedAt: new Date(),
+      approvedBy: adminId,
+      rejectedAt: null,
+      rejectedBy: null,
+      rejectionReason: null,
+    },
   });
   // 审核通过后启用该企业关联的账号（注册时为 PENDING，避免无法登录且被前台过滤）
   await prisma.user.updateMany({
@@ -97,6 +105,8 @@ export async function rejectCompany(id: string, reason: string) {
       rejectionReason: reason,
       rejectedAt: new Date(),
       rejectedBy: adminId,
+      approvedAt: null,
+      approvedBy: null,
     },
   });
   await writeSecurityAudit({ actorUserId: adminId, action: "SUPPLIER_REJECTED", targetType: "SUPPLIER", targetId: sid });
@@ -126,16 +136,50 @@ export async function toggleDisableCompany(id: string) {
 }
 
 // ===== 兼容旧导出 =====
+// Trust Kernel: legacy callers must preserve the same approval/rejection audit
+// invariants as the canonical review actions. No raw VERIFIED write is allowed.
 export async function reviewSupplier(id: number, status: "VERIFIED" | "REJECTED", reason?: string) {
   const session = await requireAdmin();
-  await prisma.supplier.update({ where: { id }, data: { verifiedStatus: status } });
+  const adminIdRaw = (session.user as any).id;
+  const adminId = Number.isNaN(Number(adminIdRaw)) ? null : Number(adminIdRaw);
+  const now = new Date();
+
   if (status === "VERIFIED") {
-    await prisma.user.updateMany({
-      where: { supplierId: id },
-      data: { status: "ACTIVE" },
+    await prisma.$transaction([
+      prisma.supplier.update({
+        where: { id },
+        data: {
+          verifiedStatus: "VERIFIED",
+          approvedAt: now,
+          approvedBy: adminId,
+          rejectedAt: null,
+          rejectedBy: null,
+          rejectionReason: null,
+        },
+      }),
+      prisma.user.updateMany({ where: { supplierId: id }, data: { status: "ACTIVE" } }),
+    ]);
+  } else {
+    await prisma.supplier.update({
+      where: { id },
+      data: {
+        verifiedStatus: "REJECTED",
+        rejectionReason: reason?.trim() || "管理员驳回",
+        rejectedAt: now,
+        rejectedBy: adminId,
+        approvedAt: null,
+        approvedBy: null,
+      },
     });
   }
-  await writeSecurityAudit({ actorUserId: Number((session.user as any).id), action: "SUPPLIER_REVIEWED", targetType: "SUPPLIER", targetId: id, metadata: { status } });
+
+  await writeSecurityAudit({
+    actorUserId: adminId,
+    action: status === "VERIFIED" ? "SUPPLIER_APPROVED" : "SUPPLIER_REJECTED",
+    targetType: "SUPPLIER",
+    targetId: id,
+    metadata: { source: "legacy-reviewSupplier" },
+  });
   revalidatePath("/admin/suppliers");
   revalidatePath("/");
   revalidatePath("/suppliers");

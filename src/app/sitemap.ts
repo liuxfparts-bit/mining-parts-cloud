@@ -1,16 +1,18 @@
 import { prisma } from "@/lib/db";
 import type { MetadataRoute } from "next";
+import { PUBLIC_SUPPLIER_WHERE } from "@/lib/public-product";
+import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = "https://mpc.example.com";
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://kuangpeiyun.com").replace(/\/$/, "");
 
   const [brands, equipment, partNumbers, suppliers] = await Promise.all([
-    prisma.brand.findMany({ select: { slug: true, updatedAt: true } }),
+    prisma.brand.findMany({ where: { status: "ACTIVE" }, select: { slug: true, updatedAt: true } }),
     prisma.equipment.findMany({ where: { status: "ACTIVE" }, select: { slug: true, updatedAt: true } }),
-    prisma.partNumber.findMany({ where: { publishStatus: "READY" }, select: { slug: true, updatedAt: true } }),
-    prisma.supplier.findMany({ where: { verifiedStatus: "VERIFIED", users: { none: { status: "DISABLED" } } }, select: { slug: true, updatedAt: true } }),
+    prisma.partNumber.findMany({ where: PUBLIC_PN_WHERE, select: { slug: true, updatedAt: true } }),
+    prisma.supplier.findMany({ where: PUBLIC_SUPPLIER_WHERE, select: { slug: true, updatedAt: true } }),
   ]);
 
   const staticPages: MetadataRoute.Sitemap = [

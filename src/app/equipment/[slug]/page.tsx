@@ -8,6 +8,7 @@ import RFQCard from "@/components/RFQCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
+import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const eq = await prisma.equipment.findUnique({
     where: { slug: params.slug },
-    include: { brand: true, _count: { select: { partNumberRelations: { where: { partNumber: { publishStatus: "READY" } } } } } },
+    include: { brand: true, _count: { select: { partNumberRelations: { where: { partNumber: PUBLIC_PN_WHERE } } } } },
   });
   if (!eq || eq.status !== "ACTIVE") return { title: "Equipment Not Found" };
 
@@ -36,7 +37,7 @@ export default async function EquipmentDetailPage({ params }: { params: { slug: 
       // V3.1: Part Number Source of Truth = PartNumberEquipment（非 legacy equipmentId）
       // 过滤 publishStatus=READY；按 partNumber.number asc deterministic 排序
       partNumberRelations: {
-        where: { partNumber: { publishStatus: "READY" } },
+        where: { partNumber: PUBLIC_PN_WHERE },
         include: {
           partNumber: {
             include: {

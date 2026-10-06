@@ -2,15 +2,32 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import EquipmentCard from "@/components/EquipmentCard";
+import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 
 export const dynamic = "force-dynamic";
 
 export default async function BrandDetailPage({ params }: { params: { slug: string } }) {
-  const brand = await prisma.brand.findUnique({
-    where: { slug: params.slug },
+  const brand = await prisma.brand.findFirst({
+    where: { slug: params.slug, status: "ACTIVE" },
     include: {
-      equipment: { where: { status: "ACTIVE" }, include: { _count: { select: { partNumberRelations: true } } } },
-      partNumbers: { include: { brand: true, equipmentRelations: { include: { equipmentModel: true } } }, take: 20 },
+      equipment: {
+        where: { status: "ACTIVE" },
+        include: {
+          _count: { select: { partNumberRelations: { where: { partNumber: PUBLIC_PN_WHERE } } } },
+        },
+      },
+      partNumbers: {
+        where: PUBLIC_PN_WHERE,
+        include: {
+          brand: true,
+          equipmentRelations: {
+            where: { verificationStatus: "VERIFIED" },
+            include: { equipmentModel: true },
+          },
+        },
+        take: 20,
+        orderBy: { number: "asc" },
+      },
     },
   });
   if (!brand) notFound();

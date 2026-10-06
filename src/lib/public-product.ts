@@ -17,16 +17,27 @@ import type { Prisma } from "@prisma/client";
  */
 
 /**
+ * Canonical public Supplier identity rule.
+ *
+ * VERIFIED alone is not sufficient: a public supplier must have a formal
+ * approval trail and must not have a disabled account. Historical VERIFIED
+ * rows without approval metadata stay hidden until they are re-reviewed.
+ */
+export const PUBLIC_SUPPLIER_IDENTITY_WHERE = {
+  verifiedStatus: "VERIFIED",
+  approvedAt: { not: null },
+  approvedBy: { not: null },
+  users: { none: { status: "DISABLED" } },
+} satisfies Prisma.SupplierWhereInput;
+
+/**
  * 嵌套查询场景使用（从 PartNumber / Equipment 向下 include products 时）。
- * 不含 partNumber.publishStatus 条件，因为父级上下文已保证 READY。
+ * 不含 partNumber 条件，因为父级上下文必须使用 PUBLIC_PN_WHERE。
  */
 export const PUBLIC_PRODUCT_WHERE_NESTED = {
   status: "PUBLISHED",
   verificationStatus: "VERIFIED",
-  supplier: {
-    verifiedStatus: "VERIFIED",
-    users: { none: { status: "DISABLED" } },
-  },
+  supplier: PUBLIC_SUPPLIER_IDENTITY_WHERE,
 } satisfies Prisma.ProductWhereInput;
 
 /**
@@ -45,7 +56,6 @@ export const PUBLIC_PRODUCT_WHERE = {
  * 满足 PUBLIC_PRODUCT_WHERE 的可信公开供货记录。
  */
 export const PUBLIC_SUPPLIER_WHERE = {
-  verifiedStatus: "VERIFIED",
-  users: { none: { status: "DISABLED" } },
+  ...PUBLIC_SUPPLIER_IDENTITY_WHERE,
   products: { some: PUBLIC_PRODUCT_WHERE },
 } satisfies Prisma.SupplierWhereInput;
