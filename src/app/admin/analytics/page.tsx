@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_SUPPLIER_WHERE } from "@/lib/public-product";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,10 @@ export default async function AnalyticsDashboard() {
     supplierLegacy,
     pnLegacy,
     bannerTotals,
+    publicSuppliers,
+    verifiedPn,
+    readyPn,
+    verifiedPnWithEvidence,
   ] = await Promise.all([
     prisma.analyticsEvent.count({ where: { eventType: "PAGE_VIEW", createdAt: { gte: today } } }),
     prisma.analyticsEvent.findMany({ where: { eventType: "PAGE_VIEW", createdAt: { gte: today }, visitorId: { not: null } }, distinct: ["visitorId"], select: { visitorId: true } }),
@@ -40,6 +45,10 @@ export default async function AnalyticsDashboard() {
     prisma.supplier.aggregate({ _count: { _all: true }, _sum: { viewCount: true, inquiryCount: true } }),
     prisma.partNumber.aggregate({ _sum: { viewCount: true, inquiryCount: true } }),
     prisma.banner.aggregate({ _sum: { impressions: true, clicks: true } }),
+    prisma.supplier.count({ where: PUBLIC_SUPPLIER_WHERE }),
+    prisma.partNumber.count({ where: { verificationStatus: "VERIFIED" } }),
+    prisma.partNumber.count({ where: { verificationStatus: "VERIFIED", publishStatus: "READY" } }),
+    prisma.partNumber.count({ where: { verificationStatus: "VERIFIED", OR: [{ evidenceSummary: { not: null } }, { sourceFiles: { not: null } }] } }),
   ]);
 
   const attributedRfqSessions = await prisma.analyticsEvent.findMany({
@@ -48,6 +57,7 @@ export default async function AnalyticsDashboard() {
     select: { sessionId: true },
   });
   const conversion = sessionsToday > 0 ? ((attributedRfqSessions.length / sessionsToday) * 100).toFixed(1) : "0.0";
+  const evidenceRatio = verifiedPn > 0 ? ((verifiedPnWithEvidence / verifiedPn) * 100).toFixed(1) : "0.0";
 
   const cards = [
     ["今日 PV", pvToday, "公开页面浏览事件"],
@@ -57,6 +67,8 @@ export default async function AnalyticsDashboard() {
     ["今日 RFQ", rfqsToday, "RFQ 业务表为真相源"],
     ["今日报价", quotesToday, "Quote 业务表为真相源"],
     ["RFQ 转化率", `${conversion}%`, "可归因会话 → RFQ"],
+    ["可信公开供应商", publicSuppliers, "沿用 WP0-3 canonical rule"],
+    ["VERIFIED / READY 件号", `${verifiedPn} / ${readyPn}`, `证据覆盖 ${evidenceRatio}%`],
   ];
 
   return (
