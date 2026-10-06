@@ -7,7 +7,7 @@ type Props = {
   product: {
     id: number; name: string; productType: string; price: number | string; currency: string;
     moq: number; stockStatus: string; stock: number | string; leadTime: string; warranty: string;
-    description: string; images: string[]; status: string;
+    description: string; images: string[]; status: string; verificationStatus: string;
   };
 };
 
@@ -38,13 +38,20 @@ export default function ProductEditClient({ product }: Props) {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     const j = await res.json();
-    if (j.success) router.push("/supplier/products");
-    else alert(j.message || "保存失败");
+    if (j.success) {
+      if (j.verificationInvalidated) alert("已保存。由于修改了可信字段，原验证已失效，产品已进入重新审核。");
+      router.push("/supplier/products");
+    } else alert(j.message || "保存失败");
     setLoading(false);
   }
 
   return (
     <form id="pf" className="space-y-4 bg-white p-6 rounded-lg border">
+      {product.verificationStatus === "VERIFIED" && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded p-3 text-sm">
+          已验证产品：修改产品名称、类型、描述或图片会使原验证自动失效并进入重新审核；价格、库存、MOQ、交期和质保可直接更新。
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <div><label className="block text-sm mb-1">产品名称</label><input name="name" defaultValue={product.name} className={f} /></div>
         <div><label className="block text-sm mb-1">产品类型</label>

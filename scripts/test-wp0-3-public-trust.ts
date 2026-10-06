@@ -27,7 +27,7 @@ assert.match(home, /supplier\.findMany\(\{ where: PUBLIC_SUPPLIER_WHERE/);
 assert.match(home, /where: PUBLIC_PN_WHERE/);
 assert.match(home, /partNumbers: \{ where: PUBLIC_PN_WHERE \}/);
 assert.match(home, /partNumberRelations: \{ where: \{ partNumber: PUBLIC_PN_WHERE \} \}/);
-assert.match(home, /rFQ\.findMany\(\{ where: \{ status: "COLLECTING", visibility: "PUBLIC" \}/);
+assert.match(home, /rFQ\.findMany\(\{ where: \{ status: "COLLECTING", visibility: "PUBLIC", businessAuthenticity: "REAL" \}/);
 assert.match(home, /products: \{ where: PUBLIC_PRODUCT_WHERE \}/);
 
 const directory = readFileSync("src/app/suppliers/page.tsx", "utf8");

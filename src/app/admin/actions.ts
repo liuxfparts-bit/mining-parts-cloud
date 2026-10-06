@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { canAdminTransitionRfq } from "@/lib/rfq-lifecycle";
 import { writeSecurityAudit } from "@/lib/security-audit";
+import { productApprovalDependencyErrors } from "@/lib/product-verification";
 
 async function requireAdmin() {
   const session = await auth();
@@ -251,35 +252,172 @@ export async function reviewPartNumberStatus(id: number, formData: FormData) {
   revalidatePath(`/admin/part-numbers/${id}`);
   redirect(`/admin/part-numbers/${id}`);
 }
+async function loadProductApprovalSnapshot(id: number) {
+  return prisma.product.findUnique({
+    where: { id },
+    include: {
+      partNumber: { select: { verificationStatus: true, publishStatus: true } },
+      supplier: {
+        select: {
+          verifiedStatus: true,
+          approvedAt: true,
+          approvedBy: true,
+          users: { where: { status: "DISABLED" }, select: { id: true } },
+        },
+      },
+    },
+  });
+}
+
+function productDependencyErrors(product: NonNullable<Awaited<ReturnType<typeof loadProductApprovalSnapshot>>>) {
+  return productApprovalDependencyErrors({
+    partNumberVerificationStatus: product.partNumber.verificationStatus,
+    partNumberPublishStatus: product.partNumber.publishStatus,
+    supplierVerifiedStatus: product.supplier.verifiedStatus,
+    supplierApprovedAt: product.supplier.approvedAt,
+    supplierApprovedBy: product.supplier.approvedBy,
+    disabledSupplierUsers: product.supplier.users.length,
+  });
+}
+
+function revalidateProductTrustSurfaces() {
+  revalidatePath("/admin/products");
+  revalidatePath("/");
+  revalidatePath("/search");
+  revalidatePath("/suppliers");
+  revalidatePath("/brands");
+  revalidatePath("/equipment");
+  revalidatePath("/sitemap.xml");
+}
+
 export async function setProductStatus(id: number, status: string) {
   const session = await requireAdmin();
-  const current = await prisma.product.findUnique({ where: { id }, select: { status: true } });
-  await prisma.product.update({ where: { id }, data: { status } });
-  await writeSecurityAudit({ actorUserId: Number((session.user as any).id), action: "PRODUCT_STATUS_CHANGED", targetType: "PRODUCT", targetId: id, metadata: { from: current?.status ?? null, to: status } });
-  revalidatePath("/admin/products");
+  if (!["OFFLINE", "PUBLISHED"].includes(status)) {
+    throw new Error("非法产品状态转换");
+  }
+
+  const product = await loadProductApprovalSnapshot(id);
+  if (!product) throw new Error("产品不存在");
+
+  if (status === "OFFLINE" && product.status !== "PUBLISHED") {
+    throw new Error("只有 PUBLISHED 产品可以下架");
+  }
+  if (status === "PUBLISHED") {
+    if (product.status !== "OFFLINE") {
+      throw new Error("只有 OFFLINE 产品可以重新发布");
+    }
+    if (product.verificationStatus !== "VERIFIED") {
+      throw new Error("只有 VERIFIED 产品可以重新发布");
+    }
+    const errors = productDependencyErrors(product);
+    if (errors.length > 0) throw new Error("产品不满足可信发布条件：" + errors.join("；"));
+  }
+
+  const result = await prisma.product.updateMany({
+    where: { id, updatedAt: product.updatedAt },
+    data: { status },
+  });
+  if (result.count !== 1) throw new Error("产品已被其他操作更新，请刷新后重试");
+
+  await writeSecurityAudit({
+    actorUserId: Number((session.user as any).id),
+    action: "PRODUCT_STATUS_CHANGED",
+    targetType: "PRODUCT",
+    targetId: id,
+    metadata: { from: product.status, to: status },
+  });
+  revalidateProductTrustSurfaces();
 }
 
 export async function approveProduct(id: number) {
   const s = await requireAdmin();
   const admin = await prisma.user.findUnique({ where: { email: (s.user as any).email } });
-  await prisma.product.update({
-    where: { id },
-    data: { status: "PUBLISHED", verificationStatus: "VERIFIED", verifiedAt: new Date(), verifiedBy: admin?.id ?? null },
+  if (!admin) throw new Error("管理员账号不存在");
+  const product = await loadProductApprovalSnapshot(id);
+  if (!product) throw new Error("产品不存在");
+
+  const errors = productDependencyErrors(product);
+  if (product.status !== "PENDING" || product.verificationStatus !== "PENDING") {
+    errors.unshift("只有 PENDING/PENDING 产品可以审核通过");
+  }
+  if (!product.name.trim()) errors.push("产品名称为空");
+  const allowedProductTypes = ["AFTERMARKET", "Aftermarket", "OEM", "OEM Compatible", "Replacement", "Used", "Reconditioned"];
+  if (!allowedProductTypes.includes(product.productType)) errors.push("产品类型不在允许范围");
+
+  if (errors.length > 0) {
+    await writeSecurityAudit({
+      actorUserId: admin.id,
+      action: "PRODUCT_APPROVAL_BLOCKED",
+      targetType: "PRODUCT",
+      targetId: id,
+      metadata: { errors },
+    });
+    throw new Error("产品不满足可信审核条件：" + errors.join("；"));
+  }
+
+  const result = await prisma.product.updateMany({
+    where: {
+      id,
+      updatedAt: product.updatedAt,
+      status: "PENDING",
+      verificationStatus: "PENDING",
+    },
+    data: {
+      status: "PUBLISHED",
+      verificationStatus: "VERIFIED",
+      verificationReason: null,
+      verifiedAt: new Date(),
+      verifiedBy: admin.id,
+      rejectedAt: null,
+      rejectedBy: null,
+    },
   });
-  await writeSecurityAudit({ actorUserId: admin?.id ?? null, action: "PRODUCT_APPROVED", targetType: "PRODUCT", targetId: id });
-  revalidatePath("/admin/products");
+  if (result.count !== 1) throw new Error("产品已被其他操作更新，请刷新后重新审核");
+
+  await writeSecurityAudit({
+    actorUserId: admin.id,
+    action: "PRODUCT_APPROVED",
+    targetType: "PRODUCT",
+    targetId: id,
+    metadata: {
+      partNumberVerificationStatus: product.partNumber.verificationStatus,
+      partNumberPublishStatus: product.partNumber.publishStatus,
+      supplierVerifiedStatus: product.supplier.verifiedStatus,
+      supplierApprovedAt: product.supplier.approvedAt,
+      supplierApprovedBy: product.supplier.approvedBy,
+    },
+  });
+  revalidateProductTrustSurfaces();
   redirect("/admin/products");
 }
 
 export async function rejectProduct(id: number, reason: string) {
   const s = await requireAdmin();
   const admin = await prisma.user.findUnique({ where: { email: (s.user as any).email } });
-  await prisma.product.update({
-    where: { id },
-    data: { status: "REJECTED", verificationStatus: "REJECTED", verificationReason: reason, rejectedAt: new Date(), rejectedBy: admin?.id ?? null },
+  if (!admin) throw new Error("管理员账号不存在");
+  const normalizedReason = reason.trim();
+  if (normalizedReason.length < 2 || normalizedReason.length > 2000) {
+    throw new Error("驳回原因必填，长度需在 2-2000 字符之间");
+  }
+  const product = await prisma.product.findUnique({ where: { id } });
+  if (!product) throw new Error("产品不存在");
+
+  const result = await prisma.product.updateMany({
+    where: { id, updatedAt: product.updatedAt },
+    data: {
+      status: "REJECTED",
+      verificationStatus: "REJECTED",
+      verificationReason: normalizedReason,
+      verifiedAt: null,
+      verifiedBy: null,
+      rejectedAt: new Date(),
+      rejectedBy: admin.id,
+    },
   });
-  await writeSecurityAudit({ actorUserId: admin?.id ?? null, action: "PRODUCT_REJECTED", targetType: "PRODUCT", targetId: id });
-  revalidatePath("/admin/products");
+  if (result.count !== 1) throw new Error("产品已被其他操作更新，请刷新后重试");
+
+  await writeSecurityAudit({ actorUserId: admin.id, action: "PRODUCT_REJECTED", targetType: "PRODUCT", targetId: id });
+  revalidateProductTrustSurfaces();
   redirect("/admin/products");
 }
 export async function updateRfqStatus(id: number, status: string) {

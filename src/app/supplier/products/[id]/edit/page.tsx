@@ -32,6 +32,7 @@ export default async function EditProduct({ params }: { params: { id: string } }
         description: product.description || "",
         images: product.images ? product.images.split(",") : [],
         status: product.status,
+        verificationStatus: product.verificationStatus,
       }} />
     </div>
   );

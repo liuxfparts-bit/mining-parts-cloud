@@ -17,11 +17,21 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   if (searchParams.status) where.status = searchParams.status;
 
   const [items, total] = await Promise.all([
-    prisma.product.findMany({ where, include: { partNumber: true, supplier: true }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+    prisma.product.findMany({
+      where,
+      include: {
+        partNumber: true,
+        supplier: { include: { users: { where: { status: "DISABLED" }, select: { id: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
     prisma.product.count({ where }),
   ]);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const filters = [{ k: "", label: "全部" }, { k: "PENDING", label: "待审核" }, { k: "PUBLISHED", label: "已发布" }, { k: "REJECTED", label: "已驳回" }, { k: "DRAFT", label: "草稿" }];
+  const allowedProductTypes = new Set(["AFTERMARKET", "Aftermarket", "OEM", "OEM Compatible", "Replacement", "Used", "Reconditioned"]);
 
   return (
     <div className="p-6">
@@ -66,11 +76,18 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
                   </td>
                   <td className="p-3">
                     <div className="flex gap-2">
-                      {p.status === "PENDING" && (
+                      {p.status === "PENDING" && p.verificationStatus === "PENDING" &&
+                       p.partNumber.verificationStatus === "VERIFIED" && p.partNumber.publishStatus === "READY" &&
+                       p.supplier.verifiedStatus === "VERIFIED" && p.supplier.approvedAt && p.supplier.approvedBy != null &&
+                       p.supplier.users.length === 0 && p.name.trim() && allowedProductTypes.has(p.productType) ? (
                         <form action={async () => { "use server"; await approveProduct(p.id); }}>
                           <button className="text-xs px-2 py-1 bg-green-100 text-green-700">通过</button>
                         </form>
-                      )}
+                      ) : p.status === "PENDING" ? (
+                        <span className="text-xs text-amber-700" title="需满足 PN VERIFIED+READY、供应商正式审核链且无禁用账号">
+                          可信链未满足
+                        </span>
+                      ) : null}
                       {(p.status === "PENDING" || p.status === "REJECTED") && (
                         <form action={async (fd) => { "use server"; await rejectProduct(p.id, (fd.get("reason") as string) || "不符合"); }}>
                           <input name="reason" placeholder="驳回原因" className="text-xs border rounded px-1 py-1 w-24" />
