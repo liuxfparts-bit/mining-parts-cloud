@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { canSupplierAccessRfq, canUserReadRfq } from "../src/lib/rfq-supplier-access";
 
 const rfqs = {
-  PUBLIC: { visibility: "PUBLIC", matchedSuppliers: null, userID: 10, companyID: 100 },
-  MATCHED_SUPPLIERS: { visibility: "MATCHED_SUPPLIERS", matchedSuppliers: "[7]", userID: 10, companyID: 100 },
-  PRIVATE: { visibility: "PRIVATE", matchedSuppliers: "[7]", userID: 10, companyID: 100 },
+  PUBLIC: { visibility: "PUBLIC", matchedSuppliers: null, userID: 10, companyID: 100, businessAuthenticity: "REAL" },
+  MATCHED_SUPPLIERS: { visibility: "MATCHED_SUPPLIERS", matchedSuppliers: "[7]", userID: 10, companyID: 100, businessAuthenticity: "REAL" },
+  PRIVATE: { visibility: "PRIVATE", matchedSuppliers: "[7]", userID: 10, companyID: 100, businessAuthenticity: "REAL" },
 } as const;
 
 const users = {
@@ -47,6 +47,10 @@ for (const malformed of [null, "[", "null", "{}", "42", '[7,"8"]', "[0]", "[-1]"
 }
 
 assert.equal(canSupplierAccessRfq({ visibility: "PRIVATE", matchedSuppliers: "[7]" }, 7), false);
-assert.equal(canUserReadRfq({ visibility: "UNKNOWN", userID: 99, companyID: 999 }, null), false);
+assert.equal(canUserReadRfq({ visibility: "UNKNOWN", userID: 99, companyID: 999, businessAuthenticity: "REAL" }, null), false);
+assert.equal(canUserReadRfq({ visibility: "PUBLIC", userID: 10, companyID: 100, businessAuthenticity: "TEST" }, null), false);
+assert.equal(canUserReadRfq({ visibility: "PUBLIC", userID: 10, companyID: 100, businessAuthenticity: "UNKNOWN" }, null), false);
+assert.equal(canUserReadRfq({ visibility: "PUBLIC", userID: 10, companyID: 100, businessAuthenticity: "TEST" }, users.creatorBuyer), true);
+assert.equal(canUserReadRfq({ visibility: "PUBLIC", userID: 10, companyID: 100, businessAuthenticity: "TEST" }, users.admin), true);
 
 console.log("WP0-2 RFQ access matrix PASS");

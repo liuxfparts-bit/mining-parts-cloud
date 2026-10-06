@@ -39,7 +39,7 @@ export default async function RFQListPage({
   // 注：RFQItem 字段为 partNumberStr / productName / brandName / equipmentModel（自由文本冗余），
   // 勿写成 partName / brand / partNumber（后者为关系字段，contains 会抛错）
   // Public discovery must never enumerate MATCHED_SUPPLIERS or PRIVATE RFQs.
-  const where: Prisma.RFQWhereInput = { visibility: "PUBLIC" };
+  const where: Prisma.RFQWhereInput = { visibility: "PUBLIC", businessAuthenticity: "REAL" };
   const and: Prisma.RFQWhereInput[] = [];
   if (q) {
     and.push({
@@ -69,7 +69,7 @@ export default async function RFQListPage({
       include: {
         partNumber: true,
         items: { select: { id: true } },
-        _count: { select: { quotes: true } },
+        _count: { select: { quotes: { where: { businessAuthenticity: "REAL" } } } },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,

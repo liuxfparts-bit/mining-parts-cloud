@@ -79,6 +79,7 @@ async function main() {
     "@/lib/rfq-supplier-access": { canSupplierAccessRfq },
     "@/lib/rfq-lifecycle": { canTransitionRfq },
     "@/lib/rfq-invitation": { markInvitationQuoted: async () => { throw new Error("Unexpected invitation write"); } },
+    "@/lib/analytics": { writeBusinessEvent: async () => { throw new Error("Unexpected analytics write"); } },
     "next/server": { NextResponse: { json: (body: unknown, init?: { status: number }) => ({ body, status: init?.status ?? 200 }) } },
     "next/navigation": { notFound, redirect: () => { throw new Error("REDIRECT"); } },
     "react": { Suspense: "Suspense" },

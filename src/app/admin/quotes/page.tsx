@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { prisma } from "@/lib/prisma";
+import { setQuoteBusinessAuthenticity } from "../rfqs/actions";
 
 export default async function AdminQuotesPage() {
   const items = await prisma.quote.findMany({
@@ -26,6 +27,7 @@ export default async function AdminQuotesPage() {
               <th className="text-left p-3">备注</th>
               <th className="text-left p-3">时间</th>
               <th className="text-left p-3">状态</th>
+              <th className="text-left p-3">业务真实性</th>
             </tr>
           </thead>
           <tbody>
@@ -40,6 +42,18 @@ export default async function AdminQuotesPage() {
                 <td className="p-3 max-w-xs truncate">{q.remarks || "-"}</td>
                 <td className="p-3">{q.createdAt.toLocaleString("zh-CN")}</td>
                 <td className="p-3">{q.status}</td>
+                <td className="p-3">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className={`text-xs font-bold ${q.businessAuthenticity === "REAL" ? "text-green-700" : q.businessAuthenticity === "TEST" ? "text-red-700" : "text-amber-700"}`}>
+                      {q.businessAuthenticity}
+                    </span>
+                    {(["REAL", "TEST", "UNKNOWN"] as const).filter((v) => v !== q.businessAuthenticity).map((v) => (
+                      <form key={v} action={async () => { "use server"; await setQuoteBusinessAuthenticity(q.id, v); }}>
+                        <button className="text-[10px] px-1.5 py-0.5 border rounded">{v}</button>
+                      </form>
+                    ))}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

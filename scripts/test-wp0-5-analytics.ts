@@ -23,7 +23,8 @@ expect(!schema.match(/ipAddress|clientIp|remoteAddress/i), "analytics schema mus
 expect(endpoint.includes('new Set(["PAGE_VIEW", "SEARCH"])'), "public analytics endpoint must whitelist event types");
 expect(endpoint.includes('maxAge: 1800'), "analytics session must use 30-minute cookie");
 expect(tracker.includes('["/admin", "/dashboard", "/supplier", "/api"]'), "private/backoffice paths must be excluded");
-expect(dashboard.includes("RFQ 业务表为真相源"), "dashboard must identify RFQ business truth");
+expect(dashboard.includes('businessAuthenticity: "REAL"'), "dashboard business metrics must count REAL facts only");
+expect(dashboard.includes("UNKNOWN/TEST 均不进入真实经营指标"), "dashboard must quarantine unknown/test business facts");
 expect(dashboard.includes("这些历史值不进入本驾驶舱"), "dashboard must quarantine legacy supplier counters");
 expect(rfq.includes('eventType: "RFQ_CREATE"'), "RFQ conversion event missing");
 expect(quote.includes('eventType: "QUOTE_CREATE"'), "Quote conversion event missing");

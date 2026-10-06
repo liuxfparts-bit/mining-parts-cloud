@@ -8,6 +8,7 @@ type RfqVisibility = {
   matchedSuppliers?: unknown;
   userID?: number | null;
   companyID?: number | null;
+  businessAuthenticity?: unknown;
 };
 
 export type RfqAccessUser = {
@@ -64,15 +65,20 @@ export function canBuyerAccessRfq(
  * Unknown visibility fails closed except for admin/owner recovery access.
  */
 export function canUserReadRfq(rfq: RfqVisibility, user: RfqAccessUser | null): boolean {
-  if (rfq.visibility === "PUBLIC") return true;
+  // Admin and owning buyers retain recovery/audit access to TEST/UNKNOWN history.
+  if (user?.role === "ADMIN") return true;
+  if (user?.role === "BUYER" && canBuyerAccessRfq(rfq, user)) return true;
+
+  // Anonymous/public truth is fail-closed: only explicitly REAL public RFQs.
+  if (rfq.visibility === "PUBLIC" && rfq.businessAuthenticity === "REAL") return true;
   if (!user) return false;
-  if (user.role === "ADMIN") return true;
-  if (user.role === "BUYER") return canBuyerAccessRfq(rfq, user);
+
+  // Suppliers may still access explicitly authorized non-public/test flows.
   if (user.role === "SUPPLIER") return canSupplierAccessRfq(rfq, user.supplierId);
   return false;
 }
 
-/** Only PUBLIC RFQs belong on anonymous/public discovery surfaces. */
-export function isPublicRfq(rfq: Pick<RfqVisibility, "visibility">): boolean {
-  return rfq.visibility === "PUBLIC";
+/** Only REAL + PUBLIC RFQs belong on anonymous/public discovery surfaces. */
+export function isPublicRfq(rfq: Pick<RfqVisibility, "visibility" | "businessAuthenticity">): boolean {
+  return rfq.visibility === "PUBLIC" && rfq.businessAuthenticity === "REAL";
 }

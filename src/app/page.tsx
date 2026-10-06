@@ -43,7 +43,7 @@ export default async function HomePage() {
       take: 6, orderBy: { id: "asc" },
     }),
     prisma.supplier.findMany({ where: PUBLIC_SUPPLIER_WHERE, include: { _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } } }, take: 8, orderBy: { id: "asc" } }),
-    prisma.rFQ.findMany({ where: { status: "COLLECTING", visibility: "PUBLIC" }, take: 6, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
+    prisma.rFQ.findMany({ where: { status: "COLLECTING", visibility: "PUBLIC", businessAuthenticity: "REAL" }, take: 6, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
     prisma.banner.findMany({ where: { status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
     prisma.brand.findMany({
       where: { status: "ACTIVE", equipment: { some: { status: "ACTIVE" } } },

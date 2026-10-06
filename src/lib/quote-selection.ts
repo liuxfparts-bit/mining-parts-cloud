@@ -14,15 +14,18 @@ export async function acceptQuoteForBuyer(rfqId: number, quoteId: number, buyerU
   return prisma.$transaction(async (tx: Db) => {
     await tx.$queryRaw`SELECT "id" FROM "RFQ" WHERE "id" = ${rfqId} FOR UPDATE`;
     const [rfq, buyer] = await Promise.all([
-      tx.rFQ.findUnique({ where: { id: rfqId }, select: { id: true, userID: true, companyID: true, status: true } }),
+      tx.rFQ.findUnique({ where: { id: rfqId }, select: { id: true, userID: true, companyID: true, status: true, businessAuthenticity: true } }),
       tx.user.findUnique({ where: { id: buyerUserId }, select: { id: true, role: true, buyerCompanyId: true, status: true } }),
     ]);
     if (!rfq) throw new Error("询价不存在");
     if (!buyer || buyer.role !== "BUYER" || buyer.status !== "ACTIVE" || !ownsRfq(rfq, buyer)) throw new Error("无权选择该询价的报价");
     if (!canAcceptQuotes(rfq.status)) throw new Error("该询价当前不能选择报价");
 
-    const target = await tx.quote.findUnique({ where: { id: quoteId }, select: { id: true, rfqId: true, status: true } });
+    const target = await tx.quote.findUnique({ where: { id: quoteId }, select: { id: true, rfqId: true, status: true, businessAuthenticity: true } });
     if (!target || target.rfqId !== rfqId) throw new Error("报价不属于该询价");
+    if (rfq.businessAuthenticity === "UNKNOWN" || target.businessAuthenticity !== rfq.businessAuthenticity) {
+      throw new Error("询价与报价的业务真实性未确认或不一致，不能选定");
+    }
     if (!canTransitionQuote(target.status, "ACCEPTED")) throw new Error("该报价当前不能接受");
 
     const accepted = await tx.quote.count({ where: { rfqId, status: "ACCEPTED" } });

@@ -37,8 +37,8 @@ export default async function AnalyticsDashboard() {
     prisma.analyticsSession.count({ where: { startedAt: { gte: today } } }),
     prisma.analyticsEvent.count({ where: { eventType: "SEARCH", createdAt: { gte: today } } }),
     prisma.analyticsEvent.count({ where: { eventType: "SEARCH", resultCount: 0, createdAt: { gte: today } } }),
-    prisma.rFQ.count({ where: { createdAt: { gte: today } } }),
-    prisma.quote.count({ where: { createdAt: { gte: today } } }),
+    prisma.rFQ.count({ where: { businessAuthenticity: "REAL", createdAt: { gte: today } } }),
+    prisma.quote.count({ where: { businessAuthenticity: "REAL", createdAt: { gte: today } } }),
     prisma.analyticsSession.groupBy({ by: ["source", "medium"], where: { startedAt: { gte: sevenDays } }, _count: { _all: true }, orderBy: { _count: { id: "desc" } }, take: 10 }),
     prisma.analyticsEvent.groupBy({ by: ["path"], where: { eventType: "PAGE_VIEW", createdAt: { gte: sevenDays } }, _count: { _all: true }, orderBy: { _count: { path: "desc" } }, take: 10 }),
     prisma.analyticsEvent.groupBy({ by: ["searchQuery"], where: { eventType: "SEARCH", createdAt: { gte: sevenDays }, searchQuery: { not: null } }, _count: { _all: true }, orderBy: { _count: { searchQuery: "desc" } }, take: 10 }),
@@ -51,11 +51,29 @@ export default async function AnalyticsDashboard() {
     prisma.partNumber.count({ where: { verificationStatus: "VERIFIED", OR: [{ evidenceSummary: { not: null } }, { sourceFiles: { not: null } }] } }),
   ]);
 
-  const attributedRfqSessions = await prisma.analyticsEvent.findMany({
-    where: { eventType: "RFQ_CREATE", createdAt: { gte: today }, sessionId: { not: null } },
+  // Conversion attribution follows business truth: only REAL RFQs count.
+  const realRfqIdsToday = await prisma.rFQ.findMany({
+    where: { businessAuthenticity: "REAL", createdAt: { gte: today } },
+    select: { id: true },
+  });
+  const attributedRfqSessions = realRfqIdsToday.length === 0 ? [] : await prisma.analyticsEvent.findMany({
+    where: {
+      eventType: "RFQ_CREATE",
+      entityType: "RFQ",
+      entityId: { in: realRfqIdsToday.map((x) => x.id) },
+      createdAt: { gte: today },
+      sessionId: { not: null },
+    },
     distinct: ["sessionId"],
     select: { sessionId: true },
   });
+
+  const [rfqUnknown, rfqTest, quoteUnknown, quoteTest] = await Promise.all([
+    prisma.rFQ.count({ where: { businessAuthenticity: "UNKNOWN" } }),
+    prisma.rFQ.count({ where: { businessAuthenticity: "TEST" } }),
+    prisma.quote.count({ where: { businessAuthenticity: "UNKNOWN" } }),
+    prisma.quote.count({ where: { businessAuthenticity: "TEST" } }),
+  ]);
   const conversion = sessionsToday > 0 ? ((attributedRfqSessions.length / sessionsToday) * 100).toFixed(1) : "0.0";
   const evidenceRatio = verifiedPn > 0 ? ((verifiedPnWithEvidence / verifiedPn) * 100).toFixed(1) : "0.0";
 
@@ -64,8 +82,8 @@ export default async function AnalyticsDashboard() {
     ["今日 UV", visitorsToday.length, "匿名 visitor 去重"],
     ["今日会话", sessionsToday, "30 分钟会话"],
     ["今日搜索", searchesToday, `零结果 ${zeroSearchesToday}`],
-    ["今日 RFQ", rfqsToday, "RFQ 业务表为真相源"],
-    ["今日报价", quotesToday, "Quote 业务表为真相源"],
+    ["今日 RFQ", rfqsToday, "仅 REAL · RFQ 业务表"],
+    ["今日报价", quotesToday, "仅 REAL · Quote 业务表"],
     ["RFQ 转化率", `${conversion}%`, "可归因会话 → RFQ"],
     ["可信公开供应商", publicSuppliers, "沿用 WP0-3 canonical rule"],
     ["VERIFIED / READY 件号", `${verifiedPn} / ${readyPn}`, `证据覆盖 ${evidenceRatio}%`],
@@ -126,7 +144,8 @@ export default async function AnalyticsDashboard() {
           <p>• Supplier 旧缓存字段当前合计：viewCount={supplierLegacy._sum.viewCount || 0}，inquiryCount={supplierLegacy._sum.inquiryCount || 0}。这些历史值不进入本驾驶舱。</p>
           <p>• PartNumber 旧缓存字段当前合计：viewCount={pnLegacy._sum.viewCount || 0}，inquiryCount={pnLegacy._sum.inquiryCount || 0}。这些字段不是行为分析真相源。</p>
           <p>• Banner 旧计数：impressions={bannerTotals._sum.impressions || 0}，clicks={bannerTotals._sum.clicks || 0}；保留为 Banner 自身统计，不等同于平台 PV/UV。</p>
-          <p>• RFQ、报价数量始终来自业务表；AnalyticsEvent 只负责来源与转化路径，不反向修改业务事实。</p>
+          <p>• RFQ、报价数量始终来自业务表；经营指标只统计 businessAuthenticity=REAL，AnalyticsEvent 只负责来源与转化路径。</p>
+          <p>• 待归类历史数据：RFQ UNKNOWN={rfqUnknown}，Quote UNKNOWN={quoteUnknown}；测试数据：RFQ TEST={rfqTest}，Quote TEST={quoteTest}。UNKNOWN/TEST 均不进入真实经营指标。</p>
         </div>
       </section>
     </div>
