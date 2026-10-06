@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 
 /**
  * ============================================================
@@ -46,7 +47,7 @@ export const PUBLIC_PRODUCT_WHERE_NESTED = {
  */
 export const PUBLIC_PRODUCT_WHERE = {
   ...PUBLIC_PRODUCT_WHERE_NESTED,
-  partNumber: { publishStatus: "READY" },
+  partNumber: PUBLIC_PN_WHERE,
 } satisfies Prisma.ProductWhereInput;
 
 /**
