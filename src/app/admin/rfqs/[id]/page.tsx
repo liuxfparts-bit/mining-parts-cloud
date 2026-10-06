@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { updateRfqStatus } from "../../actions";
+import { setRfqBusinessAuthenticity } from "../actions";
 import { canAdminTransitionRfq } from "@/lib/rfq-lifecycle";
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
@@ -126,6 +127,29 @@ export default async function RfqDetail({ params }: { params: { id: string } }) 
             </div>
           </div>
         )}
+      </div>
+
+      {/* Trust Kernel: business fact authenticity */}
+      <div className="bg-white rounded-lg border p-6 mt-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="font-bold">业务真实性</h2>
+            <p className="text-xs text-gray-500 mt-1">REAL 进入经营指标；TEST 永不进入真实经营指标；UNKNOWN 为历史待归类。</p>
+          </div>
+          <span className={`px-3 py-1 rounded text-sm font-bold ${rfq.businessAuthenticity === "REAL" ? "bg-green-100 text-green-700" : rfq.businessAuthenticity === "TEST" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+            {rfq.businessAuthenticity}
+          </span>
+        </div>
+        <div className="flex gap-2 mt-3 flex-wrap">
+          {(["REAL", "TEST", "UNKNOWN"] as const).map((value) => (
+            <form key={value} action={async () => { "use server"; await setRfqBusinessAuthenticity(rfq.id, value); }}>
+              <button disabled={rfq.businessAuthenticity === value} className="px-3 py-1 border rounded text-sm disabled:opacity-40">
+                标记为 {value}
+              </button>
+            </form>
+          ))}
+        </div>
+        <p className="text-xs text-gray-400 mt-2">修改 RFQ 时会同步其现有 Quote 与 Invitation，并写入安全审计日志。</p>
       </div>
 
       {/* 采购明细 */}
