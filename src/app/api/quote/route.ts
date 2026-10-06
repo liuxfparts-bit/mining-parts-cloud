@@ -110,7 +110,14 @@ export async function POST(req: NextRequest) {
       const quote =
         existing ||
         (await tx.quote.create({
-          data: { rfqId, supplierId, status: "PENDING" },
+          data: {
+            rfqId,
+            supplierId,
+            status: "PENDING",
+            // Inherit the RFQ fact classification. Historical UNKNOWN stays UNKNOWN;
+            // TEST RFQs can never create REAL quotes by accident.
+            businessAuthenticity: lockedRfq.businessAuthenticity,
+          },
         }));
 
       if (existing) {
@@ -168,7 +175,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (result.created) {
-      await writeBusinessEvent({ eventType: "QUOTE_CREATE", path: `/rfq/${rfqId}/quote`, userId: uid, entityType: "Quote", entityId: result.updated.id, metadata: { rfqId, supplierId } });
+      await writeBusinessEvent({ eventType: "QUOTE_CREATE", path: `/rfq/${rfqId}/quote`, userId: uid, entityType: "Quote", entityId: result.updated.id, metadata: { rfqId, supplierId, businessAuthenticity: result.updated.businessAuthenticity } });
     }
     return NextResponse.json({ ok: true, quoteId: result.updated.id });
   } catch (e) {
