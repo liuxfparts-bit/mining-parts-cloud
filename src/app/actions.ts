@@ -153,6 +153,8 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
           contactEmail: contactEmail || null,
           whatsapp: whatsapp || null,
           visibility,
+          // Trust Kernel: authenticated, verified-buyer production submissions are real business events.
+          businessAuthenticity: "REAL",
           matchedSuppliers:
             visibility === "MATCHED_SUPPLIERS" ? "[]" : null,
         },
