@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { canSupplierAccessRfq } from "@/lib/rfq-supplier-access";
 import { markInvitationQuoted } from "@/lib/rfq-invitation";
 import { canTransitionRfq } from "@/lib/rfq-lifecycle";
+import { writeBusinessEvent } from "@/lib/analytics";
 
 export async function POST(req: NextRequest) {
   // ===== 1. Session 鉴权：绝不信任 URL/表单传入的 supplierId =====
@@ -163,10 +164,13 @@ export async function POST(req: NextRequest) {
       if (invitationToken) {
         await markInvitationQuoted(invitationToken, rfqId, supplierId, tx);
       }
-      return updated;
+      return { updated, created: !existing };
     });
 
-    return NextResponse.json({ ok: true, quoteId: result.id });
+    if (result.created) {
+      await writeBusinessEvent({ eventType: "QUOTE_CREATE", path: `/rfq/${rfqId}/quote`, userId: uid, entityType: "Quote", entityId: result.updated.id, metadata: { rfqId, supplierId } });
+    }
+    return NextResponse.json({ ok: true, quoteId: result.updated.id });
   } catch (e) {
     console.error("【提交报价失败】:", e);
     return NextResponse.json({ error: "提交失败，请稍后重试" }, { status: 500 });
