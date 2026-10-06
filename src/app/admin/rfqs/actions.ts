@@ -60,8 +60,9 @@ function assertBusinessAuthenticity(value: string): asserts value is BusinessAut
 }
 
 /**
- * Classify the whole RFQ business fact. Child quotes and invitations inherit the
- * same classification atomically so TEST data cannot leak into REAL metrics.
+ * Classify the RFQ fact only. Quote and Invitation are independent business
+ * events: they inherit the RFQ classification when created, but later RFQ
+ * reclassification must never overwrite their own audit truth.
  */
 export async function setRfqBusinessAuthenticity(id: number, value: string) {
   const session = await requireAdmin();
@@ -70,15 +71,17 @@ export async function setRfqBusinessAuthenticity(id: number, value: string) {
 
   const before = await prisma.rFQ.findUnique({
     where: { id },
-    select: { businessAuthenticity: true },
+    select: {
+      businessAuthenticity: true,
+      quotes: { where: { status: "ACCEPTED" }, select: { id: true, businessAuthenticity: true } },
+    },
   });
   if (!before) throw new Error("询价不存在");
+  if (before.quotes.some((q) => q.businessAuthenticity !== value)) {
+    throw new Error("已接受报价必须与所属 RFQ 保持相同业务真实性；请先核对已接受报价");
+  }
 
-  await prisma.$transaction([
-    prisma.rFQ.update({ where: { id }, data: { businessAuthenticity: value } }),
-    prisma.quote.updateMany({ where: { rfqId: id }, data: { businessAuthenticity: value } }),
-    prisma.rFQInvitation.updateMany({ where: { rfqId: id }, data: { businessAuthenticity: value } }),
-  ]);
+  await prisma.rFQ.update({ where: { id }, data: { businessAuthenticity: value } });
 
   await writeSecurityAudit({
     actorUserId,
@@ -86,12 +89,11 @@ export async function setRfqBusinessAuthenticity(id: number, value: string) {
     targetType: "RFQ",
     targetId: id,
     summary: `RFQ business authenticity: ${before.businessAuthenticity} → ${value}`,
-    metadata: { from: before.businessAuthenticity, to: value, cascade: ["Quote", "RFQInvitation"] },
+    metadata: { from: before.businessAuthenticity, to: value, cascade: false },
   });
 
   revalidatePath("/admin/rfqs");
   revalidatePath(`/admin/rfqs/${id}`);
-  revalidatePath("/admin/quotes");
   revalidatePath("/admin/analytics");
 }
 
@@ -130,5 +132,35 @@ export async function setQuoteBusinessAuthenticity(id: number, value: string) {
 
   revalidatePath("/admin/quotes");
   revalidatePath(`/admin/rfqs/${quote.rfqId}`);
+  revalidatePath("/admin/analytics");
+}
+
+
+/**
+ * Invitation-level classification. A REAL RFQ may contain a TEST invitation
+ * created during workflow verification, so this fact is independently auditable.
+ */
+export async function setInvitationBusinessAuthenticity(id: number, value: string) {
+  const session = await requireAdmin();
+  assertBusinessAuthenticity(value);
+  const actorUserId = Number((session.user as any).id) || null;
+
+  const invitation = await prisma.rFQInvitation.findUnique({
+    where: { id },
+    select: { rfqId: true, businessAuthenticity: true },
+  });
+  if (!invitation) throw new Error("邀请不存在");
+
+  await prisma.rFQInvitation.update({ where: { id }, data: { businessAuthenticity: value } });
+  await writeSecurityAudit({
+    actorUserId,
+    action: "RFQ_INVITATION_BUSINESS_AUTHENTICITY_CHANGED",
+    targetType: "RFQInvitation",
+    targetId: id,
+    summary: `RFQInvitation business authenticity: ${invitation.businessAuthenticity} → ${value}`,
+    metadata: { from: invitation.businessAuthenticity, to: value, rfqId: invitation.rfqId },
+  });
+
+  revalidatePath(`/admin/rfqs/${invitation.rfqId}`);
   revalidatePath("/admin/analytics");
 }
