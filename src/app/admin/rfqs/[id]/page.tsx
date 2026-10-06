@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { updateRfqStatus } from "../../actions";
-import { setRfqBusinessAuthenticity } from "../actions";
+import { setInvitationBusinessAuthenticity, setRfqBusinessAuthenticity } from "../actions";
 import { canAdminTransitionRfq } from "@/lib/rfq-lifecycle";
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
@@ -41,6 +41,7 @@ export default async function RfqDetail({ params }: { params: { id: string } }) 
       equipment: true,
       items: { include: { partNumber: { include: { brand: true } } }, orderBy: { seq: "asc" } },
       quotes: { include: { supplier: true, items: true } },
+      invitations: { include: { supplier: true }, orderBy: { id: "asc" } },
     },
   });
   if (!rfq) notFound();
@@ -149,7 +150,7 @@ export default async function RfqDetail({ params }: { params: { id: string } }) 
             </form>
           ))}
         </div>
-        <p className="text-xs text-gray-400 mt-2">修改 RFQ 时会同步其现有 Quote 与 Invitation，并写入安全审计日志。</p>
+        <p className="text-xs text-gray-400 mt-2">RFQ、Quote、Invitation 分别记录自身业务真实性；修改 RFQ 不会覆盖已有报价或邀请。所有人工归类均写入安全审计日志。</p>
       </div>
 
       {/* 采购明细 */}
@@ -334,6 +335,33 @@ export default async function RfqDetail({ params }: { params: { id: string } }) 
           </div>
         )}
       </div>
+
+      {/* 邀请业务真实性 */}
+      {rfq.invitations.length > 0 && (
+        <div className="bg-white rounded-lg border p-6 mt-4">
+          <h2 className="font-bold mb-1">供应商邀请真实性（{rfq.invitations.length}）</h2>
+          <p className="text-xs text-gray-500 mb-3">邀请是独立业务事件。真实 RFQ 中的测试邀请应标记 TEST。</p>
+          <div className="space-y-2">
+            {rfq.invitations.map((inv) => (
+              <div key={inv.id} className="border rounded p-3 flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-sm">
+                  <span className="font-mono text-xs">#{inv.id}</span> · {inv.supplier?.name || inv.externalCompanyName || "外部供应商"} · {inv.status}
+                </div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className={`text-xs font-bold mr-1 ${inv.businessAuthenticity === "REAL" ? "text-green-700" : inv.businessAuthenticity === "TEST" ? "text-red-700" : "text-amber-700"}`}>
+                    {inv.businessAuthenticity}
+                  </span>
+                  {(["REAL", "TEST", "UNKNOWN"] as const).filter((v) => v !== inv.businessAuthenticity).map((v) => (
+                    <form key={v} action={async () => { "use server"; await setInvitationBusinessAuthenticity(inv.id, v); }}>
+                      <button className="text-[10px] px-1.5 py-0.5 border rounded">{v}</button>
+                    </form>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 修改状态 */}
       <div className="bg-white rounded-lg border p-6 mt-4">
