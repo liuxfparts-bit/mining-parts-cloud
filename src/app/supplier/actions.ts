@@ -1,16 +1,13 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { requireSupplierWriteAccess } from "@/lib/supplier-write-access";
 
 async function getMySupplierId() {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
-  const user = await prisma.user.findUnique({ where: { email: (session.user as any).email } });
-  if (!user?.supplierId) redirect("/supplier");
-  return user.supplierId;
+  const access = await requireSupplierWriteAccess("BUSINESS");
+  return access.supplierId;
 }
 
 export async function createProduct(formData: FormData) {

@@ -2,18 +2,16 @@ export const dynamic = "force-dynamic";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireSupplierWriteAccess } from "@/lib/supplier-write-access";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 
 async function resubmit(formData: FormData) {
   "use server";
-  const s = await auth();
-  if (!s) redirect("/login");
-  const user = await prisma.user.findUnique({ where: { email: (s.user as any).email } });
-  if (!user?.supplierId) redirect("/supplier");
+  const access = await requireSupplierWriteAccess("BUSINESS");
   const id = parseInt(formData.get("id") as string);
   const req = await prisma.partNumberRequest.findUnique({ where: { id } });
-  if (!req || req.supplierId !== user.supplierId) notFound();
+  if (!req || req.supplierId !== access.supplierId) notFound();
   await prisma.partNumberRequest.update({
     where: { id },
     data: {

@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { changedProductTrustFields } from "@/lib/product-verification";
+import { resolveSupplierWriteAccess } from "@/lib/supplier-write-access";
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const s = await auth();
-  if (!s) return NextResponse.json({ success: false, message: "未登录" }, { status: 401 });
-
-  const user = await prisma.user.findUnique({ where: { email: (s.user as any).email } });
-  if (!user?.supplierId) return NextResponse.json({ success: false, message: "无企业" }, { status: 400 });
-  const supplierId = user.supplierId;
+  const access = await resolveSupplierWriteAccess("BUSINESS");
+  if (!access.ok) return NextResponse.json({ success: false, message: access.message, code: access.code }, { status: access.status });
+  const supplierId = access.supplierId;
 
   const product = await prisma.product.findUnique({ where: { id: parseInt(params.id) } });
   if (!product) return NextResponse.json({ success: false, message: "不存在" }, { status: 404 });
@@ -58,7 +55,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (result.count === 1 && invalidatesVerification) {
       await tx.securityAuditLog.create({
         data: {
-          actorUserId: user.id,
+          actorUserId: access.userId,
           action: "PRODUCT_VERIFICATION_INVALIDATED",
           targetType: "PRODUCT",
           targetId: String(product.id),

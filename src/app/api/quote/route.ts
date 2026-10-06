@@ -1,33 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { canSupplierAccessRfq } from "@/lib/rfq-supplier-access";
 import { markInvitationQuoted } from "@/lib/rfq-invitation";
 import { canTransitionRfq } from "@/lib/rfq-lifecycle";
 import { writeBusinessEvent } from "@/lib/analytics";
+import { resolveSupplierWriteAccess } from "@/lib/supplier-write-access";
 
 export async function POST(req: NextRequest) {
-  // ===== 1. Session 鉴权：绝不信任 URL/表单传入的 supplierId =====
-  const s = await auth();
-  if (!s?.user) {
-    return NextResponse.json(
-      { error: "登录凭证已过期，请重新登录", code: "UNAUTHORIZED" },
-      { status: 401 }
-    );
-  }
-  const role = (s.user as any).role;
-  if (role !== "SUPPLIER") {
-    return NextResponse.json({ error: "仅供应商可提交报价", code: "FORBIDDEN" }, { status: 403 });
-  }
-  const uid = parseInt(String((s.user as any).id));
-  const user = await prisma.user.findUnique({
-    where: { id: uid },
-    select: { supplierId: true },
-  });
-  if (!user?.supplierId) {
-    return NextResponse.json({ error: "账号未绑定供应商资料", code: "FORBIDDEN" }, { status: 403 });
-  }
-  const supplierId = user.supplierId;
+  // ===== 1. Canonical supplier write authorization =====
+  const access = await resolveSupplierWriteAccess("BUSINESS");
+  if (!access.ok) return NextResponse.json({ error: access.message, code: access.code }, { status: access.status });
+  const uid = access.userId;
+  const supplierId = access.supplierId;
 
   const formData = await req.formData();
   const rfqId = parseInt(String(formData.get("rfqId") || ""));
