@@ -18,6 +18,7 @@ assert.deepEqual(PUBLIC_SUPPLIER_WHERE.products.some, PUBLIC_PRODUCT_WHERE);
 
 assert.equal(PUBLIC_PRODUCT_WHERE.status, "PUBLISHED");
 assert.equal(PUBLIC_PRODUCT_WHERE.verificationStatus, "VERIFIED");
+assert.equal(PUBLIC_PRODUCT_WHERE.partNumber.verificationStatus, "VERIFIED");
 assert.equal(PUBLIC_PRODUCT_WHERE.partNumber.publishStatus, "READY");
 assert.deepEqual(PUBLIC_PRODUCT_WHERE_NESTED_SUPPLIER(), PUBLIC_SUPPLIER_IDENTITY_WHERE);
 
