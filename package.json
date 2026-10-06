@@ -36,7 +36,8 @@
     "p1e:candidate-audit": "tsx scripts/p1e-candidate-audit.ts",
     "test:wp0-4-edge-runtime": "tsx scripts/test-wp0-4-edge-runtime.ts",
     "test:wp0-5": "tsx scripts/test-wp0-5-analytics.ts",
-    "test:trust-p0-2": "tsx scripts/test-trust-kernel-p0-2.ts"
+    "test:trust-p0-2": "tsx scripts/test-trust-kernel-p0-2.ts",
+    "test:trust-p0-3": "tsx scripts/test-product-verification-integrity.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
