@@ -704,3 +704,45 @@ model PartNumberCrossReference {
   @@index([relationType])
   @@index([verificationStatus])
 }
+
+
+// ========== WP0-5 行为分析事实层 ==========
+// AnalyticsSession stores first-touch attribution for one 30-minute browser session.
+// No IP address or raw user-agent is stored.
+model AnalyticsSession {
+  id          String   @id
+  visitorId   String
+  userId      Int?
+  landingPath String
+  referrer    String?
+  source      String   @default("direct")
+  medium      String   @default("none")
+  campaign    String?
+  startedAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@index([visitorId])
+  @@index([startedAt])
+  @@index([source, startedAt])
+}
+
+model AnalyticsEvent {
+  id          BigInt   @id @default(autoincrement())
+  eventType   String
+  visitorId   String?
+  sessionId   String?
+  userId      Int?
+  path        String
+  entityType  String?
+  entityId    Int?
+  searchQuery String?
+  resultCount Int?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([visitorId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId, createdAt])
+}
