@@ -106,9 +106,17 @@ export async function setQuoteBusinessAuthenticity(id: number, value: string) {
 
   const quote = await prisma.quote.findUnique({
     where: { id },
-    select: { rfqId: true, businessAuthenticity: true },
+    select: {
+      rfqId: true,
+      status: true,
+      businessAuthenticity: true,
+      rfq: { select: { businessAuthenticity: true } },
+    },
   });
   if (!quote) throw new Error("报价不存在");
+  if (quote.status === "ACCEPTED" && value !== quote.rfq.businessAuthenticity) {
+    throw new Error("已接受报价必须与所属 RFQ 保持相同业务真实性；请改为归类整个 RFQ");
+  }
 
   await prisma.quote.update({ where: { id }, data: { businessAuthenticity: value } });
   await writeSecurityAudit({
