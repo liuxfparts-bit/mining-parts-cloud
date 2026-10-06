@@ -63,6 +63,9 @@ for (const needle of [
   "canReadRfqUpload",
   "canReadQuoteUpload",
   "canReadBuyerLicense",
+  "canReadPartNumberUpload",
+  "canReadSupplierUpload",
+  "canReadSupplierRequestUpload",
   '"X-Content-Type-Options": "nosniff"',
   '"private, no-store"',
 ]) {

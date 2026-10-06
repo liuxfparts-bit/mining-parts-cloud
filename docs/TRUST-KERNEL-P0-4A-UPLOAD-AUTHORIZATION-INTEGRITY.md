@@ -38,7 +38,7 @@ The dynamic `/uploads/[...path]` route is part of the trust boundary as well as 
 - `rfq-image` follows the canonical RFQ visibility/ownership policy, while the owning verified BuyerCompany can preview a newly uploaded image before RFQ commit;
 - `quote-attachment` is restricted to the Quote's Supplier, owning Buyer/RFQ company and Admin;
 - `buyer-license` is restricted to the uploading Buyer during onboarding, its BuyerCompany after attachment, and Admin;
-- legacy flat `/uploads/rfq/*` and `/uploads/quote/*` files are served only when an existing database record references the URL;
+- legacy flat `/uploads/rfq/*` and `/uploads/quote/*` files are served only when an existing database record references the URL; compatibility covers Product image/datasheet/drawing, trusted PartNumber source assets, Supplier assets, RFQ/Quote assets, Buyer licenses, Supplier request assets, and Admin-managed Brand/Equipment/Banner assets under their corresponding trust/read policy;
 - private responses use `private, no-store`; all responses set `X-Content-Type-Options: nosniff`, and Office/PDF documents are served as attachments.
 
 ## File controls
