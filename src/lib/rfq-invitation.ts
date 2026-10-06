@@ -193,6 +193,7 @@ export async function recommendSuppliersForRFQ(rfqId: number, limit = 20): Promi
     orConds.push({
       quotes: {
         some: {
+          businessAuthenticity: "REAL",
           rfq: {
             OR: [
               ...(brands.size ? [{ brandName: { in: Array.from(brands) } }] : []),
@@ -277,7 +278,7 @@ export async function recommendSuppliersForRFQ(rfqId: number, limit = 20): Promi
   // 历史报价次数（该供应商整体报价数）
   const quoteCounts = await prisma.quote.groupBy({
     by: ["supplierId"],
-    where: { supplierId: { in: scored.map((s) => s.supplier.id) } },
+    where: { supplierId: { in: scored.map((s) => s.supplier.id) }, businessAuthenticity: "REAL" },
     _count: { _all: true },
   });
   const qcMap = new Map(quoteCounts.map((q) => [q.supplierId, q._count._all]));
@@ -343,7 +344,12 @@ export async function createInvitationsForRFQ(
         }
       } else {
         const inv = await tx.rFQInvitation.create({
-          data: { rfqId, supplierId: supplier.id, token: genInviteToken() },
+          data: {
+            rfqId,
+            supplierId: supplier.id,
+            token: genInviteToken(),
+            businessAuthenticity: rfq.businessAuthenticity,
+          },
         });
         if (rfq.status !== "CLOSED" && rfq.status !== "EXPIRED") {
           await authorizeInvitedSupplier(tx, rfq, supplier.id);
@@ -374,6 +380,7 @@ export async function createInvitationsForRFQ(
       await tx.rFQInvitation.create({
         data: {
           rfqId,
+          businessAuthenticity: rfq.businessAuthenticity,
           externalCompanyName: company || null,
           externalContactName: contact || null,
           externalEmail: email || null,
