@@ -2,15 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireSupplierWriteAccess } from "@/lib/supplier-write-access";
 import { redirect } from "next/navigation";
 import RequestForm from "./RequestForm";
 
 async function submit(formData: FormData) {
   "use server";
-  const s = await auth();
-  if (!s) redirect("/login");
-  const user = await prisma.user.findUnique({ where: { email: (s.user as any).email } });
-  if (!user?.supplierId) redirect("/supplier");
+  const access = await requireSupplierWriteAccess("BUSINESS");
 
   const pn = (formData.get("partNumber") as string).toUpperCase().trim();
   const exists = await prisma.partNumber.findUnique({ where: { number: pn } });
@@ -20,7 +18,7 @@ async function submit(formData: FormData) {
 
   await prisma.partNumberRequest.create({
     data: {
-      supplierId: user.supplierId,
+      supplierId: access.supplierId,
       partNumber: pn,
       partName: formData.get("partName") as string,
       brandName: (formData.get("brandName") as string) || null,

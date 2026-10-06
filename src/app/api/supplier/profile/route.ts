@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveSupplierWriteAccess } from "@/lib/supplier-write-access";
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ success: false, message: "未登录" }, { status: 401 });
-
-  const user = await prisma.user.findUnique({ where: { email: (session.user as any).email } });
-  if (!user?.supplierId) return NextResponse.json({ success: false, message: "无企业" }, { status: 400 });
+  const access = await resolveSupplierWriteAccess("PROFILE");
+  if (!access.ok) return NextResponse.json({ success: false, message: access.message, code: access.code }, { status: access.status });
 
   const body = await req.json();
-  const cur = await prisma.supplier.findUnique({ where: { id: user.supplierId } });
+  const cur = await prisma.supplier.findUnique({ where: { id: access.supplierId } });
   if (!cur) return NextResponse.json({ success: false, message: "企业不存在" }, { status: 404 });
 
   const v = (k: string) => body[k] || null;
@@ -35,6 +32,6 @@ export async function POST(req: Request) {
     data.mainEquipment = v("mainEquipment");
   }
 
-  await prisma.supplier.update({ where: { id: user.supplierId }, data });
+  await prisma.supplier.update({ where: { id: access.supplierId }, data });
   return NextResponse.json({ success: true, message: "保存成功，待管理员审核" });
 }

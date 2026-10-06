@@ -1,22 +1,14 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { acceptInvitation, rejectInvitation, markInvitationViewed } from "@/lib/rfq-invitation";
+import { requireSupplierWriteAccess } from "@/lib/supplier-write-access";
 
 /** 从 session 取当前供应商（服务端身份） */
 async function requireSupplierUser() {
-  const session = await auth();
-  const email = (session?.user as any)?.email;
-  if (!email) redirect("/login");
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, supplierId: true, role: true },
-  });
-  if (!user || user.role !== "SUPPLIER" || !user.supplierId) redirect("/supplier");
-  return user;
+  return requireSupplierWriteAccess("BUSINESS");
 }
 
 /** 校验邀请归属当前供应商（防止 URL 篡改越权） */
@@ -34,7 +26,7 @@ export async function acceptInvitationAction(formData: FormData) {
   const invitationId = parseInt(String(formData.get("invitationId") || ""));
   if (isNaN(invitationId)) redirect("/supplier/invitations");
 
-  const inv = await requireOwnInvitation(invitationId, user.supplierId!);
+  const inv = await requireOwnInvitation(invitationId, user.supplierId);
   // 已拒绝的邀请不可接受
   if (inv.status === "REJECTED") redirect("/supplier/invitations");
 
@@ -51,7 +43,7 @@ export async function rejectInvitationAction(formData: FormData) {
   if (isNaN(invitationId)) return { success: false, error: "参数错误" };
   if (!reason) return { success: false, error: "请选择暂不报价的原因" };
 
-  await requireOwnInvitation(invitationId, user.supplierId!);
+  await requireOwnInvitation(invitationId, user.supplierId);
   if (!await rejectInvitation(invitationId, reason)) {
     return { success: false, error: "当前邀请状态不允许拒绝" };
   }
@@ -64,7 +56,7 @@ export async function markInvitationViewedAction(formData: FormData) {
   const user = await requireSupplierUser();
   const invitationId = parseInt(String(formData.get("invitationId") || ""));
   if (isNaN(invitationId)) return;
-  await requireOwnInvitation(invitationId, user.supplierId!);
+  await requireOwnInvitation(invitationId, user.supplierId);
   await markInvitationViewed(invitationId);
   revalidatePath("/supplier/invitations");
 }

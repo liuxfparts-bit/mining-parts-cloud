@@ -1,18 +1,13 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { requireSupplierWriteAccess } from "@/lib/supplier-write-access";
 
 export async function submitEquipmentRequest(formData: FormData) {
-  const session = await auth();
-  if (!session?.user) redirect("/login?next=/equipment/request");
-
   try {
-    const userId = parseInt((session.user as any).id);
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { supplierId: true } });
-    if (!user?.supplierId) redirect("/equipment/request?error=" + encodeURIComponent("请先完成企业入驻"));
-    const supplierId = user.supplierId;
+    const access = await requireSupplierWriteAccess("BUSINESS");
+    const supplierId = access.supplierId;
 
     const model = (formData.get("model") as string || "").trim();
     const brandIdRaw = formData.get("brandId");
