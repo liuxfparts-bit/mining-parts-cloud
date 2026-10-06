@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { bindInvitationToSupplier } from "@/lib/rfq-invitation";
+import { writeBusinessEvent } from "@/lib/analytics";
 
 export async function POST(req: Request) {
   try {
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
     if (requestedRole === "BUYER") {
       // 采购商：建 User + 默认企业（唯一主账号），企业认证资料后续在「企业认证」页完善
       const buyerName = (body.company || "").trim() || `${contactName}的企业`;
-      await prisma.$transaction(async (tx) => {
+      const createdUser = await prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
           data: {
             email,
@@ -58,7 +59,9 @@ export async function POST(req: Request) {
           where: { id: user.id },
           data: { buyerCompanyId: company.id },
         });
+        return user;
       });
+      await writeBusinessEvent({ eventType: "REGISTER", path: "/register", userId: createdUser.id, entityType: "User", entityId: createdUser.id, metadata: { role: "BUYER" } });
       return NextResponse.json({ success: true, message: "注册成功，请登录" });
     }
 
@@ -68,7 +71,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "供应商注册请填写企业全称" }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx) => {
+    const createdUser = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           email,
@@ -106,7 +109,9 @@ export async function POST(req: Request) {
           companyName: company, contactName, email, phone,
         });
       }
+      return user;
     });
+    await writeBusinessEvent({ eventType: "REGISTER", path: "/register", userId: createdUser.id, entityType: "User", entityId: createdUser.id, metadata: { role: "SUPPLIER", invited: Boolean(inviteToken) } });
 
     return NextResponse.json({
       success: true,
