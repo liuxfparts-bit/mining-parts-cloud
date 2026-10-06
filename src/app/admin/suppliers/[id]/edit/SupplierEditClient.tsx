@@ -87,14 +87,13 @@ export default function SupplierEditClient({ supplier }: { supplier: Supplier })
             <option value="GOLD">金牌会员</option>
           </select>
         </div>
-        {!readonly && (
-          <div>
-            <label className="block text-sm font-medium mb-1">认证状态</label>
-            <select name="verifiedStatus" className={field} defaultValue={supplier.verifiedStatus}>
-              <option value="PENDING">待审核</option><option value="VERIFIED">已认证</option><option value="REJECTED">已驳回</option>
-            </select>
+        <div>
+          <label className="block text-sm font-medium mb-1">认证状态</label>
+          <div className={ro}>
+            {supplier.verifiedStatus === "VERIFIED" ? "已认证" : supplier.verifiedStatus === "REJECTED" ? "已驳回" : "待审核"}
           </div>
-        )}
+          <p className="text-xs text-gray-500 mt-1">认证状态只能在企业审核页变更，避免绕过审核记录。</p>
+        </div>
       </div>
       {!readonly && (
         <div>
