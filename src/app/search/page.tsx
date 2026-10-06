@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Search, Package, Wrench, Building2, Tag } from "lucide-react";
 import { PUBLIC_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
+import { SearchAnalytics } from "@/components/AnalyticsTracker";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function SearchPage({
     select: { slug: true },
   });
   if (exactPart) {
-    redirect(`/part-number/${exactPart.slug}`);
+    redirect(`/part-number/${exactPart.slug}?fromSearch=${encodeURIComponent(q)}`);
   }
 
   const [partNumbers, equipment, brands, suppliers] = await Promise.all([
@@ -85,6 +86,8 @@ export default async function SearchPage({
   const total = partNumbers.length + equipment.length + brands.length + suppliers.length;
 
   return (
+    <>
+      <SearchAnalytics query={q} resultCount={total} />
     <div className="container py-[42px]">
       <h1 className="text-2xl font-bold mb-2 flex items-center gap-2">
         <Search className="h-6 w-6 text-accent" />
@@ -177,5 +180,6 @@ export default async function SearchPage({
         </div>
       )}
     </div>
+    </>
   );
 }
