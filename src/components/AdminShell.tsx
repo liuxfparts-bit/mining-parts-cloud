@@ -5,7 +5,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard, Building2, Tags, Wrench, Package, Hash,
-  FileText, MessageSquare, Search, Crown, Megaphone, Menu, X, ShieldCheck, GitBranch,
+  FileText, MessageSquare, Search, Crown, Megaphone, Menu, X, ShieldCheck, GitBranch, BarChart3,
 } from "lucide-react";
 
 const menuSections = [
@@ -47,6 +47,7 @@ const menuSections = [
   {
     title: "运营",
     items: [
+      { href: "/admin/analytics", label: "行为分析", icon: BarChart3 },
       { href: "/admin/seo", label: "SEO", icon: Search },
       { href: "/admin/members", label: "会员", icon: Crown },
       { href: "/admin/ads", label: "广告", icon: Megaphone },
