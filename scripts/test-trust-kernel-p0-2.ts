@@ -10,6 +10,7 @@ const quoteApi = read("src/app/api/quote/route.ts");
 const invitations = read("src/lib/rfq-invitation.ts");
 const analytics = read("src/app/admin/analytics/page.tsx");
 const adminActions = read("src/app/admin/rfqs/actions.ts");
+const selection = read("src/lib/quote-selection.ts");
 const publicRfqs = read("src/app/rfqs/page.tsx");
 const home = read("src/app/page.tsx");
 
@@ -41,5 +42,8 @@ assert.match(adminActions, /rFQInvitation\.updateMany\(\{ where: \{ rfqId: id \}
 assert.match(adminActions, /RFQ_BUSINESS_AUTHENTICITY_CHANGED/);
 assert.match(adminActions, /setQuoteBusinessAuthenticity/);
 assert.match(adminActions, /QUOTE_BUSINESS_AUTHENTICITY_CHANGED/);
+assert.match(adminActions, /已接受报价必须与所属 RFQ 保持相同业务真实性/);
+assert.match(selection, /rfq\.businessAuthenticity === "UNKNOWN"/);
+assert.match(selection, /target\.businessAuthenticity !== rfq\.businessAuthenticity/);
 
 console.log("Trust Kernel P0-2 business authenticity checks passed");
