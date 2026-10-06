@@ -377,17 +377,20 @@ async function main() {
     assert.equal((await post(request)).status, 403);
     assert.equal(rfq.matchedSuppliers, "[3,7,9]"); assert.equal(quoteWrites, 0);
   });
-  await test("Grant I/J: PRIVATE never grants; PUBLIC remains unchanged", async () => {
-    for (const visibility of ["PRIVATE", "PUBLIC"]) {
-      rfq.visibility = visibility; rfq.matchedSuppliers = "[3,7,9]"; row = null;
-      await lifecycle.createInvitationsForRFQ(9, 6, [42], []);
-      assert.equal(rfq.matchedSuppliers, "[3,7,9]");
-      assert.equal(canSupplierAccessRfq(rfq, 42), visibility === "PUBLIC");
-      row.supplierId = null;
-      const bound = await lifecycle.bindInvitationToSupplier(row.token, 42);
-      assert.equal(Boolean(bound), visibility === "PUBLIC");
-      assert.equal((await post(request)).status, visibility === "PUBLIC" ? 200 : 403);
-    }
+  await test("Grant I/J: PRIVATE invitation is rejected; PUBLIC remains unchanged", async () => {
+    rfq.visibility = "PRIVATE"; rfq.matchedSuppliers = "[3,7,9]"; row = null;
+    await assert.rejects(() => lifecycle.createInvitationsForRFQ(9, 6, [42], []), /私密询价不可邀请供应商/);
+    assert.equal(rfq.matchedSuppliers, "[3,7,9]");
+    assert.equal(canSupplierAccessRfq(rfq, 42), false);
+
+    rfq.visibility = "PUBLIC"; row = null;
+    await lifecycle.createInvitationsForRFQ(9, 6, [42], []);
+    assert.equal(rfq.matchedSuppliers, "[3,7,9]");
+    assert.equal(canSupplierAccessRfq(rfq, 42), true);
+    row.supplierId = null;
+    const bound = await lifecycle.bindInvitationToSupplier(row.token, 42);
+    assert.equal(Boolean(bound), true);
+    assert.equal((await post(request)).status, 200);
     assert.equal(authorizationWrites, 0);
   });
   await test("Grant K: corrupt JSON aborts invitation/binding transaction without replacing data", async () => {
