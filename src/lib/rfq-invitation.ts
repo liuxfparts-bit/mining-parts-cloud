@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { Prisma, RFQInvitation } from "@prisma/client";
 import { prisma } from "./db";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/public-product";
 
 // ==================== 常量 ====================
 export const INV_STATUS = {
@@ -135,6 +136,8 @@ export async function unreadNotificationCount(userId: number) {
 }
 
 // ==================== 智能推荐供应商 ====================
+export type CapabilityTrustTier = "TRUSTED" | "OBSERVED" | "CLAIMED";
+
 export interface RecommendedSupplier {
   supplier: {
     id: number;
@@ -146,16 +149,27 @@ export interface RecommendedSupplier {
     mainEquipment: string | null;
     mainBusiness: string | null;
     verifiedStatus: string;
+    approvedAt: Date | null;
+    approvedBy: number | null;
     memberLevel: string;
   };
+  trustTier: CapabilityTrustTier;
   score: number;
   reasons: string[];
-  quoteCount: number; // 该供应商的历史报价次数
+  quoteCount: number;
 }
 
+const TRUST_TIER_RANK: Record<CapabilityTrustTier, number> = {
+  TRUSTED: 3,
+  OBSERVED: 2,
+  CLAIMED: 1,
+};
+
 /**
- * 根据 RFQ 的 品牌 + 设备型号 + 件号/配件 + 历史报价 智能匹配供应商，打分排序，返回 5~20 家。
- * 只返回"唯一 Supplier"，同一供应商不论命中多少产品/件号只出现一次。
+ * Trusted Capability V1.0 recommendation policy:
+ * 1) assign trust tier first (TRUSTED > OBSERVED > CLAIMED)
+ * 2) score relevance only inside that tier
+ * 3) membership level never upgrades trust
  */
 export async function recommendSuppliersForRFQ(rfqId: number, limit = 20): Promise<RecommendedSupplier[]> {
   const rfq = await prisma.rFQ.findUnique({
@@ -164,40 +178,56 @@ export async function recommendSuppliersForRFQ(rfqId: number, limit = 20): Promi
   });
   if (!rfq) return [];
 
-  // 1) 从 RFQItem 提取特征（兼容旧单件号 RFQ：无 items 时用 RFQ 顶层字段）
   const brands = new Set<string>();
   const equipmentModels = new Set<string>();
   const partNumbers = new Set<string>();
+  const trustedPartNumberIds = new Set<number>();
   const productNames = new Set<string>();
-  const collect = (brand?: string | null, eq?: string | null, pn?: string | null, pnName?: string | null) => {
+  const collect = (
+    brand?: string | null,
+    eq?: string | null,
+    pn?: string | null,
+    pnName?: string | null,
+    partNumberId?: number | null
+  ) => {
     if (brand) brands.add(brand.trim());
     if (eq) equipmentModels.add(eq.trim());
     if (pn) partNumbers.add(pn.trim());
     if (pnName) productNames.add(pnName.trim());
+    if (partNumberId) trustedPartNumberIds.add(partNumberId);
   };
   if (rfq.items.length > 0) {
-    for (const it of rfq.items) collect(it.brandName, it.equipmentModel, it.partNumberStr, it.productName);
+    for (const it of rfq.items) {
+      collect(it.brandName, it.equipmentModel, it.partNumberStr, it.productName, it.partNumberId);
+    }
   } else {
-    collect(rfq.brandName, rfq.equipmentModel, rfq.partNumberStr, rfq.productName);
+    collect(rfq.brandName, rfq.equipmentModel, rfq.partNumberStr, rfq.productName, rfq.partNumberId);
   }
 
-  // 2) 粗筛候选：任一特征命中的供应商（禁用账号排除）
-  const orConds: any[] = [];
-  if (brands.size) orConds.push({ mainBrands: { contains: Array.from(brands)[0] } });
-  if (equipmentModels.size) orConds.push({ mainEquipment: { contains: Array.from(equipmentModels)[0] } });
-  if (partNumbers.size)
-    orConds.push({ products: { some: { partNumber: { number: { contains: Array.from(partNumbers)[0] } } } } });
-  if (partNumbers.size) orConds.push({ products: { some: { oemNumber: { contains: Array.from(partNumbers)[0] } } } });
-  // 历史报价过相同品牌/设备的供应商
-  if (brands.size || equipmentModels.size) {
+  const brandArr = Array.from(brands).filter(Boolean);
+  const eqArr = Array.from(equipmentModels).filter(Boolean);
+  const pnArr = Array.from(partNumbers).filter(Boolean);
+  const nameArr = Array.from(productNames).filter(Boolean);
+
+  // Candidate discovery may use claims, but discovery itself never grants trust.
+  const orConds: Prisma.SupplierWhereInput[] = [];
+  if (brandArr.length) orConds.push({ mainBrands: { contains: brandArr[0] } });
+  if (eqArr.length) orConds.push({ mainEquipment: { contains: eqArr[0] } });
+  if (pnArr.length) {
+    orConds.push({ products: { some: { partNumber: { number: { contains: pnArr[0] } } } } });
+    orConds.push({ products: { some: { oemNumber: { contains: pnArr[0] } } } });
+  }
+  if (brandArr.length || eqArr.length || pnArr.length) {
     orConds.push({
       quotes: {
         some: {
           businessAuthenticity: "REAL",
           rfq: {
             OR: [
-              ...(brands.size ? [{ brandName: { in: Array.from(brands) } }] : []),
-              ...(equipmentModels.size ? [{ equipmentModel: { in: Array.from(equipmentModels) } }] : []),
+              ...(brandArr.length ? [{brandName: { in: brandArr } }] : []),
+              ...(eqArr.length ? [{ equipmentModel: { in: eqArr } } ] : []),
+              ...(pnArr.length ? [{ partNumberStr: { in: pnArr } }] : []),
+              ...(pnArr.length ? [{ items: { some: { partNumberStr: { in: pnArr } } } }] : []),
             ],
           },
         },
@@ -205,12 +235,11 @@ export async function recommendSuppliersForRFQ(rfqId: number, limit = 20): Promi
     });
   }
 
-  const where: any = {
+  const where: Prisma.SupplierWhereInput = {
     users: { none: { status: "DISABLED" } },
+    ...(orConds.length ? { OR: orConds } : {}),
   };
-  if (orConds.length > 0) where.OR = orConds;
 
-  // 认证优先但不强制（避免小数据量时推荐为空；未认证在 reasons 中提示）
   const candidates = await prisma.supplier.findMany({
     where,
     select: {
@@ -223,6 +252,8 @@ export async function recommendSuppliersForRFQ(rfqId: number, limit = 20): Promi
       mainEquipment: true,
       mainBusiness: true,
       verifiedStatus: true,
+      approvedAt: true,
+      approvedBy: true,
       memberLevel: true,
       products: {
         select: { id: true, partNumber: { select: { number: true } }, oemNumber: true, name: true },
@@ -231,14 +262,67 @@ export async function recommendSuppliersForRFQ(rfqId: number, limit = 20): Promi
     },
     take: 200,
   });
+  if (!candidates.length) return [];
 
-  // 3) 打分
-  const brandArr = Array.from(brands).filter(Boolean);
-  const eqArr = Array.from(equipmentModels).filter(Boolean);
-  const pnArr = Array.from(partNumbers).filter(Boolean);
-  const nameArr = Array.from(productNames).filter(Boolean);
+  const candidateIds = candidates.map((s) => s.id);
+
+  // Automatic TRUSTED recommendation requires the canonical public trusted capability:
+  // reviewed Product/PN/Supplier chain plus Product.status=PUBLISHED. OFFLINE evidence is retained but not recommended.
+  const trustedProducts = (trustedPartNumberIds.size || pnArr.length)
+    ? await prisma.product.findMany({
+        where: {
+          supplierId: { in: candidateIds },
+          ...PUBLIC_PRODUCT_WHERE,
+          OR: [
+            ...(trustedPartNumberIds.size
+              ? [{ partNumberId: { in: Array.from(trustedPartNumberIds) } }]
+              : []),
+            ...(pnArr.length
+              ? [{ partNumber: { number: { in: pnArr, mode: "insensitive" as const } } }]
+              : []),
+          ],
+        },
+        select: { supplierId: true },
+      })
+    : [];
+  const trustedSupplierIds = new Set(trustedProducts.map((p) => p.supplierId));
+
+  // OBSERVED means a REAL quote relevant to this RFQ. It is commercial evidence,
+  // never technical verification and never an automatic upgrade to TRUSTED.
+  const observedQuotes = await prisma.quote.findMany({
+    where: {
+      supplierId: { in: candidateIds },
+      businessAuthenticity: "REAL",
+      ...(brandArr.length || eqArr.length || pnArr.length
+        ? {
+            rfq: {
+              OR: [
+                ...(brandArr.length ? [{ brandName: { in: brandArr } }] : []),
+                ...(eqArr.length ? [{ equipmentModel: { in: eqArr } }] : []),
+                ...(pnArr.length ? [{ partNumberStr: { in: pnArr } }] : []),
+                ...(pnArr.length ? [{ items: { some: { partNumberStr: { in: pnArr } } } }] : []),
+              ],
+            },
+          }
+        : { id: -1 }),
+    },
+    select: { supplierId: true },
+  });
+  const observedSupplierIds = new Set(observedQuotes.map((q) => q.supplierId));
+
+  const quoteCounts = await prisma.quote.groupBy({
+    by: ["supplierId"],
+    where: { supplierId: { in: candidateIds }, businessAuthenticity: "REAL" },
+    _count: { _all: true },
+  });
+  const qcMap = new Map(quoteCounts.map((q) => [q.supplierId, q._count._all]));
 
   const scored: RecommendedSupplier[] = candidates.map((s) => {
+    const trustTier: CapabilityTrustTier = trustedSupplierIds.has(s.id)
+      ? "TRUSTED"
+      : observedSupplierIds.has(s.id)
+        ? "OBSERVED"
+        : "CLAIMED";
     let score = 0;
     const reasons: string[] = [];
     const mainBrands = s.mainBrands || "";
@@ -248,48 +332,49 @@ export async function recommendSuppliersForRFQ(rfqId: number, limit = 20): Promi
       .map((p) => `${p.partNumber?.number || ""} ${p.oemNumber || ""} ${p.name || ""}`)
       .join(" ");
 
-    // 件号精确匹配：权重最高
     for (const pn of pnArr) {
-      const pnHit = s.products.some((p) => (p.partNumber?.number || "") === pn || (p.oemNumber || "") === pn);
-      if (pnHit) { score += 5; reasons.push(`供应件号 ${pn}`); }
-      else if (prodText.includes(pn)) { score += 3; reasons.push(`件号相关 ${pn}`); }
+      const pnHit = s.products.some(
+        (p) => (p.partNumber?.number || "").toUpperCase() === pn.toUpperCase()
+          || (p.oemNumber || "").toUpperCase() === pn.toUpperCase()
+      );
+      if (pnHit) { score += 5; reasons.push(`件号匹配 ${pn}`); }
+      else if (prodText.toUpperCase().includes(pn.toUpperCase())) {
+        score += 3; reasons.push(`件号相关 ${pn}`);
+      }
     }
-    // 配件名称
     for (const nm of nameArr) {
-      if (mainBusiness.includes(nm) || prodText.includes(nm)) { score += 3; reasons.push(`主营包含 ${nm}`); }
+      if (mainBusiness.includes(nm) || prodText.includes(nm)) {
+        score += 3; reasons.push(`配件相关 ${nm}`);
+      }
     }
-    // 品牌
     for (const b of brandArr) {
-      if (mainBrands.includes(b)) { score += 3; reasons.push(`主营品牌 ${b}`); }
+      if (mainBrands.includes(b)) { score += 3; reasons.push(`自述品牌 ${b}`); }
     }
-    // 设备型号
     for (const eq of eqArr) {
-      if (mainEquipment.includes(eq)) { score += 2; reasons.push(`主营设备 ${eq}`); }
+      if (mainEquipment.includes(eq)) { score += 2; reasons.push(`自述设备 ${eq}`); }
     }
-    // 认证与会员
-    if (s.verifiedStatus === "VERIFIED") { score += 2; }
-    else { reasons.push("待认证"); }
-    if (s.memberLevel === "GOLD") score += 1;
-    if (s.memberLevel === "SILVER") score += 0.5;
 
-    return { supplier: s, score, reasons: reasons.slice(0, 3), quoteCount: 0 };
+    if (trustTier === "TRUSTED") reasons.unshift("矿配云可信供货能力");
+    else if (trustTier === "OBSERVED") reasons.unshift("存在相关真实报价记录");
+    else reasons.unshift("供应声明/候选线索");
+
+    const quoteCount = qcMap.get(s.id) || 0;
+    return {
+      supplier: s,
+      trustTier,
+      score,
+      reasons: Array.from(new Set(reasons)).slice(0, 4),
+      quoteCount,
+    };
   });
 
-  // 历史报价次数（该供应商整体报价数）
-  const quoteCounts = await prisma.quote.groupBy({
-    by: ["supplierId"],
-    where: { supplierId: { in: scored.map((s) => s.supplier.id) }, businessAuthenticity: "REAL" },
-    _count: { _all: true },
-  });
-  const qcMap = new Map(quoteCounts.map((q) => [q.supplierId, q._count._all]));
-  for (const s of scored) {
-    s.quoteCount = qcMap.get(s.supplier.id) || 0;
-    if (s.quoteCount > 0) s.score += Math.min(2, s.quoteCount * 0.1);
-  }
-
-  scored.sort((a, b) => b.score - a.score);
-  const min = Math.min(20, Math.max(5, scored.length));
-  return scored.slice(0, min);
+  scored.sort((a, b) =>
+    TRUST_TIER_RANK[b.trustTier] - TRUST_TIER_RANK[a.trustTier]
+    || b.score - a.score
+    || b.quoteCount - a.quoteCount
+    || a.supplier.id - b.supplier.id
+  );
+  return scored.slice(0, Math.min(limit, scored.length));
 }
 
 // ==================== 创建邀请（防重） ====================
