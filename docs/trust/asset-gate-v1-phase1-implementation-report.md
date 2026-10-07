@@ -103,9 +103,11 @@ HOLD=0
 
 No legacy state is read from or written to a database.
 
-## 9. Deviations From Spec
+## 9. Test-Only Audit Fixture Compatibility
 
-None. Phase 1 intentionally consumes structured evidence facts. The CSV-to-facts adapter exists only inside the deterministic regression test to reproduce the approved audit baseline; the gate engine itself does not parse free-form evidence text or promote filename/source presence to OFFICIAL.
+The production gate engine intentionally consumes only structured evidence facts. To reproduce the approved V1 pre-audit baseline, the full-dataset regression uses a **test-only audit provenance fixture** recording the human-confirmed fact that `伊泰LS190-ED10配件手册.pdf` is a Sandvik official ED10/LS190 manual. It is not a generic filename/manual heuristic, is not used by production code, and must not become a Phase 2 production evidence normalizer.
+
+The regression separately constructs PN evidence facts from the PN CSV and relationship evidence facts from the relationship CSV. PN evidence is never copied into a relationship. A relationship receives the confirmed-manual fixture only where its own ED10 relationship evidence contains a locatable manual claim; unsupported relationship provenance remains REVIEW/MODEL_PENDING.
 
 ## 10. Known Gaps
 
