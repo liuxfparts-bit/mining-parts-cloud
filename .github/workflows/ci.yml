@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - main
+      - production
       - "feature/**"
   pull_request:
     branches:
       - main
+      - production
 
 permissions:
   contents: read
