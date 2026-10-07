@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import { recommendSuppliersForRFQ } from "@/lib/rfq-invitation";
 import { requireVerifiedBuyer } from "@/lib/buyer-company";
+import { PUBLIC_SUPPLIER_IDENTITY_WHERE } from "@/lib/public-product";
 import { ShieldCheck } from "lucide-react";
 import InvitePanel from "./InvitePanel";
 
@@ -79,7 +80,7 @@ export default async function InvitePage({
 
   // 3) 我的供应商：历史报价过该采购商询价的供应商（去重）
   const mySuppliers = await prisma.quote.findMany({
-    where: { rfq: { userID: user.id } },
+    where: { rfq: { userID: user.id }, businessAuthenticity: "REAL" },
     select: {
       supplier: {
         select: {
@@ -89,6 +90,8 @@ export default async function InvitePage({
           mainBrands: true,
           mainBusiness: true,
           verifiedStatus: true,
+          approvedAt: true,
+          approvedBy: true,
         },
       },
     },
@@ -104,7 +107,7 @@ export default async function InvitePage({
   const page = Math.max(1, parseInt(searchParams.page || "1") || 1);
 
   const where: any = { users: { none: { status: "DISABLED" } } };
-  if (verifiedOnly) where.verifiedStatus = "VERIFIED";
+  if (verifiedOnly) Object.assign(where, PUBLIC_SUPPLIER_IDENTITY_WHERE);
   if (q) {
     where.OR = [
       { name: { contains: q } },
@@ -132,8 +135,10 @@ export default async function InvitePage({
       mainBrands: true,
       mainBusiness: true,
       verifiedStatus: true,
+      approvedAt: true,
+      approvedBy: true,
       memberLevel: true,
-      _count: { select: { quotes: true } },
+      _count: { select: { quotes: { where: { businessAuthenticity: "REAL" } } } },
     },
     orderBy: { createdAt: "desc" },
     skip: (cur - 1) * PAGE_SIZE,
@@ -149,7 +154,8 @@ export default async function InvitePage({
     city: r.supplier.city,
     mainBrands: r.supplier.mainBrands,
     mainEquipment: r.supplier.mainEquipment,
-    verified: r.supplier.verifiedStatus === "VERIFIED",
+    verified: r.supplier.verifiedStatus === "VERIFIED" && !!r.supplier.approvedAt && !!r.supplier.approvedBy,
+    trustTier: r.trustTier,
     memberLevel: r.supplier.memberLevel,
     score: r.score,
     reasons: r.reasons,
@@ -164,7 +170,7 @@ export default async function InvitePage({
     city: s.city,
     mainBrands: s.mainBrands,
     mainBusiness: s.mainBusiness,
-    verified: s.verifiedStatus === "VERIFIED",
+    verified: s.verifiedStatus === "VERIFIED" && !!s.approvedAt && !!s.approvedBy,
     memberLevel: s.memberLevel,
     quoteCount: s._count.quotes,
   }));
@@ -175,7 +181,8 @@ export default async function InvitePage({
     fullName: s.name,
     mainBrands: s.mainBrands,
     mainBusiness: s.mainBusiness,
-    verified: s.verifiedStatus === "VERIFIED",
+    verified: s.verifiedStatus === "VERIFIED" && !!s.approvedAt && !!s.approvedBy,
+    trustTier: "OBSERVED" as const,
     quoteCount: 0,
   }));
 

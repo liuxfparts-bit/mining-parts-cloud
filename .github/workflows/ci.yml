@@ -83,5 +83,8 @@ jobs:
       - name: WP0-5 analytics checks
         run: npm run test:wp0-5
 
+      - name: Trust Kernel P0-5 capability checks
+        run: npm run test:trust-p0-5
+
       - name: Production build
         run: npm run build

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireVerifiedBuyer } from "@/lib/buyer-company";
-import { findTrustedSupplierIdsForPartNumber } from "@/lib/supplier-capability";
+import { resolveTrustedPartNumberId } from "@/lib/supplier-capability";
 import { writeBusinessEvent } from "@/lib/analytics";
 import { splitStoredUploadUrls, uploadPrincipal, uploadUrlsBelongToPrincipal } from "@/lib/upload-policy";
 
@@ -105,8 +105,7 @@ export async function createRFQ(prevState: { error?: string; success?: boolean }
       let partNumberId: number | null = null;
       const pn = String(it.partNumber || "").trim();
       if (pn) {
-        const capability = await findTrustedSupplierIdsForPartNumber(pn);
-        partNumberId = capability.partNumberId;
+        partNumberId = await resolveTrustedPartNumberId(pn);
       }
       itemDatas.push({
         seq: validItems.indexOf(it) + 1,

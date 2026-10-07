@@ -14,6 +14,7 @@ export interface SupplierOption {
   mainBrands?: string | null;
   mainProducts?: string | null;
   verified: boolean;
+  trustTier?: "TRUSTED" | "OBSERVED" | "CLAIMED";
   memberLevel?: string;
   quoteCount?: number;
   score?: number;
@@ -137,8 +138,11 @@ export default function InvitePanel({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <b className="text-sm">{s.name}</b>
-            {s.verified && <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">已认证</span>}
-            {!s.verified && <span className="text-xs bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">待认证</span>}
+            {s.verified && <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">企业已审核</span>}
+            {!s.verified && <span className="text-xs bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">企业待审核</span>}
+            {s.trustTier === "TRUSTED" && <span className="text-xs bg-blue-100 text-blue-700 rounded px-1.5 py-0.5">可信供货能力</span>}
+            {s.trustTier === "OBSERVED" && <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">真实业务记录</span>}
+            {s.trustTier === "CLAIMED" && <span className="text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">供应声明</span>}
             {isInvited && <span className="text-xs bg-orange-100 text-orange-600 rounded px-1.5 py-0.5">已邀请</span>}
           </div>
           <div className="text-xs text-gray-500 mt-1 line-clamp-2">
@@ -147,8 +151,8 @@ export default function InvitePanel({
           </div>
           <div className="text-xs text-gray-400 mt-0.5">
             {s.province || s.city || ""}
-            {s.quoteCount != null && s.quoteCount > 0 ? ` · 历史报价 ${s.quoteCount} 次` : ""}
-            {showScore && s.score != null ? ` · 匹配度 ${Math.round(Math.min(100, s.score * 10))}` : ""}
+            {s.quoteCount != null && s.quoteCount > 0 ? ` · 真实报价 ${s.quoteCount} 次` : ""}
+            {showScore && s.score != null ? ` · 相关评分 ${s.score}` : ""}
           </div>
           {showScore && s.reasons && s.reasons.length > 0 && (
             <div className="text-xs text-blue-600 mt-1">{s.reasons.join("；")}</div>
@@ -174,7 +178,7 @@ export default function InvitePanel({
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
             <h2 className="font-bold flex items-center gap-2">智能推荐供应商</h2>
-            <p className="text-xs text-gray-400 mt-0.5">根据品牌、设备型号、件号及历史报价自动匹配，推荐 {recommended.length} 家</p>
+            <p className="text-xs text-gray-400 mt-0.5">按可信能力、真实业务记录、供应声明分层后，再根据件号/品牌/设备相关度排序，推荐 {recommended.length} 家</p>
           </div>
           {recommended.length > 0 && (
             <button
@@ -217,7 +221,7 @@ export default function InvitePanel({
           />
           <label className="flex items-center gap-1.5 text-sm">
             <input type="checkbox" checked={verified} onChange={(e) => setVerified(e.target.checked)} />
-            仅看已认证
+            仅看企业已审核
           </label>
           <div className="flex gap-2">
             <button type="button" onClick={doSearch} className="bg-blue-600 text-white rounded px-4 py-2 text-sm">
@@ -275,7 +279,7 @@ export default function InvitePanel({
       {/* 我的供应商 */}
       {mySuppliers.length > 0 && (
         <div className="bg-white border rounded-lg p-5">
-          <h2 className="font-bold mb-3">我的供应商（历史合作）</h2>
+          <h2 className="font-bold mb-3">我的供应商（真实报价记录）</h2>
           <div className="grid md:grid-cols-2 gap-2">
             {mySuppliers.map((s) => (
               <SupplierCard key={s.id} s={s} />

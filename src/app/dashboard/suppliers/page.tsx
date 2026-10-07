@@ -39,9 +39,10 @@ export default async function BuyerSuppliers({
     : 10;
   const page = Math.max(1, parseInt(searchParams.page || "1") || 1);
 
-  // 合作供应商 = 对本企业 RFQ 提交过报价的供应商（数据库聚合：按供应商分组统计）
+  // 业务往来供应商 = 对本企业 RFQ 提交过 REAL 报价的供应商（TEST/UNKNOWN 永不进入）
   const quoteWhere: any = {
     rfqId: { in: rfqIds },
+    businessAuthenticity: "REAL",
     ...(q && {
       supplier: {
         OR: [{ name: { contains: q } }, { mainBrands: { contains: q } }, { mainBusiness: { contains: q } }],
@@ -56,7 +57,7 @@ export default async function BuyerSuppliers({
     _max: { createdAt: true },
   });
 
-  // 活跃报价（待处理/已接受）统计，用于"合作中/历史合作"状态
+  // 活跃 REAL 报价（待处理/已接受）统计，用于“报价处理中/历史记录”状态
   const activeGrouped = await prisma.quote.groupBy({
     by: ["supplierId"],
     where: { ...quoteWhere, status: { in: ["PENDING", "ACCEPTED"] } },
@@ -103,9 +104,9 @@ export default async function BuyerSuppliers({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">合作供应商</h1>
+          <h1 className="text-xl font-bold text-slate-800">业务往来供应商</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            共 <span className="font-semibold text-slate-700">{total}</span> 家供应商对本企业询价提交过报价
+            共 <span className="font-semibold text-slate-700">{total}</span> 家供应商对本企业真实询价提交过真实报价
           </p>
         </div>
         <form method="get" className="flex flex-wrap items-center gap-2">
@@ -116,9 +117,9 @@ export default async function BuyerSuppliers({
             className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           />
           <select name="status" defaultValue={statusFilter} className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white">
-            <option value="ALL">全部合作</option>
-            <option value="ACTIVE">合作中</option>
-            <option value="HISTORY">历史合作</option>
+            <option value="ALL">全部记录</option>
+            <option value="ACTIVE">报价处理中</option>
+            <option value="HISTORY">历史记录</option>
           </select>
           <button className="bg-blue-600 text-white rounded-lg px-4 py-1.5 text-sm hover:bg-blue-700">搜索</button>
           <Link href="/dashboard/suppliers" className="text-sm text-slate-500 px-2 hover:text-slate-700">
@@ -130,7 +131,7 @@ export default async function BuyerSuppliers({
       {suppliersWithMeta.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-12 text-center text-sm text-slate-400">
           <Handshake className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-          暂无合作供应商
+          暂无真实报价供应商
           <div className="mt-2">
             <Link href="/rfq/create" className="text-blue-600 font-medium">
               发布询价，供应商报价后自动建立合作关系 →
@@ -161,13 +162,13 @@ export default async function BuyerSuppliers({
                         pm.activeCount > 0 ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-500"
                       }`}
                     >
-                      {pm.activeCount > 0 ? "合作中" : "历史合作"}
+                      {pm.activeCount > 0 ? "报价处理中" : "历史记录"}
                     </span>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                     <div className="bg-slate-50 rounded-lg py-2">
                       <div className="text-base font-bold text-slate-800">{pm.count}</div>
-                      <div className="text-[10px] text-slate-400">报价次数</div>
+                      <div className="text-[10px] text-slate-400">真实报价次数</div>
                     </div>
                     <div className="bg-slate-50 rounded-lg py-2">
                       <div className="text-base font-bold text-slate-800">{pm.activeCount}</div>
@@ -177,7 +178,7 @@ export default async function BuyerSuppliers({
                       <div className="text-xs font-medium text-slate-700 mt-1">
                         {pm.lastAt ? new Date(pm.lastAt).toLocaleDateString("zh-CN") : "-"}
                       </div>
-                      <div className="text-[10px] text-slate-400">最近合作</div>
+                      <div className="text-[10px] text-slate-400">最近报价</div>
                     </div>
                   </div>
                   <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
@@ -234,7 +235,7 @@ export default async function BuyerSuppliers({
                         pm.activeCount > 0 ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-500"
                       }`}
                     >
-                      {pm.activeCount > 0 ? "合作中" : "历史"}
+                      {pm.activeCount > 0 ? "报价处理中" : "历史记录"}
                     </span>
                   </div>
                   <div className="mt-3 flex gap-2">

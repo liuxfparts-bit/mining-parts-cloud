@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { normalizePartNumber, PUBLIC_PN_WHERE } from "@/lib/part-number";
+import { TRUSTED_CAPABILITY_PRODUCT_WHERE_NESTED } from "@/lib/public-product";
 
 export type TrustedSupplierCapabilityResult = {
   partNumberId: number | null;
@@ -10,13 +11,14 @@ export type TrustedSupplierCapabilityResult = {
  * Resolve a Part Number with the same normalization semantics established in P2-1B,
  * then return only suppliers backed by fully trusted capability evidence.
  *
- * Trusted capability requires all three layers:
+ * Trusted Capability V1.0 requires all three layers:
  * 1) PartNumber = VERIFIED + READY
  * 2) Product = VERIFIED
- * 3) Supplier = VERIFIED
+ * 3) Supplier identity = VERIFIED + formal approval trail + no DISABLED users
  *
- * No Product means no capability evidence. Brand/equipment similarity and supplierCount
- * are intentionally not used as inference signals.
+ * Product publication is separate: OFFLINE reviewed evidence may remain trusted,
+ * while public capability additionally requires Product.status=PUBLISHED.
+ * Brand/equipment similarity and membership level are never trust evidence.
  *
  * Matching fails closed when normalized matching is ambiguous: an exact number match is
  * preferred, otherwise exactly one normalized Part Number must exist.
@@ -45,10 +47,7 @@ export async function findTrustedSupplierIdsForPartNumber(
       number: true,
       normalizedPartNumber: true,
       products: {
-        where: {
-          verificationStatus: "VERIFIED",
-          supplier: { verifiedStatus: "VERIFIED" },
-        },
+        where: TRUSTED_CAPABILITY_PRODUCT_WHERE_NESTED,
         select: { supplierId: true },
       },
     },
@@ -88,4 +87,15 @@ export async function findTrustedSupplierIdsForPartNumber(
     partNumberId: match.id,
     supplierIds: Array.from(new Set(match.products.map((product) => product.supplierId))),
   };
+}
+
+/**
+ * Technical PartNumber resolution is intentionally exposed separately from
+ * Supplier capability. A trusted PN remains linkable even when supplierIds is empty.
+ */
+export async function resolveTrustedPartNumberId(
+  input: string | null | undefined
+): Promise<number | null> {
+  const result = await findTrustedSupplierIdsForPartNumber(input);
+  return result.partNumberId;
 }

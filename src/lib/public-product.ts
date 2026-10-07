@@ -35,19 +35,31 @@ export const PUBLIC_SUPPLIER_IDENTITY_WHERE = {
  * 嵌套查询场景使用（从 PartNumber / Equipment 向下 include products 时）。
  * 不含 partNumber 条件，因为父级上下文必须使用 PUBLIC_PN_WHERE。
  */
-export const PUBLIC_PRODUCT_WHERE_NESTED = {
-  status: "PUBLISHED",
+export const TRUSTED_CAPABILITY_PRODUCT_WHERE_NESTED = {
   verificationStatus: "VERIFIED",
   supplier: PUBLIC_SUPPLIER_IDENTITY_WHERE,
 } satisfies Prisma.ProductWhereInput;
 
 /**
- * 直接查询 Product 场景使用。
- * 含 partNumber.publishStatus = READY 条件。
+ * Canonical trusted Supplier x PartNumber capability evidence.
+ * Publication is deliberately NOT part of technical/capability trust: an OFFLINE
+ * verified Product may preserve historical reviewed evidence, but is not public.
  */
-export const PUBLIC_PRODUCT_WHERE = {
-  ...PUBLIC_PRODUCT_WHERE_NESTED,
+export const TRUSTED_CAPABILITY_PRODUCT_WHERE = {
+  ...TRUSTED_CAPABILITY_PRODUCT_WHERE_NESTED,
   partNumber: PUBLIC_PN_WHERE,
+} satisfies Prisma.ProductWhereInput;
+
+/** Public capability = trusted capability evidence + current publication. */
+export const PUBLIC_PRODUCT_WHERE_NESTED = {
+  status: "PUBLISHED",
+  ...TRUSTED_CAPABILITY_PRODUCT_WHERE_NESTED,
+} satisfies Prisma.ProductWhereInput;
+
+/** Direct public Product query: trusted capability + PUBLISHED. */
+export const PUBLIC_PRODUCT_WHERE = {
+  status: "PUBLISHED",
+  ...TRUSTED_CAPABILITY_PRODUCT_WHERE,
 } satisfies Prisma.ProductWhereInput;
 
 /**
