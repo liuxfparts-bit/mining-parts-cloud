@@ -82,3 +82,11 @@ The operator supplied production `_prisma_migrations` records: 0006, 0007 and 00
 - 0008: `27f7afcb4b9f676d147ba12a566cee20fdf5b8bc06ffa4b0ad81897a26d04f06`
 
 Migration checksum blocker CLOSED for 0006–0008. No production writes. Phase 3B-1 remains pending final review/PR decision; no production deployment authorized.
+
+## Phase 3B-1 Review Fix (PR #31, second commit)
+
+- CI now explicitly executes existing Asset Gate regressions and Evidence Foundation tests using its isolated PostgreSQL service; CI mode fails if EVIDENCE_TEST_DATABASE_URL is absent. Only 127.0.0.1 with approved CI/local database name and port is accepted.
+- Migration 0009 now enforces PENDING_CAPTURE for both EvidenceSource and EvidenceItem at database level. This is intentionally restrictive until 3B-2 immutable private capture exists. The previous captured-state excerpt check is retained but unreachable in 3B-1.
+- Additional negative database checks: direct captured source/item, incorrect fingerprint, invalid first predecessor, absent expiry explanation, and cross-target revocation.
+- No production database role change in this PR. Current docker-compose app uses the database owner credential; database-owner/superuser can disable triggers. **Production deployment remains blocked pending separately reviewed least-privilege app role, migration role, secret rotation and rollback plan.** DB triggers alone are not a tamper-proof security boundary against DB owner.
+- No changes to Gate, importers, public routes, existing migrations 0001–0008 or production data. 0009 has not been deployed.

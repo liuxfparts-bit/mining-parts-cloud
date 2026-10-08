@@ -37,13 +37,28 @@ test("migration blocks premature confirmation", () => assert.match(migration, /I
 test("migration has XOR target", () => assert.match(migration, /num_nonnulls\("sourceId", "itemId"\) = 1/));
 test("migration validates predecessor target", () => assert.match(migration, /prior\."itemId" IS DISTINCT FROM NEW\."itemId"/));
 test("migration validates revocation target", () => assert.match(migration, /revoked\."itemId" IS DISTINCT FROM NEW\."itemId"/));
-test("test database fail closed", () => { const url = process.env.EVIDENCE_TEST_DATABASE_URL; if (url) { const parsed = new URL(url); assert.equal(parsed.hostname, "127.0.0.1"); assert.equal(parsed.port, "55439"); assert.equal(parsed.pathname, "/evidence_test"); } });
+test("migration prevents premature source capture", () => assert.match(migration, /evidence_source_pending_capture_only/));
+test("migration prevents premature item capture", () => assert.match(migration, /evidence_item_pending_capture_only/));
+test("test database fail closed", () => {
+  const url = process.env.EVIDENCE_TEST_DATABASE_URL;
+  if (url) {
+    const parsed = new URL(url);
+    assert.equal(parsed.protocol, "postgresql:");
+    assert.equal(parsed.hostname, "127.0.0.1");
+    const local = parsed.port === "55439" && parsed.pathname === "/evidence_test";
+    const ci = process.env.CI === "true" && parsed.port === "5432" && parsed.pathname === "/kuangpeiyun_ci" && parsed.username === "ci_user";
+    assert.ok(local || ci, "evidence tests require dedicated local or CI database");
+  }
+});
 console.log("EVIDENCE_FOUNDATION_PURE_PASS=" + passed);
 if (!process.env.EVIDENCE_TEST_DATABASE_URL) console.log("EVIDENCE_FOUNDATION_DB_TESTS=NOT_RUN_NO_ISOLATED_DATABASE");
 
 async function databaseIntegrationTests() {
   const url = process.env.EVIDENCE_TEST_DATABASE_URL;
-  if (!url) return;
+  if (!url) {
+    if (process.env.CI === "true") throw new Error("CI must supply isolated evidence test database");
+    return;
+  }
   const { PrismaClient } = await import("@prisma/client");
   const { createEvidenceSource, createEvidenceItem, appendEvidenceReview, readEvidenceReviewState } = await import("../src/lib/trust/evidence/repository");
   const db = new PrismaClient({ datasources: { db: { url } } });
@@ -61,6 +76,13 @@ async function databaseIntegrationTests() {
       assert.equal(src.captureState, "PENDING_CAPTURE");
       assert.equal(src.metadataFingerprint, sourceFingerprint(sourceData));
     });
+    await check("database rejects premature source capture", async () => {
+      await assert.rejects(db.evidenceSource.create({ data: {
+        stableKey: `captured-source-${run}`, revision: 1, declaredKind: "OFFICIAL_DOCUMENT",
+        title: "Unverified bytes", captureState: "CAPTURED_UNVERIFIED",
+        metadataFingerprint: "a".repeat(64), createdById: admin.id,
+      } }));
+    });
     await check("nonadmin source write rejected", async () => {
       await assert.rejects(createEvidenceSource(db, { ...sourceData, stableKey: "forbidden" }, buyer.id));
     });
@@ -72,12 +94,43 @@ async function databaseIntegrationTests() {
       assert.equal(evidenceItem.sourceId, src.id);
       assert.equal(evidenceItem.captureState, "PENDING_CAPTURE");
     });
+    await check("database rejects premature item capture", async () => {
+      await assert.rejects(db.evidenceItem.create({ data: {
+        stableKey: `captured-item-${run}`, revision: 1, sourceId: src.id,
+        locatorKey: "page:69", excerpt: "not snapshotted", captureState: "CAPTURED_UNVERIFIED",
+        contentFingerprint: "a".repeat(64), createdById: admin.id,
+      } }));
+    });
     await check("database prevents direct premature confirmation", async () => {
       await assert.rejects(db.evidenceReviewEvent.create({ data: {
         sourceId: src.id, dimension: "SOURCE_METADATA", sequence: 1,
         outcome: "CONFIRMED", verificationMethod: "TEST", reason: "not permitted",
         targetFingerprint: src.metadataFingerprint, reviewerId: admin.id,
         reviewerSnapshot: "Test", idempotencyKey: `direct-confirm-${run}`, noExpiryReason: "TEST",
+      } }));
+    });
+    await check("database rejects incorrect review fingerprint", async () => {
+      await assert.rejects(db.evidenceReviewEvent.create({ data: {
+        sourceId: src.id, dimension: "SOURCE_METADATA", sequence: 1,
+        outcome: "REJECTED", verificationMethod: "TEST", reason: "bad hash",
+        targetFingerprint: "b".repeat(64), reviewerId: admin.id,
+        reviewerSnapshot: "Test", idempotencyKey: `bad-hash-${run}`, noExpiryReason: "TEST",
+      } }));
+    });
+    await check("database rejects first event predecessor", async () => {
+      await assert.rejects(db.evidenceReviewEvent.create({ data: {
+        sourceId: src.id, dimension: "SOURCE_METADATA", sequence: 1,
+        previousEventId: 999999999, outcome: "REJECTED", verificationMethod: "TEST", reason: "bad predecessor",
+        targetFingerprint: src.metadataFingerprint, reviewerId: admin.id,
+        reviewerSnapshot: "Test", idempotencyKey: `bad-first-${run}`, noExpiryReason: "TEST",
+      } }));
+    });
+    await check("database rejects missing expiry explanation", async () => {
+      await assert.rejects(db.evidenceReviewEvent.create({ data: {
+        sourceId: src.id, dimension: "SOURCE_METADATA", sequence: 1,
+        outcome: "REJECTED", verificationMethod: "TEST", reason: "no expiry reason",
+        targetFingerprint: src.metadataFingerprint, reviewerId: admin.id,
+        reviewerSnapshot: "Test", idempotencyKey: `bad-expiry-${run}`,
       } }));
     });
     await check("database enforces target xor", async () => {
@@ -114,6 +167,14 @@ async function databaseIntegrationTests() {
         outcome: "REJECTED", verificationMethod: "TEST", reason: "wrong predecessor",
         targetFingerprint: evidenceItem.contentFingerprint, reviewerId: admin.id,
         reviewerSnapshot: "Test", idempotencyKey: `wrong-prior-${run}`, noExpiryReason: "TEST",
+      } }));
+    });
+    await check("database rejects cross-target revocation", async () => {
+      await assert.rejects(db.evidenceReviewEvent.create({ data: {
+        itemId: evidenceItem.id, dimension: "ITEM_FIDELITY", sequence: 1,
+        outcome: "REVOKED", revokesEventId: first.id, verificationMethod: "TEST", reason: "wrong target",
+        targetFingerprint: evidenceItem.contentFingerprint, reviewerId: admin.id,
+        reviewerSnapshot: "Test", idempotencyKey: `bad-revoke-${run}`, noExpiryReason: "TEST",
       } }));
     });
     await check("concurrent append has exactly one winner", async () => {

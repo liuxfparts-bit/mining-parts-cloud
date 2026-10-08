@@ -71,5 +71,13 @@ jobs:
       - name: Verify migration state
         run: npx prisma migrate status
 
+      - name: Asset Gate regression tests
+        run: npm run test:asset-gate-v1
+
+      - name: Evidence Foundation isolated DB tests
+        env:
+          EVIDENCE_TEST_DATABASE_URL: postgresql://ci_user:ci_password@127.0.0.1:5432/kuangpeiyun_ci
+        run: npm run test:evidence-foundation
+
       - name: Production build
         run: npm run build

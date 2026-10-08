@@ -134,6 +134,9 @@ ALTER TABLE "EvidenceReviewEvent" ADD CONSTRAINT "EvidenceReviewEvent_reviewerId
 
 
 -- Phase 3B-1 safeguards. No existing table is altered.
+-- Phase 3B-1 cannot assert capture without immutable private snapshot (3B-2).
+ALTER TABLE "EvidenceSource" ADD CONSTRAINT "evidence_source_pending_capture_only" CHECK ("captureState" = 'PENDING_CAPTURE');
+ALTER TABLE "EvidenceItem" ADD CONSTRAINT "evidence_item_pending_capture_only" CHECK ("captureState" = 'PENDING_CAPTURE');
 ALTER TABLE "EvidenceSource" ADD CONSTRAINT "evidence_source_revision_positive" CHECK ("revision" > 0);
 ALTER TABLE "EvidenceSource" ADD CONSTRAINT "evidence_source_hash_hex" CHECK ("metadataFingerprint" ~ '^[0-9a-f]{64}$');
 ALTER TABLE "EvidenceSource" ADD CONSTRAINT "evidence_source_key_nonempty" CHECK (length(btrim("stableKey")) > 0 AND length(btrim("title")) > 0);
