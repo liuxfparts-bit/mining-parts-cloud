@@ -267,11 +267,15 @@ model User {
   company       String?   // 采购方公司名
   emailVerified DateTime?
   status        String    @default("ACTIVE") // ACTIVE / DISABLED
+  sessionVersion Int      @default(0)
   favorites     Favorite[]
   notifications Notification[]
   passwordResetTokens PasswordResetToken[]
   // V3.6 Cross Reference 验证人反向关系
   verifiedCrossReferences PartNumberCrossReference[] @relation("CrossReferenceVerifiedBy")
+  evidenceSourcesCreated EvidenceSource[] @relation("EvidenceSourceCreatedBy")
+  evidenceItemsCreated EvidenceItem[] @relation("EvidenceItemCreatedBy")
+  evidenceReviews EvidenceReviewEvent[] @relation("EvidenceReviewReviewer")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -367,6 +371,7 @@ model RFQ {
   visibility     String     @default("PUBLIC") // PUBLIC / MATCHED_SUPPLIERS / PRIVATE
   matchedSuppliers String?  // JSON 数组
   status         String     @default("COLLECTING") // COLLECTING / QUOTED / SELECTED / CLOSED / EXPIRED
+  businessAuthenticity BusinessAuthenticity @default(UNKNOWN)
   region         String?
   rfqNo          String?    // 编号，如 RFQ-20260915-001
   quotes         Quote[]
@@ -375,6 +380,8 @@ model RFQ {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   expiresAt      DateTime?  // 询价过期时间
+
+  @@index([businessAuthenticity, createdAt])
 }
 
 // ========== 报价 Quote ==========
@@ -400,11 +407,13 @@ model Quote {
   totalAmount  Float?   // 完整报价总额（仅当对所有 Item 都有有效报价时）
   quotedCount  Int      @default(0) // 已报价项数
   status       String   @default("PENDING") // PENDING / ACCEPTED / REJECTED / WITHDRAWN
+  businessAuthenticity BusinessAuthenticity @default(UNKNOWN)
   items        QuoteItem[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@unique([rfqId, supplierId])
+  @@index([businessAuthenticity, createdAt])
 }
 
 // ========== RFQ 采购明细（一个 RFQ 含多个 Item） ==========
@@ -472,6 +481,7 @@ model RFQInvitation {
   token          String   @unique // 唯一邀请 Token，用于外部免登录/注册引导
   // PENDING_VIEW 待查看 / VIEWED 已查看 / ACCEPTED 已接受 / QUOTED 已报价 / REJECTED 已拒绝 / EXPIRED 已过期
   status         String   @default("PENDING_VIEW")
+  businessAuthenticity BusinessAuthenticity @default(UNKNOWN)
   invitedAt      DateTime @default(now())
   viewedAt       DateTime?
   respondedAt    DateTime?
@@ -485,6 +495,7 @@ model RFQInvitation {
   @@index([rfqId])
   @@index([supplierId])
   @@index([status])
+  @@index([businessAuthenticity, createdAt])
 }
 
 // ========== 站内信通知 ==========
@@ -686,4 +697,165 @@ model PartNumberCrossReference {
   @@index([targetPartNumberId])
   @@index([relationType])
   @@index([verificationStatus])
+}
+
+
+// Phase 3B-1: Evidence foundation. No production trust decisions are issued here.
+enum EvidenceCaptureState {
+  PENDING_CAPTURE
+  CAPTURED_UNVERIFIED
+}
+
+enum EvidenceReviewDimension {
+  SOURCE_METADATA
+  ITEM_FIDELITY
+}
+
+enum EvidenceReviewOutcome {
+  CONFIRMED
+  REJECTED
+  REQUEST_MORE_EVIDENCE
+  CONFLICT
+  REVOKED
+}
+
+model EvidenceSource {
+  id                   Int                 @id @default(autoincrement())
+  stableKey            String
+  revision             Int
+  declaredKind         String
+  title                String
+  issuerClaim          String?
+  documentNumber       String?
+  edition              String?
+  acquisitionMethod    String?
+  acquisitionNote      String?             @db.Text
+  independenceGroupClaim String?
+  metadataFingerprint  String              @db.Char(64)
+  captureState         EvidenceCaptureState @default(PENDING_CAPTURE)
+  createdById          Int
+  createdBy            User                @relation("EvidenceSourceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt            DateTime            @default(now())
+  items                EvidenceItem[]
+  reviewEvents         EvidenceReviewEvent[] @relation("EvidenceSourceReviews")
+
+  @@unique([stableKey, revision])
+  @@index([createdById])
+}
+
+model EvidenceItem {
+  id                   Int                 @id @default(autoincrement())
+  stableKey            String
+  revision             Int
+  sourceId             Int
+  source               EvidenceSource      @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  locatorKey           String
+  pageLabel            String?
+  sectionLabel         String?
+  itemLabel            String?
+  rowLabel             String?
+  excerpt              String?             @db.Text
+  extractionMethod     String?
+  captureState         EvidenceCaptureState @default(PENDING_CAPTURE)
+  contentFingerprint   String              @db.Char(64)
+  createdById          Int
+  createdBy            User                @relation("EvidenceItemCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt            DateTime            @default(now())
+  reviewEvents         EvidenceReviewEvent[] @relation("EvidenceItemReviews")
+
+  @@unique([stableKey, revision])
+  @@unique([sourceId, locatorKey, revision])
+  @@index([sourceId])
+  @@index([createdById])
+}
+
+model EvidenceReviewEvent {
+  id                 Int                   @id @default(autoincrement())
+  sourceId           Int?
+  source             EvidenceSource?       @relation("EvidenceSourceReviews", fields: [sourceId], references: [id], onDelete: Restrict)
+  itemId             Int?
+  item               EvidenceItem?         @relation("EvidenceItemReviews", fields: [itemId], references: [id], onDelete: Restrict)
+  dimension          EvidenceReviewDimension
+  sequence           Int
+  previousEventId    Int?                  @unique
+  previousEvent      EvidenceReviewEvent?  @relation("EvidenceReviewChain", fields: [previousEventId], references: [id], onDelete: Restrict)
+  nextEvent          EvidenceReviewEvent?  @relation("EvidenceReviewChain")
+  revokesEventId     Int?
+  revokesEvent       EvidenceReviewEvent?  @relation("EvidenceRevocation", fields: [revokesEventId], references: [id], onDelete: Restrict)
+  revokedByEvents    EvidenceReviewEvent[] @relation("EvidenceRevocation")
+  outcome            EvidenceReviewOutcome
+  verificationMethod String
+  reason             String                @db.Text
+  targetFingerprint  String                @db.Char(64)
+  validUntil         DateTime?
+  noExpiryReason     String?
+  reviewerId         Int
+  reviewer           User                  @relation("EvidenceReviewReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  reviewerSnapshot   String
+  idempotencyKey     String                @unique
+  createdAt          DateTime              @default(now())
+
+  @@unique([sourceId, dimension, sequence])
+  @@unique([itemId, dimension, sequence])
+  @@index([reviewerId])
+  @@index([createdAt])
+}
+
+enum BusinessAuthenticity {
+  UNKNOWN
+  REAL
+  TEST
+}
+
+model SecurityAuditLog {
+  id          Int      @id @default(autoincrement())
+  actorUserId Int?
+  action      String
+  targetType  String
+  targetId    String?
+  summary     String?  @db.Text
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model AnalyticsSession {
+  id          String   @id
+  visitorId   String
+  userId      Int?
+  landingPath String
+  referrer    String?
+  source      String   @default("direct")
+  medium      String   @default("none")
+  campaign    String?
+  startedAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@index([visitorId])
+  @@index([startedAt])
+  @@index([source, startedAt])
+}
+
+model AnalyticsEvent {
+  id          BigInt   @id @default(autoincrement())
+  eventType   String
+  visitorId   String?
+  sessionId   String?
+  userId      Int?
+  path        String
+  entityType  String?
+  entityId    Int?
+  searchQuery String?
+  resultCount Int?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([visitorId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId, createdAt])
 }
