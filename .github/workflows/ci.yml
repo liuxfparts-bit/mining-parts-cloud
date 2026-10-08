@@ -87,5 +87,8 @@ jobs:
       - name: Database role compatibility tests
         run: PGPASSWORD=ci_password psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_user -d kuangpeiyun_ci -f scripts/test-db-role-compatibility.sql
 
+      - name: Separate Prisma migrator deployment (disposable CI only)
+        run: bash scripts/ci/test-separated-prisma-migrator.sh
+
       - name: Production build
         run: npm run build
