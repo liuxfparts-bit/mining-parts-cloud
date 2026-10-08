@@ -123,7 +123,7 @@ export default async function RFQDetailPage({ params }: { params: { id: string }
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6">
             <div><span className="text-muted">明细项数：</span>{rfq.items.length} 项</div>
             <div><span className="text-muted">类型：</span>{purchaseTypeMap[rfq.purchaseType] || rfq.purchaseType}</div>
-            <div><span className="text-muted">联系人：</span>{rfq.contactName}</div>
+            <div><span className="text-muted">联系人：</span>{canSeeAllQuotes ? rfq.contactName : "请通过平台联系采购方"}</div>
             <div><span className="text-muted">发布：</span>{new Date(rfq.createdAt).toLocaleDateString("zh-CN")}</div>
             {rfq.deliveryLocation && <div><span className="text-muted">交货地：</span>{rfq.deliveryLocation}</div>}
             {rfq.incoterm && <div><span className="text-muted">贸易术语：</span>{rfq.incoterm}</div>}
