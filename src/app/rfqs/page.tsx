@@ -38,7 +38,7 @@ export default async function RFQListPage({
   // ===== 数据库级搜索（标题 / 件号 / 品牌 / 设备 / 采购明细） =====
   // 注：RFQItem 字段为 partNumberStr / productName / brandName / equipmentModel（自由文本冗余），
   // 勿写成 partName / brand / partNumber（后者为关系字段，contains 会抛错）
-  const where: Prisma.RFQWhereInput = {};
+  const where: Prisma.RFQWhereInput = { visibility: "PUBLIC" };
   const and: Prisma.RFQWhereInput[] = [];
   if (q) {
     and.push({
