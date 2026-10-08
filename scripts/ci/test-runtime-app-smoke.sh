@@ -42,7 +42,7 @@ for i in $(seq 1 40); do
   sleep 1
 done
 if [[ "$ready" != 1 ]]; then cat /tmp/kpy-runtime-smoke.log; exit 1; fi
-for route in / /brands /equipment /rfqs /login; do
+for route in / /brands /equipment /rfqs /login /search /suppliers /register; do
   code=$(curl --silent --output /tmp/kpy-smoke-page.html --write-out '%{http_code}' --max-time 15 "http://127.0.0.1:$PORT$route")
   echo "RUNTIME_HTTP_SMOKE $route $code"
   if [[ "$code" != 200 ]]; then
