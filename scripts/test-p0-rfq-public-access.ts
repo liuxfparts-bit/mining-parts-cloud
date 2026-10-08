@@ -33,7 +33,7 @@ async function main() {
     ["anonymous private", "PRIVATE", null, null, false],
     ["uninvited matched", "MATCHED_SUPPLIERS", "[7]", 8, false],
     ["matched supplier", "MATCHED_SUPPLIERS", "[7]", 7, true],
-    ["matched malformed", "MATCHED_SUPPLIERS", "[7,\\"8\\"]", 7, false],
+    ["matched malformed", "MATCHED_SUPPLIERS", "[7,null]", 7, false],
     ["private supplier", "PRIVATE", "[7]", 7, false],
     ["unknown visibility", "OTHER", null, 7, false],
   ];
