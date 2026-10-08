@@ -92,3 +92,6 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Runtime app HTTP smoke (separate restricted CI role)
+        run: bash scripts/ci/test-runtime-app-smoke.sh
