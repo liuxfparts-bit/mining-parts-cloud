@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canUserReadRfq, type RfqAccessUser } from "@/lib/rfq-supplier-access";
+import { canReadStoredQuoteAttachment } from "@/lib/quote-attachment-access";
 import { PUBLIC_PRODUCT_WHERE, PUBLIC_SUPPLIER_IDENTITY_WHERE } from "@/lib/public-product";
 import { PUBLIC_PN_WHERE } from "@/lib/part-number";
 
@@ -65,8 +66,7 @@ async function canReadQuoteUpload(url: string, reader: Reader | null, previewSup
     },
   });
   if (!quote) return false;
-  if (reader?.role === "SUPPLIER") return reader.supplierId === quote.supplierId;
-  return !!reader && canUserReadRfq(quote.rfq, reader);
+  return canReadStoredQuoteAttachment(quote, reader);
 }
 
 async function canReadProductUpload(url: string, reader: Reader | null, previewSupplierId?: number | null) {
@@ -161,6 +161,12 @@ async function canReadSupplierRequestUpload(url: string, reader: Reader | null) 
 }
 
 async function canReadLegacyUpload(url: string, reader: Reader | null) {
+  // A legacy URL referenced by a quote stays private even if another public record reuses it.
+  const quoteAttachment = await prisma.quote.findFirst({
+    where: { attachments: { contains: url } },
+    select: { id: true },
+  });
+  if (quoteAttachment) return canReadQuoteUpload(url, reader);
   const publicAdminAsset = await Promise.all([
     prisma.banner.findFirst({ where: { imageUrl: url }, select: { id: true } }),
     prisma.brand.findFirst({ where: { logo: url }, select: { id: true } }),
