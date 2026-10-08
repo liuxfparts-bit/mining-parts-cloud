@@ -1,0 +1,27 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { canReadStoredQuoteAttachment } from "../src/lib/quote-attachment-access";
+import { canUserReadRfq } from "../src/lib/rfq-supplier-access";
+
+const quote = { supplierId: 7, rfq: { userID: 11, companyID: 4, visibility: "PUBLIC", businessAuthenticity: "REAL" } };
+const buyer = (id: number, buyerCompanyId: number | null) => ({ id, buyerCompanyId, role: "BUYER" });
+const supplier = (supplierId: number) => ({ id: 50 + supplierId, supplierId, role: "SUPPLIER" });
+const read = (reader: Parameters<typeof canReadStoredQuoteAttachment>[1]) => canReadStoredQuoteAttachment(quote, reader);
+assert.equal(read(null), false, "anonymous denied");
+assert.equal(read({ id: 1, role: "ADMIN" }), true, "admin allowed");
+assert.equal(read(buyer(11, null)), true, "creator buyer allowed");
+assert.equal(read(buyer(12, 4)), true, "same company buyer allowed");
+assert.equal(read(buyer(13, 5)), false, "unrelated buyer denied");
+assert.equal(read(buyer(14, null)), false, "unrelated buyer without company denied");
+assert.equal(read(supplier(7)), true, "own supplier allowed");
+assert.equal(read(supplier(8)), false, "unrelated supplier denied");
+assert.equal(read({ id: 100, role: "OTHER" }), false, "unknown role denied");
+assert.equal(canUserReadRfq(quote.rfq, buyer(13, 5)), true, "public RFQ readable but private quote denied");
+assert.equal(canReadStoredQuoteAttachment({ ...quote, rfq: { userID: 0, companyID: null } }, buyer(13, 5)), false);
+const route = fs.readFileSync("src/app/uploads/[...path]/route.ts", "utf8");
+assert.match(route, /return canReadStoredQuoteAttachment\(quote, reader\)/, "route must use quote-specific authorization");
+const legacy = route.slice(route.indexOf("async function canReadLegacyUpload"), route.indexOf("export async function GET"));
+assert.ok(legacy.indexOf("if (quoteAttachment) return canReadQuoteUpload(url, reader)") > 0, "legacy quote takes precedence");
+assert.ok(legacy.indexOf("if (quoteAttachment) return canReadQuoteUpload(url, reader)") < legacy.indexOf("publicAdminAsset"), "public asset must not bypass quote access");
+assert.match(route, /previewSupplierId && reader\?\.role === "SUPPLIER" && reader\.supplierId === previewSupplierId/, "supplier draft preview retained");
+console.log("Quote attachment owner policy: PASS (10 policy cases + route/legacy guards)");
