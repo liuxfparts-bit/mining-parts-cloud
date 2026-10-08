@@ -71,5 +71,11 @@ jobs:
       - name: Verify migration state
         run: npx prisma migrate status
 
+      - name: P0 RFQ access regression
+        run: npx tsx scripts/test-p0-rfq-public-access.ts
+
+      - name: Existing supplier RFQ access regression
+        run: npm run test:p2-1d
+
       - name: Production build
         run: npm run build
