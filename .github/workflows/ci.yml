@@ -84,5 +84,8 @@ jobs:
           if ! command -v psql >/dev/null 2>&1; then sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; fi
           PGPASSWORD=ci_password psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_user -d kuangpeiyun_ci -f scripts/test-db-role-boundary.sql
 
+      - name: Database role compatibility tests
+        run: PGPASSWORD=ci_password psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_user -d kuangpeiyun_ci -f scripts/test-db-role-compatibility.sql
+
       - name: Production build
         run: npm run build
