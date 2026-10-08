@@ -52,7 +52,7 @@ for route in / /brands /equipment /rfqs /login /search /suppliers /register; do
   fi
 done
 # Unauthenticated buyer/admin pages must not expose privileged content or crash.
-for route in /dashboard /admin/dashboard; do
+for route in /dashboard /dashboard/rfqs /dashboard/quotes /supplier/rfqs /supplier/quotes /admin/dashboard /admin/users; do
   code=$(curl --silent --output /tmp/kpy-smoke-protected.html --write-out '%{http_code}' --max-time 15 "http://127.0.0.1:$PORT$route")
   echo "RUNTIME_UNAUTH_PROTECTED $route $code"
   if [[ "$code" == 500 || "$code" == 200 ]]; then
