@@ -37,6 +37,24 @@ BEGIN
   RAISE NOTICE 'RUNTIME_ALL_TABLE_SELECT_PASS tables=%',n;
 END
 $checks$;
+-- Actual CRUD under runtime identity; the enclosing transaction rolls everything back.
+WITH created AS (
+  INSERT INTO public."Brand" (slug, name, "updatedAt")
+  VALUES ('ci-role-compat-brand', 'CI Role Compatibility', CURRENT_TIMESTAMP)
+  RETURNING id
+)
+SELECT id AS runtime_inserted_brand_id FROM created;
+UPDATE public."Brand" SET "nameEn"='CI role update'
+WHERE slug='ci-role-compat-brand';
+DO $checks$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public."Brand" WHERE slug='ci-role-compat-brand' AND "nameEn"='CI role update') THEN
+    RAISE EXCEPTION 'FAIL: runtime insert/update/read roundtrip';
+  END IF;
+  RAISE NOTICE 'RUNTIME_BRAND_CRUD_ROUNDTRIP=PASS';
+END
+$checks$;
+DELETE FROM public."Brand" WHERE slug='ci-role-compat-brand';
 RESET ROLE;
 SET ROLE ci_kpy_migrator_compat;
 CREATE TABLE public.ci_migration_role_probe (id integer PRIMARY KEY);
