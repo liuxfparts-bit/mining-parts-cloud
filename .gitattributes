@@ -1,0 +1,3 @@
+prisma/migrations/0006_admin_security_audit/migration.sql text eol=lf
+prisma/migrations/0007_wp0_5_analytics_fact_layer/migration.sql text eol=lf
+prisma/migrations/0008_trust_kernel_business_authenticity/migration.sql text eol=lf
