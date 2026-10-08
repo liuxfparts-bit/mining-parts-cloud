@@ -4,8 +4,15 @@ import { resolve } from "node:path";
 import {
   evaluateFormat,
   evaluatePartNumberAsset,
+  buildDecisionManifest,
+  calculateSourceFingerprint,
+  calculateManifestFingerprint,
+  summarizeManifestDecisions,
+  serializeCanonicalJson,
+  validateDecisionManifest,
   type AssetInput,
   type EvidenceFacts,
+  type ManifestBuildInput,
   type ModelEvidence,
 } from "../src/lib/trust/asset-gate";
 
@@ -111,6 +118,41 @@ function asInput(row: Row): AssetInput {
   };
 }
 
+/** Test adapter only: it supplies provenance references but never classifies evidence. */
+function asManifestInput(row: Row): ManifestBuildInput {
+  const relations = relationsByPn.get(row.part_number) || [];
+  return {
+    partNumber: row.part_number,
+    gateInput: asInput(row),
+    pnEvidenceReferences: (row.source_files || "").split(/\s*[;|]\s*/).filter(Boolean).map((reference) => ({ reference })),
+    fitments: relations.map((relation) => ({ evidenceReferences: (relation.evidence_summary || "").split(/\s*;\s*/).filter(Boolean).map((reference) => ({ reference })) })),
+  };
+}
+
+function manifestFixture(partNumber = "X"): ManifestBuildInput {
+  return {
+    partNumber,
+    gateInput: {
+      format: { partNumber, normalizedPartNumber: partNumber, slug: partNumber.toLowerCase(), requiredFields: { number: true, slug: true, name: true, category: true } },
+      pn: { evidence: { provenanceConfirmed: true, locatableOfficialClaim: true, independentHistoricalSources: 0 }, modelEvidence: "EXPLICIT", confidence: "HIGH" },
+      fitments: [
+        { equipment: "LS190", confirmedModel: true, modelEvidence: "EXPLICIT", relationStatus: "ACTIVE", evidence: { provenanceConfirmed: false, locatableOfficialClaim: false, independentHistoricalSources: 0 }, directModelSupport: false },
+        { equipment: "ED10", confirmedModel: true, modelEvidence: "EXPLICIT", relationStatus: "ACTIVE", evidence: { provenanceConfirmed: true, locatableOfficialClaim: true, independentHistoricalSources: 0 }, directModelSupport: true },
+      ],
+    },
+    pnEvidenceReferences: [{ reference: "manual:pn:z" }, { reference: "manual:pn:a" }],
+    fitments: [{ evidenceReferences: [{ reference: "relation:ls190:1" }] }, { evidenceReferences: [{ reference: "relation:ed10:1" }] }],
+  };
+}
+
+function assertMalformedManifest(label: string, input: unknown) {
+  let result: ReturnType<typeof validateDecisionManifest> | undefined;
+  assert.doesNotThrow(() => { result = validateDecisionManifest(input); }, label);
+  assert.ok(result, `${label}: validator returned no result`);
+  assert.equal(result.valid, false, `${label}: malformed manifest must fail closed`);
+  assert.ok(result.errors.length > 0, `${label}: malformed manifest must include a structured error`);
+}
+
 function count<T extends string>(items: T[]): Record<T, number> { return items.reduce((result, item) => ({ ...result, [item]: (result[item] || 0) + 1 }), {} as Record<T, number>); }
 function test(name: string, fn: () => void) { fn(); console.log(`PASS ${name}`); }
 
@@ -185,6 +227,305 @@ test("conflict and missing evidence remain non-publishable", () => {
   assert.equal(result.pnDecision.decision, "HOLD"); assert.equal(result.publishDecision.decision, "BLOCKED");
 });
 
+test("manifest canonicalization is deterministic and preserves relationship evidence scope", () => {
+  const first = manifestFixture("Z-2");
+  const second = manifestFixture("A-1");
+  const normal = buildDecisionManifest([first, second]);
+  const reordered = buildDecisionManifest([
+    { ...second, fitments: [...second.fitments!].reverse(), gateInput: { ...second.gateInput, fitments: [...second.gateInput.fitments].reverse() }, pnEvidenceReferences: [...second.pnEvidenceReferences!].reverse() },
+    first,
+  ]);
+  assert.equal(normal.canonicalJson, reordered.canonicalJson);
+  assert.equal(normal.manifest.sourceFingerprint, reordered.manifest.sourceFingerprint);
+  assert.equal(normal.manifestFingerprint, reordered.manifestFingerprint);
+  assert.equal(normal.manifest.partNumbers[0].partNumber, "A-1");
+  assert.deepEqual(normal.manifest.partNumbers[0].fitments.map((fitment) => fitment.equipment), ["ED10", "LS190"]);
+  assert.equal(normal.manifest.partNumbers[0].pnEvidenceClass, "OFFICIAL");
+  assert.equal(normal.manifest.partNumbers[0].fitments.find((fitment) => fitment.equipment === "LS190")!.evidenceClass, "INFERRED");
+  assert.equal(normal.manifest.partNumbers[0].fitments.find((fitment) => fitment.equipment === "LS190")!.fitmentDecision, "REVIEW");
+  assert.equal(validateDecisionManifest(normal).valid, true);
+});
+
+test("manifest fingerprints and validator detect tampering", () => {
+  const artifact = buildDecisionManifest([manifestFixture()]);
+  const changedInput = manifestFixture();
+  changedInput.gateInput.pn.evidence.locatableOfficialClaim = false;
+  assert.notEqual(calculateSourceFingerprint([manifestFixture()]), calculateSourceFingerprint([changedInput]));
+  assert.notEqual(artifact.manifestFingerprint, buildDecisionManifest([changedInput]).manifestFingerprint);
+  const tamperedDecision = structuredClone(artifact);
+  tamperedDecision.manifest.partNumbers[0].pnDecision = "REVIEW";
+  assert.equal(validateDecisionManifest(tamperedDecision).valid, false);
+  const tamperedSummary = structuredClone(artifact);
+  tamperedSummary.manifest.summary.publishReady = 99;
+  assert.equal(validateDecisionManifest(tamperedSummary).valid, false);
+  const duplicatePn = structuredClone(artifact);
+  duplicatePn.manifest.partNumbers.push(structuredClone(duplicatePn.manifest.partNumbers[0]));
+  assert.equal(validateDecisionManifest(duplicatePn).errors.some((item) => item.code === "MANIFEST_PART_NUMBER_DUPLICATE"), true);
+  const duplicateFitment = structuredClone(artifact);
+  duplicateFitment.manifest.partNumbers[0].fitments.push(structuredClone(duplicateFitment.manifest.partNumbers[0].fitments[0]));
+  assert.equal(validateDecisionManifest(duplicateFitment).errors.some((item) => item.code === "MANIFEST_FITMENT_DUPLICATE"), true);
+  const unsupportedVersion = structuredClone(artifact);
+  unsupportedVersion.manifest.schemaVersion = "9.9" as any;
+  assert.equal(validateDecisionManifest(unsupportedVersion).errors.some((item) => item.code === "MANIFEST_SCHEMA_VERSION_UNSUPPORTED"), true);
+  const unsupportedGate = structuredClone(artifact);
+  unsupportedGate.manifest.gateVersion = "V9.9" as any;
+  assert.equal(validateDecisionManifest(unsupportedGate).errors.some((item) => item.code === "MANIFEST_GATE_VERSION_UNSUPPORTED"), true);
+  const invalidReason = structuredClone(artifact);
+  invalidReason.manifest.partNumbers[0].pnReasonCode = "PN_NOT_A_REAL_REASON" as any;
+  assert.equal(validateDecisionManifest(invalidReason).errors.some((item) => item.code === "MANIFEST_REASON_CODE_INVALID"), true);
+  const invalidEnum = structuredClone(artifact);
+  invalidEnum.manifest.partNumbers[0].pnEvidenceClass = "UNSUPPORTED" as any;
+  assert.equal(validateDecisionManifest(invalidEnum).errors.some((item) => item.code === "MANIFEST_ENUM_INVALID"), true);
+});
+
+test("manifest validator fails closed for malformed JSON-compatible input", () => {
+  const valid = buildDecisionManifest([manifestFixture()]);
+  const missingPartNumbers = structuredClone(valid) as any; delete missingPartNumbers.manifest.partNumbers;
+  const missingPartNumber = structuredClone(valid) as any; delete missingPartNumber.manifest.partNumbers[0].partNumber;
+  const missingFitments = structuredClone(valid) as any; delete missingFitments.manifest.partNumbers[0].fitments;
+  const missingEquipment = structuredClone(valid) as any; delete missingEquipment.manifest.partNumbers[0].fitments[0].equipment;
+  const missingSummary = structuredClone(valid) as any; delete missingSummary.manifest.summary;
+  const invalidDecisionType = structuredClone(valid) as any; invalidDecisionType.manifest.partNumbers[0].pnDecision = 7;
+  const malformedFingerprint = structuredClone(valid) as any; malformedFingerprint.manifestFingerprint = "not-a-sha256";
+  const cases: [string, unknown][] = [
+    ["null", null], ["array", []], ["string", "manifest"], ["empty object", {}], ["manifest empty object", { manifest: {} }],
+    ["partNumbers missing", missingPartNumbers], ["partNumbers null", { ...structuredClone(valid), manifest: { ...structuredClone(valid.manifest), partNumbers: null } }], ["partNumbers object", { ...structuredClone(valid), manifest: { ...structuredClone(valid.manifest), partNumbers: {} } }],
+    ["partNumbers null entry", { ...structuredClone(valid), manifest: { ...structuredClone(valid.manifest), partNumbers: [null] } }], ["partNumbers primitive entry", { ...structuredClone(valid), manifest: { ...structuredClone(valid.manifest), partNumbers: ["pn"] } }],
+    ["partNumber missing identity", missingPartNumber], ["fitments missing", missingFitments], ["fitments null", { ...structuredClone(valid), manifest: { ...structuredClone(valid.manifest), partNumbers: [{ ...structuredClone(valid.manifest.partNumbers[0]), fitments: null }] } }],
+    ["fitments object", { ...structuredClone(valid), manifest: { ...structuredClone(valid.manifest), partNumbers: [{ ...structuredClone(valid.manifest.partNumbers[0]), fitments: {} }] } }], ["fitment null entry", { ...structuredClone(valid), manifest: { ...structuredClone(valid.manifest), partNumbers: [{ ...structuredClone(valid.manifest.partNumbers[0]), fitments: [null] }] } }],
+    ["fitment primitive entry", { ...structuredClone(valid), manifest: { ...structuredClone(valid.manifest), partNumbers: [{ ...structuredClone(valid.manifest.partNumbers[0]), fitments: ["fitment"] }] } }], ["fitment missing equipment", missingEquipment],
+    ["summary missing", missingSummary], ["summary malformed", { ...structuredClone(valid), manifest: { ...structuredClone(valid.manifest), summary: {} } }], ["decision wrong primitive", invalidDecisionType], ["fingerprint malformed", malformedFingerprint],
+  ];
+  for (const [label, input] of cases) assertMalformedManifest(label, input);
+});
+
+function resealManifest(artifact: ReturnType<typeof buildDecisionManifest>) {
+  artifact.manifest.summary = summarizeManifestDecisions(artifact.manifest.partNumbers);
+  artifact.canonicalJson = serializeCanonicalJson(artifact.manifest);
+  artifact.manifestFingerprint = calculateManifestFingerprint(artifact.manifest);
+  return artifact;
+}
+
+test("builder binds PN identity before evaluating Gate facts", () => {
+  const matching = manifestFixture("A");
+  assert.equal(validateDecisionManifest(buildDecisionManifest([matching])).valid, true);
+  const mismatch = manifestFixture("A");
+  mismatch.partNumber = "B";
+  assert.throws(() => buildDecisionManifest([mismatch]), /PN identity must match/);
+  const whitespaceMismatch = manifestFixture("A");
+  whitespaceMismatch.partNumber = " A";
+  assert.throws(() => buildDecisionManifest([whitespaceMismatch]), /PN identity must match/);
+  const metadataMismatch = manifestFixture("A");
+  metadataMismatch.fitments = [];
+  assert.throws(() => buildDecisionManifest([metadataMismatch]), /metadata count mismatch/);
+  const duplicateEquipment = manifestFixture("A");
+  duplicateEquipment.gateInput.fitments[1].equipment = "LS190";
+  assert.throws(() => buildDecisionManifest([duplicateEquipment]), /Duplicate fitment equipment/);
+});
+
+test("decision consistency retains the Phase 1 output matrix and priority", () => {
+  const evidence: EvidenceFacts[] = [
+    { provenanceConfirmed: true, locatableOfficialClaim: true, independentHistoricalSources: 0 },
+    { provenanceConfirmed: false, locatableOfficialClaim: false, independentHistoricalSources: 2 },
+    { provenanceConfirmed: false, locatableOfficialClaim: false, independentHistoricalSources: 1 },
+    { provenanceConfirmed: false, locatableOfficialClaim: false, independentHistoricalSources: 0 },
+    { provenanceConfirmed: true, locatableOfficialClaim: true, independentHistoricalSources: 2, hasConflict: true },
+  ];
+  const formatVariants: Partial<AssetInput["format"]>[] = [
+    {}, { malformedPartNumber: true }, { normalizedPartNumber: "" }, { aliasCollision: true },
+    { normalizedCollision: true }, { slugCollision: true },
+    { requiredFields: { number: true, slug: true, name: true, category: false } },
+  ];
+  const inputs: ManifestBuildInput[] = [];
+  for (const pnEvidence of evidence) for (const modelEvidence of ["EXPLICIT", "NOT_EXPLICIT"] as const) for (const confidence of ["HIGH", "LOW"] as const) {
+    for (const relationEvidence of evidence) for (const mode of ["explicit", "pending", "unsupported", "missing"] as const) {
+      const input = manifestFixture(`MATRIX-${inputs.length}`);
+      input.gateInput.pn = { evidence: pnEvidence, modelEvidence, confidence };
+      input.gateInput.fitments = [{ ...input.gateInput.fitments[1], evidence: relationEvidence,
+        equipment: mode === "pending" ? "" : "ED10", confirmedModel: mode !== "pending",
+        relationStatus: mode === "pending" ? "MODEL_PENDING" : "ACTIVE",
+        directModelSupport: mode !== "unsupported" }];
+      if (mode === "missing") input.gateInput.fitments[0].evidence = { ...relationEvidence, evidenceMissing: true };
+      input.fitments = [{ evidenceReferences: [] }];
+      inputs.push(input);
+    }
+  }
+  for (const format of formatVariants) {
+    const input = manifestFixture(`MATRIX-${inputs.length}`);
+    Object.assign(input.gateInput.format, format);
+    inputs.push(input);
+  }
+  const conflict = manifestFixture(`MATRIX-${inputs.length}`);
+  conflict.gateInput.unresolvedConflict = true;
+  inputs.push(conflict);
+  const noFitments = manifestFixture(`MATRIX-${inputs.length}`);
+  noFitments.gateInput.fitments = []; noFitments.fitments = [];
+  inputs.push(noFitments);
+  const manifest = buildDecisionManifest(inputs);
+  assert.equal(validateDecisionManifest(manifest).valid, true);
+  const pnReasons = new Set(manifest.manifest.partNumbers.map((item) => item.pnReasonCode));
+  for (const reason of ["PN_EVIDENCE_CONFLICT", "PN_MODEL_EVIDENCE_NOT_EXPLICIT", "PN_CONFIDENCE_LOW", "PN_OFFICIAL_EVIDENCE_CONFIRMED", "PN_CORROBORATED_EVIDENCE_CONFIRMED", "PN_HISTORICAL_SINGLE_REVIEW", "PN_EVIDENCE_INFERRED_REVIEW"] as const) assert.ok(pnReasons.has(reason), reason);
+  const fitmentReasons = new Set(manifest.manifest.partNumbers.flatMap((item) => item.fitments.map((fitment) => fitment.reasonCode)));
+  for (const reason of ["FITMENT_MODEL_PENDING", "FITMENT_EVIDENCE_CONFLICT", "FITMENT_PN_NOT_AUTO_VERIFIED", "FITMENT_PROVENANCE_INSUFFICIENT", "FITMENT_EXPLICIT_PROVENANCE_CONFIRMED"] as const) assert.ok(fitmentReasons.has(reason), reason);
+  assert.ok(manifest.manifest.partNumbers.some((item) => item.fitments.some((fitment) => fitment.evidenceClass === "HISTORICAL_SINGLE" && fitment.fitmentDecision === "AUTO_VERIFIED")));
+  assert.ok(manifest.manifest.partNumbers.some((item) => item.publishReasonCode === "PUBLISH_UNRESOLVED_CONFLICT"));
+  assert.equal(buildDecisionManifest([noFitments]).manifest.partNumbers[0].publishReasonCode, "PUBLISH_FITMENT_NOT_AUTO_VERIFIED");
+});
+
+test("validator rejects rehashed illegal decisions rather than relying on hash failure", () => {
+  const input = manifestFixture("CONSISTENCY");
+  input.gateInput.fitments = [input.gateInput.fitments[1]];
+  input.fitments = [{ evidenceReferences: [] }];
+  const baseline = buildDecisionManifest([input]);
+  const cases: [string, (item: typeof baseline.manifest.partNumbers[number]) => void][] = [
+    ["READY without fitments", (item) => { item.fitments = []; }],
+    ["INFERRED PN AUTO", (item) => { item.pnEvidenceClass = "INFERRED"; }],
+    ["CONFLICTED PN AUTO", (item) => { item.pnEvidenceClass = "CONFLICTED"; }],
+    ["mismatched PN reason", (item) => { item.pnReasonCode = "PN_CORROBORATED_EVIDENCE_CONFIRMED"; }],
+    ["cross-domain format reason", (item) => { item.formatReasonCode = "PN_OFFICIAL_EVIDENCE_CONFIRMED"; }],
+    ["wrong format decision", (item) => { item.formatDecision = "FORMAT_HOLD"; }],
+    ["AUTO fitment pending reason", (item) => { item.fitments[0].reasonCode = "FITMENT_MODEL_PENDING"; }],
+    ["INFERRED fitment AUTO", (item) => { item.fitments[0].evidenceClass = "INFERRED"; }],
+    ["CONFLICTED fitment AUTO", (item) => { item.fitments[0].evidenceClass = "CONFLICTED"; }],
+    ["PN REVIEW with AUTO fitment", (item) => { item.pnEvidenceClass = "HISTORICAL_SINGLE"; item.pnDecision = "REVIEW"; item.pnReasonCode = "PN_HISTORICAL_SINGLE_REVIEW"; item.publishDecision = "BLOCKED"; item.publishReasonCode = "PUBLISH_PN_NOT_AUTO_VERIFIED"; }],
+    ["fitment REVIEW with wrong priority reason", (item) => { item.fitments[0].fitmentDecision = "REVIEW"; item.fitments[0].reasonCode = "FITMENT_PN_NOT_AUTO_VERIFIED"; item.publishDecision = "BLOCKED"; item.publishReasonCode = "PUBLISH_FITMENT_NOT_AUTO_VERIFIED"; }],
+    ["multi-model READY despite REVIEW", (item) => { item.fitments.push({ ...item.fitments[0], equipment: "LS190", fitmentDecision: "REVIEW", reasonCode: "FITMENT_PROVENANCE_INSUFFICIENT" }); }],
+    ["publish reason mismatch", (item) => { item.publishReasonCode = "PUBLISH_FITMENT_NOT_AUTO_VERIFIED"; }],
+    ["false blocked with all gates passing", (item) => { item.publishDecision = "BLOCKED"; }],
+    ["conflict reason violates format priority", (item) => { item.formatDecision = "FORMAT_HOLD"; item.formatReasonCode = "FORMAT_PART_NUMBER_MALFORMED"; item.publishDecision = "BLOCKED"; item.publishReasonCode = "PUBLISH_UNRESOLVED_CONFLICT"; }],
+    ["conflict reason violates PN priority", (item) => { item.pnDecision = "HOLD"; item.pnReasonCode = "PN_CONFIDENCE_LOW"; item.publishDecision = "BLOCKED"; item.publishReasonCode = "PUBLISH_UNRESOLVED_CONFLICT"; }],
+  ];
+  for (const [label, mutate] of cases) {
+    const malformed = structuredClone(baseline); mutate(malformed.manifest.partNumbers[0]); resealManifest(malformed);
+    assertMalformedManifest(label, malformed);
+    assert.ok(validateDecisionManifest(malformed).errors.some((error) => error.code === "MANIFEST_DECISION_INCONSISTENT"), label);
+  }
+});
+
+test("canonical envelope must contain exactly the serialized payload", () => {
+  const valid = buildDecisionManifest([manifestFixture()]);
+  const missing = structuredClone(valid) as any; delete missing.canonicalJson;
+  const cases: [string, unknown][] = [
+    ["missing canonicalJson", missing], ["null canonicalJson", { ...valid, canonicalJson: null }],
+    ["numeric canonicalJson", { ...valid, canonicalJson: 7 }], ["object canonicalJson", { ...valid, canonicalJson: {} }],
+    ["replaced canonicalJson", { ...valid, canonicalJson: '{"partNumbers":[]}' }],
+    ["noncanonical envelope", { ...valid, canonicalJson: JSON.stringify(valid.manifest) }],
+    ["extra bytes in envelope", { ...valid, canonicalJson: valid.canonicalJson + " " }],
+  ];
+  for (const [label, value] of cases) {
+    assertMalformedManifest(label, value);
+    assert.ok(validateDecisionManifest(value).errors.some((error) => error.code === "MANIFEST_CANONICAL_JSON_INVALID"), label);
+  }
+  const badSource = structuredClone(valid); badSource.manifest.sourceFingerprint = "not-sha256"; resealManifest(badSource);
+  assert.ok(validateDecisionManifest(badSource).errors.some((error) => error.code === "MANIFEST_SOURCE_FINGERPRINT_INVALID"));
+  const badFingerprint = { ...valid, manifestFingerprint: "0".repeat(64) };
+  assert.ok(validateDecisionManifest(badFingerprint).errors.some((error) => error.code === "MANIFEST_FINGERPRINT_INVALID"));
+});
+
+test("validator fails closed for every unsupported field and hostile container", () => {
+  const valid = buildDecisionManifest([manifestFixture()]);
+  const cases: [string, unknown][] = [];
+  for (const [label, value] of [["undefined", undefined], ["function", () => 1], ["bigint", BigInt(1)], ["symbol", Symbol("bad")], ["NaN", NaN], ["Infinity", Infinity]] as [string, unknown][]) {
+    cases.push([`top-level ${label}`, value]);
+    const extra = structuredClone(valid) as any; extra.manifest.unexpected = value;
+    cases.push([`extra ${label}`, extra]);
+    const nested = structuredClone(valid) as any; nested.manifest.partNumbers[0].pnEvidenceReferences[0] = { reference: "source", unexpected: { value } };
+    cases.push([`nested ${label}`, nested]);
+  }
+  const cyclic = structuredClone(valid) as any; cyclic.manifest.loop = cyclic.manifest; cases.push(["cycle", cyclic]);
+  const sparse = structuredClone(valid); sparse.manifest.partNumbers = new Array(1); cases.push(["sparse array", sparse]);
+  const extraArrayField = structuredClone(valid) as any; extraArrayField.manifest.partNumbers.extra = undefined; cases.push(["array extra property", extraArrayField]);
+  const symbolField = structuredClone(valid) as any; symbolField.manifest[Symbol("field")] = "value"; cases.push(["symbol property", symbolField]);
+  const hidden = structuredClone(valid); Object.defineProperty(hidden.manifest, "hidden", { value: undefined }); cases.push(["nonenumerable property", hidden]);
+  let getterCalled = false;
+  const getter = structuredClone(valid); Object.defineProperty(getter.manifest, "unexpected", { enumerable: true, get() { getterCalled = true; throw new Error("getter"); } }); cases.push(["accessor", getter]);
+  const proxy = new Proxy(valid, { ownKeys() { throw new Error("proxy"); } }); cases.push(["throwing proxy", proxy]);
+  cases.push(["Date", { ...valid, manifest: { ...valid.manifest, unexpected: new Date(0) } }]);
+  cases.push(["Map", { ...valid, manifest: { ...valid.manifest, unexpected: new Map() } }]);
+  let deep: any = {}; for (let i = 0; i < 140; i++) deep = { nested: deep };
+  cases.push(["excessive depth", { ...valid, manifest: { ...valid.manifest, unexpected: deep } }]);
+  for (const [label, value] of cases) assertMalformedManifest(label, value);
+  assert.equal(getterCalled, false);
+  // Shared references are not cycles and must preserve a legal artifact.
+  const shared = structuredClone(valid); const reference = { reference: "shared:source:locator" };
+  shared.manifest.partNumbers[0].pnEvidenceReferences = [reference];
+  shared.manifest.partNumbers[0].fitments[0].evidenceReferences = [reference];
+  resealManifest(shared);
+  assert.equal(validateDecisionManifest(shared).valid, true);
+});
+
+test("closed Manifest schema rejects rehashed unknown JSON fields at every level", () => {
+  const valid = buildDecisionManifest([manifestFixture()]);
+  const targets: [string, (artifact: typeof valid) => Record<string, unknown>][] = [
+    ["envelope", (artifact) => artifact as unknown as Record<string, unknown>],
+    ["manifest", (artifact) => artifact.manifest as unknown as Record<string, unknown>],
+    ["summary", (artifact) => artifact.manifest.summary as unknown as Record<string, unknown>],
+    ["PN", (artifact) => artifact.manifest.partNumbers[0] as unknown as Record<string, unknown>],
+    ["fitment", (artifact) => artifact.manifest.partNumbers[0].fitments[0] as unknown as Record<string, unknown>],
+    ["PN reference", (artifact) => artifact.manifest.partNumbers[0].pnEvidenceReferences[0] as unknown as Record<string, unknown>],
+    ["relationship reference", (artifact) => artifact.manifest.partNumbers[0].fitments[0].evidenceReferences[0] as unknown as Record<string, unknown>],
+  ];
+  for (const [label, target] of targets) for (const value of [null, true, 7, "unknown", [], {}]) {
+    const malformed = structuredClone(valid); target(malformed).unexpected = value;
+    // Preserve the unknown summary field; only rehash the submitted payload.
+    malformed.canonicalJson = serializeCanonicalJson(malformed.manifest);
+    malformed.manifestFingerprint = calculateManifestFingerprint(malformed.manifest);
+    assertMalformedManifest(`${label} unknown JSON field`, malformed);
+    assert.ok(validateDecisionManifest(malformed).errors.some((error) => error.code === "MANIFEST_UNEXPECTED_FIELD"), label);
+  }
+});
+
+test("empty equipment is valid only for MODEL_PENDING with its matching reason", () => {
+  const input = manifestFixture("PENDING");
+  input.gateInput.fitments = [{ ...input.gateInput.fitments[0], equipment: "", confirmedModel: false, modelEvidence: "NOT_EXPLICIT", relationStatus: "MODEL_PENDING" }];
+  input.fitments = [{ evidenceReferences: [{ reference: "pending:source:row" }] }];
+  const valid = buildDecisionManifest([input]);
+  assert.equal(valid.manifest.partNumbers[0].fitments[0].equipment, "");
+  assert.equal(valid.manifest.partNumbers[0].fitments[0].fitmentDecision, "MODEL_PENDING");
+  assert.equal(valid.manifest.partNumbers[0].fitments[0].reasonCode, "FITMENT_MODEL_PENDING");
+  assert.equal(validateDecisionManifest(valid).valid, true);
+  const cases: [string, Record<string, unknown>][] = [
+    ["empty AUTO_VERIFIED", { fitmentDecision: "AUTO_VERIFIED", reasonCode: "FITMENT_EXPLICIT_PROVENANCE_CONFIRMED" }],
+    ["empty REVIEW", { fitmentDecision: "REVIEW", reasonCode: "FITMENT_PROVENANCE_INSUFFICIENT" }],
+    ["empty HOLD", { fitmentDecision: "HOLD", reasonCode: "FITMENT_EVIDENCE_CONFLICT" }],
+    ["empty unsupported decision", { fitmentDecision: "UNSUPPORTED" }],
+    ["empty invalid reason", { reasonCode: "FITMENT_INVALID_REASON" }],
+    ["empty mismatched reason", { reasonCode: "FITMENT_PROVENANCE_INSUFFICIENT" }],
+    ["null equipment", { equipment: null }],
+    ["numeric equipment", { equipment: 7 }],
+    ["object equipment", { equipment: {} }],
+  ];
+  for (const [label, fields] of cases) {
+    const malformed = structuredClone(valid);
+    Object.assign(malformed.manifest.partNumbers[0].fitments[0], fields);
+    // Rehash so a fingerprint mismatch cannot mask an invalid structure.
+    malformed.canonicalJson = serializeCanonicalJson(malformed.manifest);
+    malformed.manifestFingerprint = calculateManifestFingerprint(malformed.manifest);
+    assertMalformedManifest(label, malformed);
+    assert.equal(validateDecisionManifest(malformed).errors.some((error) => error.code === "MANIFEST_FITMENT_ENTRY_INVALID"), true, label);
+  }
+  const missingEquipment = structuredClone(valid) as any;
+  delete missingEquipment.manifest.partNumbers[0].fitments[0].equipment;
+  missingEquipment.canonicalJson = serializeCanonicalJson(missingEquipment.manifest);
+  missingEquipment.manifestFingerprint = calculateManifestFingerprint(missingEquipment.manifest);
+  assertMalformedManifest("pending missing equipment", missingEquipment);
+});
+
+test("manifest retains MODEL_PENDING and independent multi-model decisions", () => {
+  for (const number of ["A2U913-651005", "A2U220-193386", "A2U900-472060", "A2U900-472055"]) {
+    const manifest = buildDecisionManifest([asManifestInput(pnRows.find((row) => row.part_number === number)!)]).manifest;
+    assert.equal(manifest.partNumbers[0].fitments[0].fitmentDecision, "MODEL_PENDING", number);
+  }
+  const explicit = buildDecisionManifest([asManifestInput(pnRows.find((row) => row.part_number === "A2U900-472057")!)]).manifest;
+  assert.equal(explicit.partNumbers[0].fitments[0].equipment, "LS190");
+  assert.notEqual(explicit.partNumbers[0].fitments[0].fitmentDecision, "MODEL_PENDING");
+  for (const number of ["106-03455", "114-8516LFL"]) {
+    const manifest = buildDecisionManifest([asManifestInput(pnRows.find((row) => row.part_number === number)!)]).manifest;
+    const decisions = Object.fromEntries(manifest.partNumbers[0].fitments.map((fitment) => [fitment.equipment, fitment.fitmentDecision]));
+    assert.equal(decisions.ED10, "AUTO_VERIFIED", number); assert.equal(decisions.LS190, "REVIEW", number);
+  }
+});
+
 test("full-dataset and legacy baselines", () => {
   assertEqual("RAW", pnRows.length, 1596);
   assertEqual("FORMAT_HOLD", pnRows.filter((row) => aliases.has(norm(row.part_number))).length, 50);
@@ -197,6 +538,10 @@ test("full-dataset and legacy baselines", () => {
   const existingResults = existing.map((row) => ({ number: row.part_number, result: evaluatePartNumberAsset(asInput(row)) }));
   const legacy = count(existingResults.map(({ result }) => result.evidenceClass === "OFFICIAL" ? "OFFICIAL" : result.evidenceClass === "CORROBORATED" ? "CORROBORATED" : result.pnDecision.decision === "HOLD" ? "HOLD" : "REVIEW"));
   assertEqual("LEGACY_OFFICIAL", legacy.OFFICIAL || 0, 154); assertEqual("LEGACY_CORROBORATED", legacy.CORROBORATED || 0, 1); assertEqual("LEGACY_REVIEW", legacy.REVIEW || 0, 5); assertEqual("LEGACY_HOLD", legacy.HOLD || 0, 0);
+  const legacyManifest = buildDecisionManifest(existing.map(asManifestInput));
+  assert.equal(validateDecisionManifest(legacyManifest).valid, true);
+  const manifestLegacy = count(legacyManifest.manifest.partNumbers.map((item) => item.pnEvidenceClass === "OFFICIAL" ? "OFFICIAL" : item.pnEvidenceClass === "CORROBORATED" ? "CORROBORATED" : item.pnDecision === "HOLD" ? "HOLD" : "REVIEW"));
+  assertEqual("MANIFEST_LEGACY_OFFICIAL", manifestLegacy.OFFICIAL || 0, 154); assertEqual("MANIFEST_LEGACY_CORROBORATED", manifestLegacy.CORROBORATED || 0, 1); assertEqual("MANIFEST_LEGACY_REVIEW", manifestLegacy.REVIEW || 0, 5); assertEqual("MANIFEST_LEGACY_HOLD", manifestLegacy.HOLD || 0, 0);
   const results = remaining.map((row) => ({ number: row.part_number, result: evaluatePartNumberAsset(asInput(row)) }));
   const pn = count(results.map(({ result }) => result.pnDecision.decision));
   assertEqual("REMAINING_PN_AUTO", pn.AUTO_VERIFIED || 0, 1357); assertEqual("REMAINING_PN_REVIEW", pn.REVIEW || 0, 25); assertEqual("REMAINING_PN_HOLD", pn.HOLD || 0, 4);
@@ -205,6 +550,25 @@ test("full-dataset and legacy baselines", () => {
   assertEqual("FITMENT_AUTO", fit.AUTO_VERIFIED || 0, 1343); assertEqual("FITMENT_REVIEW", fit.REVIEW || 0, 54); assertEqual("FITMENT_HOLD", fit.HOLD || 0, 0); assertEqual("FITMENT_PENDING", fit.MODEL_PENDING || 0, 4);
   const complete = results.filter(({ result }) => result.publishDecision.decision === "READY").map(({ number }) => number);
   assertEqual("COMPLETE_AUTO_CANDIDATES", complete.length, 1328, complete);
+  const manifest = buildDecisionManifest(remaining.map(asManifestInput));
+  assert.equal(validateDecisionManifest(manifest).valid, true);
+  assertEqual("MANIFEST_COMPLETE_AUTO_CANDIDATES", manifest.manifest.summary.publishReady, 1328);
+  assertEqual("MANIFEST_LEGACY_NOT_INCLUDED", manifest.manifest.summary.totalPartNumbers, 1386);
+  assertEqual("MANIFEST_FITMENT_AUTO", manifest.manifest.summary.fitmentAutoVerified, 1343);
+  assertEqual("MANIFEST_FITMENT_REVIEW", manifest.manifest.summary.fitmentReview, 54);
+  assertEqual("MANIFEST_FITMENT_PENDING", manifest.manifest.summary.fitmentModelPending, 4);
+  const pending = manifest.manifest.partNumbers.flatMap((item) => item.fitments
+    .filter((fitment) => fitment.fitmentDecision === "MODEL_PENDING")
+    .map((fitment) => ({ partNumber: item.partNumber, fitment })));
+  assert.deepEqual(pending.map((item) => item.partNumber).sort(), ["A2U220-193386", "A2U900-472055", "A2U900-472060", "A2U913-651005"]);
+  for (const { fitment } of pending) {
+    assert.equal(fitment.equipment, "");
+    assert.equal(fitment.reasonCode, "FITMENT_MODEL_PENDING");
+  }
+  assert.deepEqual(manifest.manifest.summary, summarizeManifestDecisions(manifest.manifest.partNumbers));
+  assert.equal(manifest.manifest.sourceFingerprint, calculateSourceFingerprint(remaining.map(asManifestInput)));
+  assert.equal(manifest.manifestFingerprint, calculateManifestFingerprint(manifest.manifest));
+  assert.equal(serializeCanonicalJson(manifest.manifest), manifest.canonicalJson);
 });
 
 console.log("ASSET_GATE_V1_TESTS=PASS");
