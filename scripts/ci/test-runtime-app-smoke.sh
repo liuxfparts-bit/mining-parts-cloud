@@ -51,4 +51,14 @@ for route in / /brands /equipment /rfqs /login /search /suppliers /register; do
     exit 1
   fi
 done
+# Unauthenticated buyer/admin pages must not expose privileged content or crash.
+for route in /dashboard /admin/dashboard; do
+  code=$(curl --silent --output /tmp/kpy-smoke-protected.html --write-out '%{http_code}' --max-time 15 "http://127.0.0.1:$PORT$route")
+  echo "RUNTIME_UNAUTH_PROTECTED $route $code"
+  if [[ "$code" == 500 || "$code" == 200 ]]; then
+    echo "FAIL: protected route did not deny unauthenticated access: $route" >&2
+    tail -50 /tmp/kpy-runtime-smoke.log >&2
+    exit 1
+  fi
+done
 printf 'RUNTIME_HTTP_SMOKE=PASS\n'
