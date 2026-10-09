@@ -59,6 +59,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: P2-1D supplier RFQ access
+        run: npm run test:p2-1d
+
+      - name: P2-1E invitation quote chain
+        run: npm run test:p2-1e
+
       - name: Generate Prisma Client
         run: npx prisma generate
 
