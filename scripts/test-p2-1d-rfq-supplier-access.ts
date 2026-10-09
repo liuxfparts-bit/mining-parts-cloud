@@ -58,22 +58,71 @@ async function main() {
     }
   }
 
-  let session: any = { user: { id: "1", email: "supplier@example.test", role: "SUPPLIER" } };
+  const testUserId = 1;
+  const testUserEmail = "supplier@example.test";
+  let session: any = { user: { id: String(testUserId), email: testUserEmail, role: "SUPPLIER" } };
   let supplierId: unknown = 42;
+  let supplierRole = "SUPPLIER";
+  let accountStatus = "ACTIVE";
+  let supplierStatus = "PENDING";
+  let rfqReads = 0;
+  let attachmentReads = 0;
   let rfq: any;
   let itemReads = 0;
   let transactions = 0;
   let invitationReads = 0;
   const prisma = {
-    user: { findUnique: async () => ({ id: 1, supplierId, supplier: { id: supplierId, name: "Test" } }) },
-    rFQ: { findUnique: async () => rfq },
+    user: { findUnique: async ({ where }: any) => {
+      if (!where || typeof where !== "object") return null;
+      const keys = Object.keys(where);
+      const matchesIdentity = keys.length === 1 && (
+        (keys[0] === "id" && where.id === testUserId) ||
+        (keys[0] === "email" && where.email === testUserEmail)
+      );
+      if (!matchesIdentity) return null;
+      return { id: testUserId, email: testUserEmail, role: supplierRole, status: accountStatus, supplierId,
+        supplier: { id: supplierId, name: "Test", verifiedStatus: supplierStatus } };
+    } },
+    rFQ: { findUnique: async () => { rfqReads++; return rfq; } },
     rFQItem: { findMany: async () => { itemReads++; return []; } },
+    quote: { findFirst: async ({ where, select }: any) => {
+      attachmentReads++;
+      assert.equal(where.rfqId, 9);
+      assert.equal(where.supplierId, 42, "Forged form supplierId never chooses the quote owner");
+      assert.equal(select.attachments, true);
+      return null;
+    } },
     $transaction: async () => { transactions++; throw new Error("Unexpected write"); },
     rFQInvitation: { findUnique: async () => { invitationReads++; return { rfqId: 9, supplierId: 42 }; } },
   };
+  assert.equal((await prisma.user.findUnique({ where: { id: testUserId } }))?.id, testUserId);
+  assert.equal((await prisma.user.findUnique({ where: { email: testUserEmail } }))?.id, testUserId);
+  checks += 2;
+  for (const where of [
+    { id: 2 }, { id: "1" }, { email: "other@example.test" },
+    { email: "SUPPLIER@example.test" }, { id: testUserId, email: "other@example.test" },
+    {}, null,
+  ]) {
+    assert.equal(await prisma.user.findUnique({ where }), null, "Unknown or ambiguous user identity must not match");
+    checks++;
+  }
   const notFound = () => { throw new Error("NOT_FOUND"); };
+  const authMock = { auth: async () => session };
+  const supplierWrite = loadServerFile("src/lib/supplier-write-access.ts", {
+    "@/lib/auth": authMock,
+    "@/lib/prisma": { prisma },
+  });
+  const uploadPolicy = loadServerFile("src/lib/upload-policy.ts", {
+    "@/lib/auth": authMock,
+    "@/lib/prisma": { prisma },
+    "@/lib/supplier-write-access": supplierWrite,
+    "@/lib/buyer-company": { requireVerifiedBuyer: async () => { throw new Error("Unexpected buyer access"); } },
+  });
+  assert.throws(() => loadServerFile("src/lib/supplier-write-access.ts", {}), /Unexpected import: @\/lib\/auth/);
   const mocks = {
-    "@/lib/auth": { auth: async () => session },
+    "@/lib/auth": authMock,
+    "@/lib/supplier-write-access": supplierWrite,
+    "@/lib/upload-policy": uploadPolicy,
     "@/lib/prisma": { prisma },
     "@/lib/db": { prisma },
     "@/lib/rfq-supplier-access": { canSupplierAccessRfq },
@@ -127,7 +176,42 @@ async function main() {
   session = null;
   assert.equal((await post(request)).status, 401);
   session = { user: { id: "1", role: "BUYER" } };
-  assert.equal((await post(request)).status, 403);
+  supplierRole = "BUYER";
+  const wrongRole = await post(request);
+  assert.equal(wrongRole.status, 403);
+  assert.equal(wrongRole.body.code, "SUPPLIER_ROLE_REQUIRED");
+  supplierRole = "SUPPLIER";
+  session = { user: { id: "1", role: "SUPPLIER" } };
+  for (const [status, verification, code] of [
+    ["DISABLED", "PENDING", "SUPPLIER_ACCOUNT_INACTIVE"],
+    ["ACTIVE", "DISABLED", "SUPPLIER_DISABLED"],
+    ["ACTIVE", "REJECTED", "SUPPLIER_REJECTED"],
+    ["ACTIVE", "UNKNOWN", "SUPPLIER_DISABLED"],
+  ]) {
+    accountStatus = status; supplierStatus = verification;
+    rfqReads = itemReads = attachmentReads = invitationReads = 0;
+    const response = await post(request);
+    assert.equal(response.status, 403);
+    assert.equal(response.body.code, code);
+    assert.equal(rfqReads + itemReads + attachmentReads + invitationReads, 0, "Denied account stops before business reads");
+    assert.equal(transactions, 0);
+    checks++;
+  }
+  accountStatus = "ACTIVE"; supplierStatus = "PENDING";
+  for (const attachment of [
+    "/uploads/quote-attachment/supplier-7/1-aaaaaaaaaaaa.pdf",
+    "/uploads/product-image/supplier-42/1-aaaaaaaaaaaa.png",
+    "https://example.test/file.pdf",
+  ]) {
+    const form = await request.formData();
+    form.set("attachments", JSON.stringify([attachment]));
+    itemReads = 0;
+    const response = await post({ formData: async () => form });
+    assert.equal(response.status, 400, "Cross-supplier, wrong-scope and external attachments fail closed");
+    assert.equal(itemReads, 0);
+    assert.equal(transactions, 0);
+    checks++;
+  }
   assert.equal(transactions, 0, "No unauthorized quote or invitation writes");
   console.log(`P2-1D passed: ${checks + 3} checks (policy, both server pages, direct POST; no database access).`);
 }

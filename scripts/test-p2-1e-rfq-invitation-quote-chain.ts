@@ -42,7 +42,8 @@ function reset(status = "PENDING_VIEW", supplierId: number | null = 42) {
     reminderCount: 0, lastReminderAt: null, rejectReason: null, externalCompanyName: null };
   rfq = { id: 9, userID: 6, title: "Test RFQ", status: "COLLECTING", visibility: "PUBLIC", matchedSuppliers: null, items: [], quotes: [], images: null, attachments: null };
   buyer = { id: 6, role: "BUYER", buyerCompanyId: null };
-  user = { id: 5, role: "SUPPLIER", supplierId: 42, supplier: { id: 42, name: "Test" }, email: "supplier@example.test" };
+  user = { id: 5, role: "SUPPLIER", status: "ACTIVE", supplierId: 42,
+    supplier: { id: 42, name: "Test", verifiedStatus: "PENDING" }, email: "supplier@example.test" };
   session = { user: { id: "5", role: "SUPPLIER", email: user.email } };
   invitationWrites = quoteWrites = transactionCalls = 0;
   beforeUpdate = undefined;
@@ -93,7 +94,11 @@ const db: any = {
   },
   rFQItem: { findMany: async () => [{ id: 100, quantity: 2 }], count: async () => 1 },
   quote: {
-    findFirst: async () => null,
+    findFirst: async ({ where }: any) => {
+      assert.equal(where.rfqId, rfq.id);
+      assert.equal(where.supplierId, 42, "Forged form supplierId never chooses the quote owner");
+      return null;
+    },
     create: async ({ data }: any) => { assert.equal(data.supplierId, 42); quoteWrites++; return { id: 10 }; },
     update: async () => { quoteWrites++; return { id: 10 }; },
   },
@@ -122,10 +127,25 @@ const db: any = {
     } finally { release?.(); }
   },
 };
-const lifecycle = load("src/lib/rfq-invitation.ts", { crypto: { default: crypto }, "./db": { prisma: db } });
+const partNumber = load("src/lib/part-number.ts", {});
+const publicProduct = load("src/lib/public-product.ts", { "@/lib/part-number": partNumber });
+const lifecycle = load("src/lib/rfq-invitation.ts", {
+  crypto: { default: crypto }, "./db": { prisma: db }, "@/lib/public-product": publicProduct,
+});
+const authMock = { auth: async () => session, signIn: async () => ({}) };
+const supplierWrite = load("src/lib/supplier-write-access.ts", {
+  "@/lib/auth": authMock, "@/lib/prisma": { prisma: db },
+});
+const uploadPolicy = load("src/lib/upload-policy.ts", {
+  "@/lib/auth": authMock, "@/lib/prisma": { prisma: db },
+  "@/lib/supplier-write-access": supplierWrite,
+  "@/lib/buyer-company": { requireVerifiedBuyer: async () => { throw new Error("Unexpected buyer access"); } },
+});
 const mocks = {
   "@/lib/prisma": { prisma: db }, "@/lib/db": { prisma: db },
-  "@/lib/auth": { auth: async () => session, signIn: async () => ({}) },
+  "@/lib/auth": authMock,
+  "@/lib/supplier-write-access": supplierWrite,
+  "@/lib/upload-policy": uploadPolicy,
   "@/lib/rfq-invitation": lifecycle,
   "@/lib/rfq-supplier-access": { canSupplierAccessRfq },
   "@/lib/rfq-lifecycle": { canTransitionRfq },
@@ -172,6 +192,46 @@ function nodes(node: any): any[] {
 function matched() { rfq.visibility = "MATCHED_SUPPLIERS"; rfq.matchedSuppliers = "[3,7,9]"; }
 
 async function main() {
+  await test("Restricted loader still rejects undeclared dependencies", () => {
+    assert.throws(() => load("src/lib/supplier-write-access.ts", {}), /Unexpected dependency: @\/lib\/auth/);
+    assert.throws(() => load("src/lib/public-product.ts", {}), /Unexpected dependency: @\/lib\/part-number/);
+  });
+  for (const [status, verification, code] of [
+    ["DISABLED", "PENDING", "SUPPLIER_ACCOUNT_INACTIVE"],
+    ["ACTIVE", "DISABLED", "SUPPLIER_DISABLED"],
+    ["ACTIVE", "REJECTED", "SUPPLIER_REJECTED"],
+    ["ACTIVE", "UNKNOWN", "SUPPLIER_DISABLED"],
+  ]) await test(`Supplier write gate rejects ${status}/${verification} before mutations`, async () => {
+    user.status = status; user.supplier.verifiedStatus = verification;
+    const response = await post(request);
+    assert.equal(response.status, 403); assert.equal(response.body.code, code);
+    for (const operation of ["acceptInvitationAction", "rejectInvitationAction", "markInvitationViewedAction"]) {
+      await assert.rejects(() => actions[operation](actionForm), (error: any) => error.code === code && error.status === 403);
+    }
+    await assert.rejects(() => claim("invite"), (error: any) => error.code === code && error.status === 403);
+    assert.equal(invitationWrites + quoteWrites + authorizationWrites, 0);
+    assert.equal(transactionCalls, 0);
+  });
+  await test("Quote attachments reject other supplier, wrong scope and external URLs without writes", async () => {
+    for (const attachment of [
+      "/uploads/quote-attachment/supplier-77/1-aaaaaaaaaaaa.pdf",
+      "/uploads/product-image/supplier-42/1-aaaaaaaaaaaa.png",
+      "https://example.test/file.pdf",
+    ]) {
+      const form = await request.formData();
+      form.set("attachments", JSON.stringify([attachment]));
+      assert.equal((await post({ formData: async () => form })).status, 400);
+      assert.equal(invitationWrites + quoteWrites + authorizationWrites, 0);
+      assert.equal(transactionCalls, 0);
+    }
+  });
+  await test("Owned quote attachment and forged form supplierId use authenticated database supplier", async () => {
+    const form = await request.formData();
+    form.set("attachments", JSON.stringify(["/uploads/quote-attachment/supplier-42/1-aaaaaaaaaaaa.pdf"]));
+    assert.equal((await post({ formData: async () => form })).status, 200);
+    assert.ok(quoteWrites > 0);
+  });
+
   await test("A PENDING_VIEW -> VIEWED", async () => {
     assert.ok(await lifecycle.markInvitationViewed(1)); assert.equal(row.status, "VIEWED");
   });
@@ -303,9 +363,10 @@ async function main() {
   });
   await test("Supplier actions require authenticated supplier user", async () => {
     session = null;
-    await assert.rejects(() => actions.acceptInvitationAction(actionForm), /REDIRECT:\/login/);
-    session = { user: { email: user.email } }; user.role = "BUYER";
-    await assert.rejects(() => actions.rejectInvitationAction(actionForm), /REDIRECT:\/supplier/);
+    await assert.rejects(() => actions.acceptInvitationAction(actionForm), (error: any) => error.code === "UNAUTHORIZED" && error.status === 401);
+    session = { user: { id: "5", email: user.email, role: "SUPPLIER" } }; user.role = "BUYER";
+    await assert.rejects(() => actions.rejectInvitationAction(actionForm), (error: any) => error.code === "SUPPLIER_ROLE_REQUIRED" && error.status === 403);
+    assert.equal(quoteWrites + authorizationWrites + transactionCalls, 0);
     assert.equal(invitationWrites, 0);
   });
   await test("Registration binds only unbound invitations using the created supplier", async () => {
