@@ -36,23 +36,43 @@ const CI_DB_USER = "ci_home_user";
 const CI_PG_MAJOR = /^PostgreSQL 16\./;
 
 /**
- * 是否合法的 IP 字面量（IPv4 / IPv6，含 IPv4-mapped 形式）。
+ * 是否合法的 IP 字面量（IPv4 / IPv6，含 IPv4-mapped 形式），可带 CIDR 前缀长度。
+ *
+ * 必须接受 "地址/前缀长度"：`COALESCE(inet_server_addr()::text, '')` 返回的是 PostgreSQL
+ * inet 的文本表示，实测为 `172.18.0.2/32`（Prisma 版本库中 `::text` 会保留前缀长度）。
+ * 前缀长度只做严格的数值范围校验（IPv4 ≤ 32 / IPv6 ≤ 128），不参与任何隔离判定。
+ *
  * 只用于确认 `inet_server_addr()` 返回了真实地址，不接受主机名、不做 DNS 解析。
  */
 function isValidIpLiteral(value: string): boolean {
   if (!value) return false;
+  // 拒绝前后空白：避免 " 172.18.0.2" 这类被上层拼接污染的值蒙混通过。
+  if (value.trim() !== value) return false;
 
-  const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i.exec(value);
-  const candidate = mapped ? mapped[1] : value;
+  const slash = value.indexOf("/");
+  const hostPart = slash < 0 ? value : value.slice(0, slash);
+  const prefixPart = slash < 0 ? null : value.slice(slash + 1);
+
+  // 前缀长度：纯十进制且无前导零；空串（"172.18.0.2/"）、负号、小数、字母一律拒绝。
+  if (prefixPart !== null) {
+    if (!/^\d{1,3}$/.test(prefixPart)) return false;
+    if (prefixPart.length > 1 && prefixPart.startsWith("0")) return false;
+  }
+
+  const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i.exec(hostPart);
+  const candidate = mapped ? mapped[1] : hostPart;
 
   if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(candidate)) {
-    return candidate.split(".").every((part) => Number(part) <= 255);
+    if (!candidate.split(".").every((part) => Number(part) <= 255)) return false;
+    // IPv4-mapped 形式按 IPv6 语义取上限 128，普通 IPv4 取 32。
+    return prefixPart === null || Number(prefixPart) <= (mapped ? 128 : 32);
   }
 
   // IPv6：仅结构校验（字符集 + 冒号 + 至多一处 "::" 缩写），足以排除空值与主机名。
   if (candidate.indexOf(":") < 0) return false;
   if (!/^[0-9a-fA-F:]+$/.test(candidate)) return false;
-  return candidate.split("::").length - 1 <= 1;
+  if (candidate.split("::").length - 1 > 1) return false;
+  return prefixPart === null || Number(prefixPart) <= 128;
 }
 
 /**
@@ -60,11 +80,13 @@ function isValidIpLiteral(value: string): boolean {
  * 明确：私网地址本身不构成隔离证明。
  */
 function classifyAddr(addr: string): "loopback" | "private" | "public" {
-  if (addr === "::1" || /^127\./.test(addr)) return "loopback";
-  if (/^10\./.test(addr) || /^192\.168\./.test(addr)) return "private";
-  const second = /^172\.(\d{1,3})\./.exec(addr);
+  // 地址可能带 CIDR 前缀（如 172.18.0.2/32），分类只看地址部分。
+  const host = addr.indexOf("/") >= 0 ? addr.slice(0, addr.indexOf("/")) : addr;
+  if (host === "::1" || /^127\./.test(host)) return "loopback";
+  if (/^10\./.test(host) || /^192\.168\./.test(host)) return "private";
+  const second = /^172\.(\d{1,3})\./.exec(host);
   if (second && Number(second[1]) >= 16 && Number(second[1]) <= 31) return "private";
-  if (/^f[cd][0-9a-f]{2}:/i.test(addr) || /^fe80:/i.test(addr)) return "private";
+  if (/^f[cd][0-9a-f]{2}:/i.test(host) || /^fe80:/i.test(host)) return "private";
   return "public";
 }
 
