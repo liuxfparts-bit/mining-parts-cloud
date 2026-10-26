@@ -282,6 +282,27 @@ function extractCardBlocks(html: string): string[] {
   return Array.from(html.matchAll(/<a[^>]*class="home-live-card"[^>]*>[\s\S]*?<\/a>/g), (m) => m[0]);
 }
 
+/**
+ * 剥离 <script> / <style> 块，得到"用户可见内容"。
+ *
+ * App Router 会把整棵 RSC 树以 <script>self.__next_f.push([1,"…"])</script> 内联进文档，
+ * 其中携带了**从未渲染**的 not-found 边界元素；项目未自定义 not-found.tsx，
+ * 因此该元素就是 Next 内置默认 404 组件，文案为 "This page could not be found."。
+ * 同理错误页样式以 <style> 内联，也含错误页文本片段。
+ *
+ * 这些文本都不属于页面可见内容。若直接对整段 HTML 做 includes() 判定，
+ * 正常的 200 首页会因为载荷里的字符串被误判为错误页（PR #35 Step 13 实测失败原因）。
+ */
+function stripEmbeddedBlocks(html: string): string {
+  return html.replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, "");
+}
+
+/** 取 <title> 文本；<title> 位于 <head>，不会被 stripEmbeddedBlocks 移除。 */
+function extractTitleText(html: string): string {
+  const match = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i.exec(html);
+  return match ? match[1].trim() : "";
+}
+
 async function fetchHome(url: string): Promise<{ status: number; contentType: string; body: string }> {
   const response = await fetch(url, {
     method: "GET",
@@ -335,9 +356,22 @@ async function main() {
 
     const html = first.body;
 
+    // 错误页判定只看"可见内容"（剥离 <script>/<style> 内联载荷），
+    // 其余业务断言仍针对整段 html，判定强度不变。
+    const visible = stripEmbeddedBlocks(html);
+    const titleText = extractTitleText(html);
+
     for (const marker of ["Application error", "Internal Server Error", "This page could not be found"]) {
-      check(`no error page marker: ${marker}`, !html.includes(marker));
+      check(`no error page marker: ${marker}`, !visible.includes(marker));
     }
+    // 结构化负向样本：真实 404/500 除文案外还必然带 Next 错误页结构与状态码标题。
+    // 三条信号（可见文案 / next-error-h1 / title 状态码）互相兜底，不依赖单一标记。
+    check("no next error heading", !/next-error-h1/.test(visible));
+    check(
+      "page title is not an HTTP error status page",
+      !/^\s*[45]\d{2}\s*[::]/.test(titleText),
+      `title=${JSON.stringify(titleText)}`,
+    );
     check("page renders platform brand", html.includes("矿配云"));
 
     // ---------- 正向件号（锚点：.home-live-part-number） ----------
