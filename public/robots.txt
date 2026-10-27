@@ -6,4 +6,4 @@ Disallow: /login
 Disallow: /register
 Disallow: /dashboard/
 
-Sitemap: https://mpc.example.com/sitemap.xml
+Sitemap: https://kuangpeiyun.com/sitemap.xml
