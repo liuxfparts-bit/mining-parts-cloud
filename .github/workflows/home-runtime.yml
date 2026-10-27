@@ -1,0 +1,164 @@
+name: KPY Home Runtime Verify
+
+# 矿配云 V2.0 首页隔离运行时验收
+# 独立性：不引用任何 Secrets，不使用 environment，不触碰 deploy-staging.yml，
+# 不使用通用 db:seed，只连接本工作流自建的临时 PostgreSQL 16 容器。
+# 权限：只读令牌。本工作流不写入仓库、不部署。
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kpy-home-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  home-runtime:
+    name: Home runtime acceptance (isolated PostgreSQL 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_home_user
+          POSTGRES_PASSWORD: ci_home_password
+          POSTGRES_DB: kuangpeiyun_home_rt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_home_user -d kuangpeiyun_home_rt"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # CI 专用字面量：非 Secret、非生产、随 runner 销毁。
+      # 注意：以下环境变量只构成"第 1 层"检查，不作为隔离的唯一安全证明；
+      # 真正的隔离证明是 fixture 脚本里的服务端身份查询（见两步 guard）。
+      DATABASE_URL: postgresql://ci_home_user:ci_home_password@127.0.0.1:5432/kuangpeiyun_home_rt
+      KPY_HOME_RUNTIME_DB: kuangpeiyun_home_rt
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3100
+      APP_URL: http://127.0.0.1:3100
+      AUTH_URL: http://127.0.0.1:3100
+      AUTH_SECRET: ci-only-secret-not-for-production
+      NEXT_PUBLIC_SITE_MODE: normal
+      STORAGE_DRIVER: local
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Guard database target (fail closed)
+        shell: bash
+        run: |
+          # 第 1 层：只校验 DATABASE_URL 的解析结果（协议/主机/端口/库名）。
+          # 不输出 userinfo，不输出完整连接串。
+          node - <<'NODE'
+          const url = process.env.DATABASE_URL || "";
+          const expectedDb = process.env.KPY_HOME_RUNTIME_DB || "";
+          const fail = (msg) => { console.error("DB_GUARD_FAIL: " + msg); process.exit(1); };
+          if (!url) fail("DATABASE_URL is empty");
+          let u;
+          try { u = new URL(url); } catch { fail("DATABASE_URL is not a valid URL"); }
+          if (!/^postgres(ql)?:$/.test(u.protocol)) fail("protocol must be postgresql, got " + u.protocol);
+          const host = u.hostname;
+          if (host !== "127.0.0.1" && host !== "localhost") fail("host must be loopback, got " + host);
+          const port = u.port || "5432";
+          if (port !== "5432") fail("port must be 5432, got " + port);
+          const db = decodeURIComponent(u.pathname.replace(/^\//, ""));
+          if (!db) fail("database name is empty");
+          if (expectedDb && db !== expectedDb) fail("database must be " + expectedDb + ", got " + db);
+          if (/prod|production|staging|live/i.test(db)) fail("production-like database name rejected: " + db);
+          console.log("DB_GUARD_PASS host=" + host + " port=" + port + " db=" + db);
+          NODE
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Verify isolated database identity (pre-migration gate)
+        # 第 2/3 层守卫：连接后查询 current_database / inet_server_addr / inet_server_port /
+        # version / current_user，并要求 public schema 为空（尚未迁移）。
+        # KPY_GUARD_ONLY=1 表示只校验、不写入任何数据。
+        run: KPY_GUARD_ONLY=1 npx tsx scripts/ci/home-runtime-fixture.ts
+
+      - name: Migration deploy (empty isolated database)
+        run: npx prisma migrate deploy
+
+      - name: Verify migration state
+        run: npx prisma migrate status
+
+      - name: Seed CI fixtures (insert-only, no db:seed)
+        run: npx tsx scripts/ci/home-runtime-fixture.ts
+
+      - name: Production build
+        run: npm run build
+
+      - name: Start server, run HTTP acceptance, stop server
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOST=127.0.0.1
+          PORT=3100
+          LOG="$PWD/home-server.log"
+
+          node_modules/.bin/next start -H "$HOST" -p "$PORT" > "$LOG" 2>&1 &
+          SERVER_PID=$!
+
+          cleanup() {
+            kill "$SERVER_PID" 2>/dev/null || true
+            wait "$SERVER_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for i in $(seq 1 60); do
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo "SERVER_EXITED_EARLY (pid $SERVER_PID)"
+              tail -n 60 "$LOG" || true
+              exit 1
+            fi
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://$HOST:$PORT/" || true)
+            if [ "$code" = "200" ]; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ready" != "1" ]; then
+            echo "SERVER_NOT_READY after ~120s (last status: ${code:-none})"
+            tail -n 60 "$LOG" || true
+            exit 1
+          fi
+
+          echo "SERVER_READY http://$HOST:$PORT/"
+          HOME_RUNTIME_BASE_URL="http://$HOST:$PORT" npx tsx scripts/ci/home-runtime-check.ts 2>&1 | tee runtime-check.log
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-runtime-failure-logs
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            home-server.log
+            runtime-check.log

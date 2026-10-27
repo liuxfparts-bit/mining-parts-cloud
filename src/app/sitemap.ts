@@ -4,7 +4,7 @@ import type { MetadataRoute } from "next";
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = "https://mpc.example.com";
+  const base = "https://kuangpeiyun.com";
 
   const [brands, equipment, partNumbers, suppliers] = await Promise.all([
     prisma.brand.findMany({ select: { slug: true, updatedAt: true } }),
