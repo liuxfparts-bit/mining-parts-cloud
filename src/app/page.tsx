@@ -1,267 +1,85 @@
 import Link from "next/link";
+import { ArrowRight, Boxes, BookOpen, ShieldCheck, Users, FileSearch } from "lucide-react";
+import HomeSearch from "./HomeSearch";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { PUBLIC_PRODUCT_WHERE, PUBLIC_PRODUCT_WHERE_NESTED, PUBLIC_SUPPLIER_WHERE } from "@/lib/public-product";
-import { ArrowRight } from "lucide-react";
 import { PUBLIC_PN_WHERE } from "@/lib/part-number";
+import { publicHomeBannerWhere } from "@/lib/home-banner";
+
+// 首页不再查询供应商列表（PUBLIC-TRUST-STOPGAP-V1）：无法判定供应商是否经过真实审核前，不在首页做推荐。
+// 供应商公开条件仍由 /suppliers 列表页自身持有，本页不再复制一份，避免两处规则漂移。
+// 首页不调用 auth()：本页无任何登录态分支，公开数据不随会话变化。
 
 export const dynamic = "force-dynamic";
 
-const hotSearches = ["掘进机", "采煤机", "轴承", "连续采煤机", "电子围栏"];
-const equipmentCats = ["连续采煤机", "锚杆钻机", "梭车", "无轨胶轮车", "采煤机", "掘进机", "钻机", "长壁设备"];
-const systemCats = ["液压系统", "电气系统", "发动机", "传动系统", "行走系统", "制动系统", "结构件", "滤芯/过滤器"];
-
+const brandAssets = [
+  { name: "Sandvik", image: "1789051585064-nw1ofk.png" }, { name: "JOY", image: "1789050430950-g13g00.jpg" },
+  { name: "CAT", image: "1789051287704-nribr9.png" }, { name: "Eickhoff", image: "1789051924019-b7osjc.png" },
+  { name: "Cummins", image: "1789051657828-mdcw7g.png" }, { name: "Komatsu", image: "1789051454347-r50t0q.png" },
+];
+const equipmentAssets = [
+  { brand: "Sandvik", model: "MB670-1", image: "1789201164646-s2urc3.png" }, { brand: "Sandvik", model: "LS190", image: "1789204210786-hghm29.png" },
+  { brand: "JOY", model: "10SC32", image: "1789203496715-gtsxj5.jpg" }, { brand: "JOY", model: "12CM15", image: "1789204080394-trwvm0.png" },
+  { brand: "Sandvik", model: "LH621i", image: "1789203931236-9x8utd.png" },
+];
 export default async function HomePage() {
-  await auth();
+  // force-dynamic：每次请求重新查询公开数据，只读、不写库。
+  const bannerNow = new Date();
 
-  const [brands, equipment, partNumbers, suppliers, recentRFQs, homeBanners, brandsWithEquipment, categories] = await Promise.all([
-    prisma.brand.findMany({
-      where: { status: "ACTIVE" },
-      include: {
-        _count: {
-          select: {
-            equipment: { where: { status: "ACTIVE" } },
-            partNumbers: { where: PUBLIC_PN_WHERE },
-          },
-        },
-      },
-      take: 12,
-      orderBy: { name: "asc" },
-    }),
-    prisma.equipment.findMany({
-      where: { status: "ACTIVE" },
-      include: {
-        brand: true,
-        _count: { select: { partNumberRelations: { where: { partNumber: PUBLIC_PN_WHERE } } } },
-      },
-      take: 8,
-      orderBy: { id: "asc" },
-    }),
-    prisma.partNumber.findMany({
-      where: PUBLIC_PN_WHERE,
-      include: { brand: true, equipmentRelations: { include: { equipmentModel: { include: { brand: true } } } }, products: { where: PUBLIC_PRODUCT_WHERE_NESTED, include: { supplier: true } } },
-      take: 6, orderBy: { id: "asc" },
-    }),
-    prisma.supplier.findMany({ where: PUBLIC_SUPPLIER_WHERE, include: { _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } } }, take: 8, orderBy: { id: "asc" } }),
-    prisma.rFQ.findMany({ where: { status: "COLLECTING", visibility: "PUBLIC", businessAuthenticity: "REAL" }, take: 6, orderBy: { createdAt: "desc" }, include: { partNumber: true } }),
-    prisma.banner.findMany({ where: { status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
-    prisma.brand.findMany({
-      where: { status: "ACTIVE", equipment: { some: { status: "ACTIVE" } } },
-      include: {
-        equipment: { where: { status: "ACTIVE" }, take: 6, orderBy: { id: "desc" } },
-        _count: { select: { partNumbers: { where: PUBLIC_PN_WHERE } } },
-      },
-      orderBy: { name: "asc" },
-    }),
+  // 首页只保留"目录级"公开数据：品牌、设备、件号（仅件号/名称/品牌）、banner、分类。
+  // 已按 PUBLIC-TRUST-STOPGAP-V1 移除：供应商推荐列表、动态 RFQ 列表、件号卡片的设备适配关系
+  // （关系级证据未达公开标准，见 docs/trust/verified-part-number-asset-gate-v1.md §7.2）。
+  // 已按 PUBLIC-TRUST-CLOSEOUT-V1 移除：件号卡片的供应商数量与最低价，以及随之无用的 products 关联
+  // （产品/供应商数据均未经真实性审核，不参与首页陈述）。
+  // 相应死查询（brand._count.equipment、equipment._count.partNumberRelations）一并删除。
+  const [brands, equipment, partNumbers, homeBanners, brandsWithEquipment, categories] = await Promise.all([
+    prisma.brand.findMany({ where: { status: "ACTIVE" }, include: { _count: { select: { partNumbers: { where: PUBLIC_PN_WHERE } } } }, take: 12, orderBy: { name: "asc" } }),
+    prisma.equipment.findMany({ where: { status: "ACTIVE" }, include: { brand: true }, take: 8, orderBy: { id: "asc" } }),
+    prisma.partNumber.findMany({ where: PUBLIC_PN_WHERE, include: { brand: true }, take: 6, orderBy: { id: "asc" } }),
+    // 公开条件集中在 @/lib/home-banner：status=ACTIVE + position=HOME_TOP + [startAt, endAt] 时间窗。
+    prisma.banner.findMany({ where: publicHomeBannerWhere(bannerNow), orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
+    prisma.brand.findMany({ where: { status: "ACTIVE", equipment: { some: { status: "ACTIVE" } } }, include: { equipment: { where: { status: "ACTIVE" }, take: 6, orderBy: { id: "desc" } } }, orderBy: { name: "asc" } }),
     prisma.category.findMany({ take: 16, orderBy: { sortOrder: "asc" } }),
   ]);
-  if (homeBanners.length > 0) {
-    await prisma.banner.updateMany({ where: { id: { in: homeBanners.map((b) => b.id) } }, data: { impressions: { increment: 1 } } }).catch(() => {});
-  }
+
+  // 已移除渲染期写库：原实现在每次 GET 渲染时对 impressions +1，且 .catch(() => {}) 静默吞错。
+  // 后果是爬虫、预取、健康检查都会计入曝光，admin 端 CTR = clicks / impressions 系统性偏低。
+  // 曝光计数需要独立的 beacon 端点 + 去重策略（不在此次 P1 修复范围内，见交付报告"剩余风险"）。
 
   return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify([
-            { "@context": "https://schema.org", "@type": "Organization", name: "矿配云 Mining Parts Cloud", url: "https://kuangpeiyun.com", description: "中国矿山设备与配件专业展示、找货与询价平台" },
-            { "@context": "https://schema.org", "@type": "WebSite", name: "矿配云", url: "https://kuangpeiyun.com", potentialAction: { "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: "https://kuangpeiyun.com/search?q={search_term_string}" }, "query-input": "required name=search_term_string" } },
-            { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "首页", item: "https://kuangpeiyun.com" }] },
-          ]),
-        }}
-      />
-      {/* Hero */}
-      <section className="relative text-white py-14 md:py-16 overflow-hidden"
-        style={{
-          backgroundImage: `radial-gradient(circle at 20% 20%, rgba(245,158,11,0.15), transparent 50%), radial-gradient(circle at 80% 80%, rgba(59,130,246,0.12), transparent 50%), linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)`,
-        }}>
-        <div className="absolute inset-0 opacity-[0.08]"
-          style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`, backgroundSize: "40px 40px" }} />
-        <div className="container relative text-center">
-          <h1 className="text-3xl md:text-4xl font-bold">找矿山设备与配件，就上矿配云</h1>
-          <p className="text-gray-400 mt-2">找设备 · 找配件 · 找厂家 · 发询价</p>
-          <form action="/search" className="max-w-2xl mx-auto mt-6 flex bg-white rounded-lg overflow-hidden shadow-lg">
-            <input name="q" placeholder="输入件号、设备型号、产品名称或品牌，如 XP210162 / MB670-1 / CL210" className="flex-1 px-5 py-3 text-gray-900 outline-none" />
-            <button className="bg-[#F59E0B] text-white px-6 font-bold">搜索</button>
-          </form>
-          <div className="flex justify-center gap-3 mt-4 text-xs flex-wrap">
-            {hotSearches.map((s) => <Link key={s} href={`/search?q=${s}`} className="text-gray-300 hover:text-white">{s}</Link>)}
-          </div>
-          <div className="flex justify-center gap-3 mt-5 flex-wrap">
-            <Link href="/rfq/create" className="bg-[#F59E0B] text-white px-5 py-2.5 rounded font-medium">免费发布询价</Link>
-            <Link href="/part-number" className="border border-white/30 px-5 py-2.5 rounded">免费找货</Link>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-8 text-xs max-w-3xl mx-auto">
-            <div className="border border-white/10 rounded p-3">覆盖主流矿山设备品牌</div>
-            <div className="border border-white/10 rounded p-3">支持件号精准找货</div>
-            <div className="border border-white/10 rounded p-3">供应商直接报价</div>
-            <div className="border border-white/10 rounded p-3">免费发布询价</div>
-          </div>
+    <div className="home-page">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([
+        { "@context": "https://schema.org", "@type": "Organization", name: "矿配云 Mining Parts Cloud", url: "https://kuangpeiyun.com", description: "中国矿山设备与配件专业展示、找货与询价平台" },
+        { "@context": "https://schema.org", "@type": "WebSite", name: "矿配云", url: "https://kuangpeiyun.com", potentialAction: { "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: "https://kuangpeiyun.com/search?q={search_term_string}" }, "query-input": "required name=search_term_string" } },
+        { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "首页", item: "https://kuangpeiyun.com" }] },
+      ]) }} />
+      <section className="home-hero">
+        <div className="home-container home-hero-content">
+          <p className="home-eyebrow">专业 · 可靠 · 高效</p>
+          <h1>全球地下矿山配件<br />搜索 · 查阅 · 询价 · 采购</h1>
+          <p className="home-hero-lead">覆盖 Sandvik、JOY、CAT、Eickhoff 等主流品牌<br />为矿山采购提供配件资料与公开供应商信息</p>
+          <HomeSearch />
+          <div className="home-hot-searches"><strong>热门搜索：</strong>{["Sandvik LS190", "JOY 10SC32", "MB670", "Eickhoff SL300", "CAT CL210"].map(term => <Link href={"/search?q="+encodeURIComponent(term)} key={term}>{term}</Link>)}</div>
+        </div>
+        <div className="home-container home-benefits">
+          {[{icon:ShieldCheck,title:"地下矿山设备目录",text:"围绕地下采矿设备",href:"/equipment"},{icon:BookOpen,title:"结构化零件资料",text:"查阅件号与来源记录",href:"/part-number"},{icon:Users,title:"公开供应商信息",text:"浏览企业与供货资料",href:"/suppliers"},{icon:FileSearch,title:"采购需求与询价",text:"描述需求，继续沟通",href:"/rfqs"}].map(({icon:Icon,title,text,href})=><Link href={href} className="home-benefit" key={title}><span><Icon size={25} aria-hidden="true"/></span><div><h2>{title}</h2><p>{text}</p></div></Link>)}
         </div>
       </section>
-
-      {/* 顶部广告 */}
-      {homeBanners.length > 0 && (
-        <section className="container py-4">
-          {homeBanners.map((b) => (
-            <a key={b.id} href={`/api/banner/click/${b.id}`} target="_blank" className="block">
-              <img src={b.imageUrl} alt={b.title} className="w-full rounded-lg border" />
-            </a>
-          ))}
+      <div className="home-container home-catalog">
+        {homeBanners.length > 0 && <section className="home-banner-strip" aria-label="平台横幅">{homeBanners.map(banner=><a key={banner.id} href={"/api/banner/click/"+banner.id} target="_blank" rel="noreferrer"><img src={banner.imageUrl} alt={banner.title}/></a>)}</section>}
+        <section className="home-section" aria-labelledby="home-brands-title">
+          <div className="home-section-heading"><div><h2 id="home-brands-title">品牌库 / 热门品牌</h2><p>按品牌查找设备、零件号与配件资料</p></div><Link href="/brands">全部品牌 <ArrowRight size={15}/></Link></div>
+          <div className="home-brand-grid">{brandAssets.map(asset=>{const record=brands.find(b=>[b.name,b.nameEn].some(n=>n?.toLowerCase().includes(asset.name.toLowerCase())));return <Link className="home-brand-card" href={record ? "/brands/"+record.slug : "/brands"} key={asset.name}><div className="home-brand-image"><img src={"/home-assets/"+asset.image} alt={asset.name}/></div><h3>{asset.name === "CAT" ? "Caterpillar" : asset.name}</h3><p>{record ? record._count.partNumbers.toLocaleString()+" 个公开件号" : "浏览品牌目录"}</p></Link>})}<Link href="/brands" className="home-brand-card home-brand-more"><span>···</span><h3>更多品牌</h3><p>探索品牌目录</p></Link></div>
         </section>
-      )}
-
-      {/* 快速找货 */}
-      <section className="container py-8">
-        <h2 className="text-xl font-bold mb-3">快速找货</h2>
-        <div className="bg-white border rounded p-4">
-          <div className="flex flex-wrap gap-2">
-            {categories.map((c) => <Link key={c.id} href={`/search?q=${encodeURIComponent(c.name)}`} className="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">{c.name}</Link>)}
-            {categories.length === 0 && <span className="text-xs text-gray-400">数据库暂无分类，请先在后台添加配件分类</span>}
-          </div>
-        </div>
-        <div className="mt-3 text-sm text-blue-600">不知道件号？<Link href="/equipment">按设备找配件 →</Link></div>
-      </section>
-
-      <main className="container pb-12 space-y-10">
-        {/* 热门品牌 */}
-        <section>
-          <div className="flex justify-between items-end mb-3">
-            <div><h2 className="text-xl font-bold">热门品牌</h2><p className="text-xs text-gray-500 mt-1">覆盖主流矿山设备品牌</p></div>
-            <Link href="/brands" className="text-sm text-blue-600">全部 <ArrowRight className="inline h-3 w-3" /></Link>
-          </div>
-          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-3">
-            {brands.map((b) => (
-              <Link key={b.id} href={`/brands/${b.slug}`} className="bg-white border rounded-lg p-4 flex flex-col items-center justify-center h-[130px] hover:shadow">
-                <div className="h-14 flex items-center justify-center">
-                  {b.logo ? (
-                    <img src={b.logo} alt={b.name} className="max-h-14 max-w-[120px] object-contain" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">{b.name[0]}</div>
-                  )}
-                </div>
-                <div className="text-sm font-medium mt-2">{b.name}</div>
-                <div className="text-[10px] text-gray-400">{b._count.partNumbers} 件号</div>
-              </Link>
-            ))}
-          </div>
+        <section className="home-section" aria-labelledby="home-equipment-title">
+          <div className="home-section-heading"><div><h2 id="home-equipment-title">热门矿山设备</h2><p>按设备型号浏览目录，查找相关零件资料</p></div><Link href="/equipment">全部设备 <ArrowRight size={15}/></Link></div>
+          <div className="home-equipment-grid">{[equipmentAssets[1],equipmentAssets[2],equipmentAssets[3],equipmentAssets[0],equipmentAssets[4]].map((asset,i)=>{const record=equipment.find(e=>e.model.toLowerCase()===asset.model.toLowerCase());const names=["井下铲运机 LHD","梭车 Shuttle Car","连续采煤机","掘锚机 Bolter Miner","地下装载设备"];return <Link href={record ? "/equipment/"+record.slug : "/equipment"} className="home-equipment-card" key={asset.model}><div className="home-equipment-image"><img src={"/home-assets/"+asset.image} alt={asset.brand+" "+asset.model}/></div><div className="home-equipment-info"><h3>{names[i]}</h3><p>{asset.brand} {asset.model}</p><small>查看设备目录与资料</small></div><span className="home-card-arrow"><ArrowRight size={16}/></span></Link>})}<Link className="home-equipment-card home-equipment-explore" href="/equipment"><Boxes size={48} strokeWidth={1.2}/><h3>更多矿山设备</h3><p>浏览公开设备目录</p><span className="home-card-arrow"><ArrowRight size={16}/></span></Link></div>
+          <p className="home-evidence-note">设备与品牌图片仅作目录展示，不代表具体件号适配结论、供应商授权或资质认证。</p>
         </section>
-
-        {/* 热门设备 */}
-        <section className="bg-slate-50 -mx-4 px-4 py-8 rounded">
-          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">热门矿山设备</h2><Link href="/equipment" className="text-sm text-blue-600">全部 <ArrowRight className="inline h-3 w-3" /></Link></div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {equipment.map((e) => (
-              <Link key={e.id} href={`/equipment/${e.slug}`} className="bg-white border rounded p-4 hover:shadow">
-                <div className="h-24 bg-gradient-to-br from-slate-700 to-slate-900 rounded mb-3 flex items-center justify-center text-white text-2xl font-bold overflow-hidden relative">
-                  {e.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={e.imageUrl} alt={e.model} className="absolute inset-0 w-full h-full object-cover" />
-                  ) : e.brand.name[0]}
-                </div>
-                <span className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded">{e.brand.name}</span>
-                <div className="font-bold mt-2">{e.model}</div>
-                <div className="text-xs text-gray-500">{e.equipmentType}</div>
-                <div className="text-xs text-gray-400 mt-1">{e._count.partNumberRelations} 个相关件号</div>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        {/* 热门件号 */}
-        <section>
-          <div className="flex justify-between items-end mb-3">
-            <div><h2 className="text-xl font-bold">热门件号</h2><p className="text-xs text-gray-500 mt-1">按件号精准找货</p></div>
-            <Link href="/part-number" className="text-sm text-blue-600">件号数据库 <ArrowRight className="inline h-3 w-3" /></Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {partNumbers.map((p) => {
-              const supplierCount = new Set(p.products.map((x) => x.supplierId)).size;
-              const prices = p.products.map((x) => x.price).filter((v): v is number => v !== null);
-              return (
-                <Link key={p.id} href={`/part-number/${p.slug}`} className="bg-white border rounded p-4 hover:shadow block">
-                  <div className="font-mono font-bold text-blue-700 text-lg">{p.number}</div>
-                  <div className="mt-1">{p.name}</div>
-                  <div className="flex gap-2 mt-2 text-xs">
-                    {p.brand && <span className="bg-gray-100 px-2 py-0.5 rounded">{p.brand.name}</span>}
-                    {p.equipmentRelations.length > 0 && <span className="bg-gray-100 px-2 py-0.5 rounded">{p.equipmentRelations.map((r) => r.equipmentModel.model).join(" / ")}</span>}
-                  </div>
-                  <div className="flex justify-between items-center mt-3">
-                    <span className="text-xs text-gray-500">{supplierCount > 0 ? `${supplierCount} 家供应商` : "暂无供应商"}</span>
-                    {prices.length > 0 && <span className="text-orange-600 font-bold">¥{Math.min(...prices)} 起</span>}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* 按设备找配件 */}
-        <section>
-          <div className="flex justify-between items-end mb-3">
-            <div><h2 className="text-xl font-bold">按设备找配件</h2><p className="text-xs text-gray-500 mt-1">不知道件号？选择设备型号，快速查看相关配件</p></div>
-            <Link href="/equipment" className="text-sm text-blue-600">全部设备 <ArrowRight className="inline h-3 w-3" /></Link>
-          </div>
-          <div className="bg-white border rounded divide-y">
-            {brandsWithEquipment.map((b) => (
-              <div key={b.id} className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6 p-4">
-                <div className="w-40 shrink-0 font-bold">{b.name}</div>
-                <div className="flex flex-wrap gap-2 flex-1">
-                  {b.equipment.length === 0 ? <span className="text-xs text-gray-400">暂无设备</span> :
-                    b.equipment.map((e) => (
-                      <Link key={e.id} href={`/equipment/${e.slug}`} className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">{e.model}</Link>
-                    ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* 最新询价 */}
-        <section className="bg-slate-50 -mx-4 px-4 py-8 rounded">
-          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">最新公开询价</h2><Link href="/rfqs" className="text-sm text-blue-600">进入询价大厅 <ArrowRight className="inline h-3 w-3" /></Link></div>
-          {recentRFQs.length === 0 ? (
-            <div className="bg-white border rounded p-8 text-center text-gray-500">目前暂无公开询价，<Link href="/rfq/create" className="text-blue-600">立即发布</Link></div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {recentRFQs.map((r) => (
-                <div key={r.id} className="bg-white border rounded p-4">
-                  <div className="font-medium">{r.title}</div>
-                  <div className="text-xs text-gray-500 mt-1">件号：{r.partNumberStr || r.partNumber?.number || "-"} · 数量：{r.quantity} {r.unit}</div>
-                  <div className="text-xs text-gray-400 mt-1">{r.createdAt.toLocaleDateString()}</div>
-                  <Link href={`/rfq/${r.id}`} className="text-sm text-blue-600 mt-2 inline-block">查看询价 →</Link>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* 优质供应商 */}
-        <section>
-          <div className="flex justify-between items-end mb-3"><h2 className="text-xl font-bold">优质供应商</h2><Link href="/suppliers" className="text-sm text-blue-600">全部 <ArrowRight className="inline h-3 w-3" /></Link></div>
-          {suppliers.length === 0 ? (
-            <div className="bg-white border rounded p-8 text-center text-gray-500">暂无达到公开标准的供应商</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {suppliers.map((s) => (
-                <Link key={s.id} href={`/suppliers/${s.slug}`} className="bg-white border rounded p-4 hover:shadow block">
-                  <div className="font-bold">{s.name}</div>
-                  <span className="inline-block mt-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">✓ 已认证</span>
-                  <div className="text-xs text-gray-500 mt-2">公开供货产品 {s._count.products} 个</div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* 底部转化 CTA */}
-        <section className="bg-slate-900 text-white rounded p-8 text-center">
-          <h2 className="text-xl font-bold">找不到需要的配件？</h2>
-          <p className="text-gray-300 mt-2 text-sm">把设备型号 / 件号 / 产品名称 / 数量告诉我们，供应商会根据询价进行报价。</p>
-          <Link href="/rfq/create" className="inline-block mt-4 bg-[#F59E0B] text-white px-6 py-2.5 rounded font-medium">免费发布询价</Link>
-        </section>
-      </main>
-    </>
+        <section className="home-section home-parts-section" aria-labelledby="home-parts-title"><div className="home-section-heading"><div><h2 id="home-parts-title">公开零件资料</h2><p>查阅件号、名称与品牌信息</p></div><Link href="/part-number">全部件号 <ArrowRight size={15}/></Link></div><div className="home-parts-grid">{partNumbers.length ? partNumbers.map(part=><Link key={part.id} href={"/part-number/"+part.slug}><span>{part.brand?.name || "品牌信息待补"}</span><h3>{part.number}</h3><p>{part.name}</p><ArrowRight size={17}/></Link>):<p className="home-empty">公开件号资料正在整理，可先浏览设备与品牌目录。</p>}</div></section>
+        <section className="home-directory-panel"><div><h2>从设备与分类继续查找</h2><p>适配信息以对应零件资料及来源证据为准。</p></div><div className="home-directory-links">{brandsWithEquipment.slice(0,4).map(brand=><div key={brand.id}><strong>{brand.name}</strong>{brand.equipment.slice(0,4).map(item=><Link key={item.id} href={"/equipment/"+item.slug}>{item.model}</Link>)}</div>)}{categories.length>0 && <div><strong>配件分类</strong>{categories.slice(0,8).map(c=><Link key={c.id} href={"/search?q="+encodeURIComponent(c.name)}>{c.name}</Link>)}</div>}</div></section>
+        <section className="home-bottom-cta"><div><h2>让采购需求与供应信息，更容易对接</h2><p>从设备、件号与资料开始，逐步明确您的采购需求。</p></div><Link href="/rfq/create">发布采购需求 <ArrowRight size={17}/></Link></section>
+      </div>
+      <footer className="home-footer"><div className="home-container"><div className="home-footer-main"><Link href="/" className="home-logo home-logo--wordmark"><img src="/brand/kpy-logo-20261028.png" alt="矿配云 Mining Parts Cloud"/></Link><p>地下矿山设备与配件信息平台</p><nav aria-label="页脚导航"><Link href="/about">关于我们</Link><Link href="/contact">联系我们</Link><Link href="/terms">服务协议</Link><Link href="/privacy">隐私政策</Link></nav></div><div className="home-footer-legal"><span>© 2026 矿配云 Mining Parts Cloud</span><a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer">晋ICP备2026014393号-1</a><a href="https://beian.mps.gov.cn/#/query/webSearch?code=14060202000233" target="_blank" rel="noreferrer"><img src="/gongan-beian.png" alt=""/>晋公网安备14060202000233号</a></div></div></footer>
+    </div>
   );
 }

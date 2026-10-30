@@ -43,7 +43,7 @@ export default function UserMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-44 bg-white border rounded shadow-lg py-2 text-sm z-[70]">
+        <div className="absolute right-0 mt-2 w-44 bg-white border rounded-[2px] shadow-none py-2 text-sm z-[70]">
           {role === "ADMIN" && (
             <>
               <Link

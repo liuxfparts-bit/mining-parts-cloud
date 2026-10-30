@@ -1,0 +1,11 @@
+.git
+node_modules
+.next
+.env
+.env.*
+uploads
+public/uploads
+logs
+*.log
+*.tar
+*.tar.gz

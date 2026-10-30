@@ -6,10 +6,7 @@ export default function Footer() {
       <div className="max-w-[1180px] mx-auto px-5">
         {/* 品牌区 */}
         <div className="mb-6">
-          <div className="font-black text-xl text-white">
-            矿配<span className="text-amber-500">云</span>
-            <span className="text-xs font-normal text-slate-400 ml-2 tracking-widest">MINING PARTS CLOUD</span>
-          </div>
+          <Link href="/" aria-label="矿配云首页" className="inline-block"><img src="/brand/kpy-logo-20261028.png" alt="矿配云 Kuangpeiyun" width={166} height={56} className="w-[166px] h-auto" /></Link>
           <p className="text-xs text-slate-400 mt-2 leading-relaxed">
             中国矿山设备与配件专业展示、找货与询价平台
           </p>

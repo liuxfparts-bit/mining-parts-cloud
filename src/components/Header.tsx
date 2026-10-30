@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Search, LogIn, Building2 } from "lucide-react";
 import { auth } from "@/lib/auth";
+import HomeNavigation from "@/components/HomeNavigation";
 import UserMenu from "@/components/UserMenu";
 
 const navItems = [
@@ -18,10 +19,11 @@ export default async function Header() {
 
   return (
     <header className="bg-white border-b border-line sticky top-0 z-50 shadow-sm">
-      <div className="container">
+      <HomeNavigation name={session ? name : undefined} role={role} />
+      <div className="container original-navigation">
         <div className="flex items-center h-[64px] gap-6">
-          <Link href="/" className="font-black text-2xl tracking-tight text-ink shrink-0">
-            矿配<span className="text-accent">云</span>
+          <Link href="/" className="shrink-0" aria-label="矿配云首页">
+            <img src="/brand/kpy-logo-20261028.png" alt="矿配云 Kuangpeiyun" width={166} height={56} className="w-[166px] h-auto" />
           </Link>
           <nav className="hidden lg:flex items-center gap-5 text-sm flex-1">
             {navItems.map((item) => (
